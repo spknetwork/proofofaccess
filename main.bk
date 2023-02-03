@@ -1,0 +1,73 @@
+package main
+
+import (
+  "flag"
+  "fmt"
+  "proofofaccess/connections"
+  "proofofaccess/messaging"
+)
+
+// Declare a variable to store the IP address and port to connect to
+var connectAddress = flag.String("connect", "", "IP address and port to connect to in the format 'host:port'")
+
+// Declare a variable to store the port to listen on
+var listenPort = flag.Int("listen", 8080, "port to listen on")
+
+// Declare a variable to store the node type
+// var nodeType = flag.Int("node", 1, "Node type 1 = validation 2 = access")
+
+
+func main() {
+  // Parse the command line flags
+  flag.Parse()
+
+  // Create a listener on the specified port
+  listener, _ := connections.Listen(*listenPort)
+
+  // Make sure the listener is closed when the program exits
+  defer listener.Close()
+
+  // Create a goroutine to handle incoming connections
+  go func() {
+    for {
+      // Accept incoming connections
+      conn, err := listener.Accept()
+      if err != nil {
+        // Print an error if there is an issue accepting the connection
+        fmt.Println("Error accepting:", err.Error())
+        return
+      }
+      // Handle the connection in a separate goroutine
+      go connections.HandleConnection(conn)
+    }
+  }()
+
+  // If an address to connect to was specified
+  if *connectAddress != "" {
+    // Connect to the specified node
+    conn, err := connections.ConnectToNode(*connectAddress)
+    if err != nil {
+      // Print an error if there is an issue connecting
+      fmt.Println(err)
+      return
+    }
+    // Make sure the connection is closed when the program exits
+    defer conn.Close()
+    // Print a message indicating that the connection was successful
+    fmt.Println("Connected to node.")
+    // Create an infinite loop to send messages to the node
+    for {
+      // Get a message from the user
+      text := messaging.CliMessage()
+      // Send the message to the node
+      messaging.SendMessage(conn, text+"\n")
+    }
+    // Exit the program
+    return
+  }
+
+  // Create an infinite loop to keep the program running until it's interrupted
+  for {
+
+  }
+}
