@@ -9,10 +9,10 @@ import (
 var Shell = ipfs.NewLocalShell()
 
 // Subscribe to a topic
-func Subscribe() (*ipfs.PubSubSubscription, error) {
+func Subscribe(username string) (*ipfs.PubSubSubscription, error) {
 	_, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	sub, err := Shell.PubSubSubscribe("example-topic")
+	sub, err := Shell.PubSubSubscribe(username)
 	if err != nil {
 		fmt.Println("Error subscribing:", err)
 		return nil, err
@@ -32,7 +32,7 @@ func Read(sub *ipfs.PubSubSubscription) (string, error) {
 
 // Publish a message to a topic
 func Publish(message string) error {
-	err := Shell.PubSubPublish("example-topic", message)
+	err := Shell.PubSubPublish("nathansenn", message)
 	if err != nil {
 		fmt.Println("Error publishing message:", err)
 		return err

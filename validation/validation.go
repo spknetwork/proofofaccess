@@ -17,9 +17,10 @@ func AppendHashToFile(hash string, CID string) string {
 // Access Node Function
 func CreatProofHash(hash string, CID string) string {
 	file := AppendHashToFile(hash, CID)
-	proofhash := proofcrypto.HashFile(file)
-	//fmt.Println("Proof Hash: ", proofhash)
-	return proofhash
+
+	proofHash := proofcrypto.HashFile(file)
+	fmt.Println("Proof Hash: ", proofHash)
+	return proofHash
 }
 
 type RequestProof struct {

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"github.com/multiformats/go-multihash"
 	"math/rand"
+	"proofofaccess/localdata"
 	"time"
 )
 
@@ -24,5 +25,6 @@ func CreateRandomHash() string {
 
 	hash, _ := multihash.Sum([]byte(fmt.Sprintf("%d", randomNumber)), multihash.SHA2_256, -1)
 	fmt.Printf("%x\n", hash)
+	localdata.SaveHash(hash.B58String())
 	return hash.B58String()
 }
