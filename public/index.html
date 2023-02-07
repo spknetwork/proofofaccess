@@ -1,0 +1,32 @@
+<html>
+<head>
+    <title>Proof Of Access</title>
+    <style>
+        form {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        img {
+            display: block;
+            margin: 0 auto;
+            padding-top: 20px;
+            width: 200px;
+        }
+    </style>
+</head>
+<body>
+<img src="spk.png" alt="Logo">
+
+<form action="/validate">
+    <h2>Proof Of Access</h2>
+    <p>Enter your username and CID to prove you have access to the file.</p>
+    <label for="name">Username:</label>
+    <input type="text" id="name" name="name"><br><br>
+    <label for="cid">CID:</label>
+    <input type="text" id="cid" name="CID"><br><br>
+    <input type="submit" value="Submit">
+</form>
+</body>
+</html>

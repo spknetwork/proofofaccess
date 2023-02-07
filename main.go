@@ -53,12 +53,12 @@ func main() {
 				fmt.Println("Validation hash:", validationHash)
 				fmt.Println("CID:", CID)
 				fmt.Println("Hash:", Hash)
-				if validationHash == proofHash {
+				if validationHash == proofHash && elapsed < 150*time.Millisecond {
 					localdata.SetStatus("Valid")
 					fmt.Println("Proof of access is valid")
 				} else {
 					localdata.SetStatus("Invalid")
-					fmt.Println("Proof of access is invalid")
+					fmt.Println("Proof of access is invalid took too long")
 				}
 			}
 		}

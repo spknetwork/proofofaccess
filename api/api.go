@@ -21,8 +21,8 @@ type ExampleResponse struct {
 var CID = ""
 
 func Api() {
+	http.Handle("/", http.FileServer(http.Dir("public")))
 	http.HandleFunc("/validate", func(w http.ResponseWriter, r *http.Request) {
-
 		// Check that the request is a GET request
 		if r.Method != http.MethodGet {
 			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
@@ -53,6 +53,7 @@ func Api() {
 		}
 		// Create an instance of the ExampleResponse struct
 		status := localdata.GetStatus()
+		localdata.SetStatus("pending")
 		elapsed := localdata.GetElapsed()
 		fmt.Printf("Time elapsed: %s\n", elapsed)
 		response := ExampleResponse{Status: status, Elapsed: strconv.FormatFloat(float64(elapsed.Milliseconds()), 'f', 0, 64) + "ms"}

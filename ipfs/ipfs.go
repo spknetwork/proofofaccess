@@ -23,6 +23,7 @@ func Upload() {
 
 func Download(fileHash string) (bytes.Buffer, error) {
 	// Download the file from IPFS
+	fmt.Println("Downloading file: ", fileHash)
 	fileReader, err := Shell.Cat(fileHash)
 	if err != nil {
 		return bytes.Buffer{}, fmt.Errorf("error downloading file: %v", err)
