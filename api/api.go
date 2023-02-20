@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"proofofaccess/database"
 	"proofofaccess/localdata"
 	"proofofaccess/proofcrypto"
 	"proofofaccess/pubsub"
@@ -12,6 +13,7 @@ import (
 	"time"
 )
 
+// ExampleResponse
 // Define a struct to represent the data we want to return from the API
 type ExampleResponse struct {
 	Status  string `json:"Status"`
@@ -20,42 +22,48 @@ type ExampleResponse struct {
 
 var CID = ""
 
+// Api
+// Starts the API and handles the requests
 func Api() {
+	// Handle the API requests
 	http.Handle("/", http.FileServer(http.Dir("public")))
+
 	http.HandleFunc("/validate", func(w http.ResponseWriter, r *http.Request) {
 		// Check that the request is a GET request
-		if r.Method != http.MethodGet {
-			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-			return
-		}
-		// Check that the request contains a "name" query parameter
-		name := r.URL.Query().Get("name")
+		CheckRequestMethod(r, w, "GET")
+
+		// Check that the request contains query parameters
+		name := CheckRequestQuery(r, w, "name")
+		CID = CheckRequestQuery(r, w, "CID")
+
+		// Pubsub channel
 		pubsub.Subscribe(name)
-		if name == "" {
-			http.Error(w, "Please provide a name", http.StatusBadRequest)
-			return
-		}
-		CID = r.URL.Query().Get("CID")
-		localdata.SaveCID(CID)
-		if CID == "" {
-			http.Error(w, "Please provide a CID", http.StatusBadRequest)
-			return
+
+		// Create a random seed hash
+		hash := proofcrypto.CreateRandomHash()
+
+		// Create a proof request
+		proofJson, _ := validation.ProofRequestJson(hash, CID)
+
+		// Save the proof request to the database
+		database.Save([]byte(hash), []byte(proofJson))
+
+		// Save the proof time
+		localdata.SaveTime(hash)
+
+		// Send the proof request to the storage node
+		pubsub.Publish(proofJson)
+
+		// Wait for the proof to be validated
+		for status := localdata.GetStatus(hash); status == "Pending"; status = localdata.GetStatus(hash) {
+			time.Sleep(1 * time.Second)
 		}
 
-		hash := proofcrypto.CreateRandomHash()
-		proofJson, _ := validation.ProofRequestJson(hash, CID)
-		fmt.Println("Sending message:", proofJson)
-		localdata.SaveTime()
-		pubsub.Publish(proofJson)
-		for status := localdata.GetStatus(); status == "pending"; status = localdata.GetStatus() {
-			time.Sleep(1 * time.Second)
-			fmt.Println("Waiting for proof")
-		}
-		// Create an instance of the ExampleResponse struct
-		status := localdata.GetStatus()
-		localdata.SetStatus("pending")
-		elapsed := localdata.GetElapsed()
-		fmt.Printf("Time elapsed: %s\n", elapsed)
+		// Get the proof status and time elapsed
+		status := localdata.GetStatus(hash)
+		elapsed := localdata.GetElapsed(hash)
+
+		// Create a response struct
 		response := ExampleResponse{Status: status, Elapsed: strconv.FormatFloat(float64(elapsed.Milliseconds()), 'f', 0, 64) + "ms"}
 
 		// Encode the response as JSON
@@ -74,5 +82,26 @@ func Api() {
 	err := http.ListenAndServe(":8080", nil)
 	if err != nil {
 		fmt.Println(err)
+	}
+}
+
+// CheckRequestQuery
+// Check that the request contains a query parameter
+func CheckRequestQuery(r *http.Request, w http.ResponseWriter, query string) string {
+	name := r.URL.Query().Get(query)
+	pubsub.Subscribe(name)
+	if name == "" {
+		http.Error(w, "Please provide a "+query, http.StatusBadRequest)
+		return ""
+	}
+	return name
+}
+
+// CheckRequestMethod
+// Check that the request is a GET request
+func CheckRequestMethod(r *http.Request, w http.ResponseWriter, method string) {
+	if r.Method != method {
+		http.Error(w, "Invalid request method", http.StatusMethodNotAllowed)
+		return
 	}
 }
