@@ -34,7 +34,7 @@ func Api() {
 
 		// Check that the request contains query parameters
 		name := CheckRequestQuery(r, w, "name")
-		CID = CheckRequestQuery(r, w, "CID")
+		CID = CheckRequestQuery(r, w, "cid")
 
 		// Pubsub channel
 		pubsub.Subscribe(name)
