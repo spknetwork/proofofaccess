@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"proofofaccess/localdata"
+	"proofofaccess/proofcrypto"
 	"proofofaccess/pubsub"
 	"proofofaccess/validation"
 	"strings"
@@ -24,7 +25,7 @@ var request Request
 func SendProof(hash string, seed string) {
 	jsonString := `{"type": "ProofOfAccess", "hash":"` + hash + `", "seed":"` + seed + `"}`
 	jsonString = strings.TrimSpace(jsonString)
-	pubsub.Publish(jsonString)
+	pubsub.Publish(jsonString, localdata.GetNodeName())
 }
 
 // HandleMessage
@@ -41,12 +42,22 @@ func HandleMessage(message string, nodeType *int) {
 		if request.Type == "ProofOfAccess" {
 			HandleProofOfAccess(request)
 		}
+		if request.Type == "PingPongPong" {
+			fmt.Println("PingPongPong received")
+			start := localdata.GetTime(request.Hash)
+			fmt.Println("Start time:", start)
+			elapsed := time.Since(start)
+			fmt.Println("Elapsed time:", elapsed)
+		}
 	}
 
 	//Handle request for proof request from validation node
 	if *nodeType == 2 {
 		if request.Type == "RequestProof" {
 			HandleRequestProof(request)
+		}
+		if request.Type == "PingPongPing" {
+			PingPongPong(request.Hash)
 		}
 	}
 }
@@ -89,4 +100,25 @@ func HandleProofOfAccess(request Request) {
 		localdata.SetStatus(request.Seed, CID, "Invalid")
 		fmt.Println("Proof of access is invalid took too long")
 	}
+}
+
+func PingPong() {
+	hash := proofcrypto.CreateRandomHash()
+	localdata.SaveTime(hash)
+	PingPongPing(hash)
+	time.Sleep(1 * time.Second)
+}
+
+func PingPongPing(hash string) {
+	fmt.Println("PingPongPing")
+	jsonString := `{"type": "PingPongPing", "hash":"` + hash + `"}`
+	jsonString = strings.TrimSpace(jsonString)
+	pubsub.Publish(jsonString, localdata.GetNodeName())
+}
+
+func PingPongPong(hash string) {
+	fmt.Println("PingPongPong")
+	jsonString := `{"type": "PingPongPong", "hash":"` + hash + `"}`
+	jsonString = strings.TrimSpace(jsonString)
+	pubsub.Publish(jsonString, localdata.GetNodeName())
 }

@@ -19,6 +19,8 @@ type Message struct {
 	Status string `json:"status"`
 }
 
+var NodeName = ""
+
 // SaveTime
 // Saves the time to the database
 func SaveTime(hash string) {
@@ -70,4 +72,15 @@ func SetStatus(seed string, hash string, status string) {
 	jsonString := `{"type": "ProofOfAccess", "hash":"` + hash + `", "seed":"` + seed + `", "status":"` + status + `"}`
 	jsonString = strings.TrimSpace(jsonString)
 	database.Update([]byte(seed), []byte(jsonString))
+}
+
+// SetNodeName
+// Sets the node name in localdata
+func SetNodeName(name string) {
+	NodeName = name
+}
+
+func GetNodeName() string {
+	return NodeName
+
 }

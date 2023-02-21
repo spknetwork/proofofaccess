@@ -4,6 +4,7 @@ import (
 	"flag"
 	"fmt"
 	"proofofaccess/api"
+	"proofofaccess/localdata"
 	"proofofaccess/messaging"
 	"proofofaccess/pubsub"
 )
@@ -19,6 +20,7 @@ var Hash = ""
 func main() {
 	// Parse the command line flags
 	flag.Parse()
+	localdata.SetNodeName(*username)
 	// Start the API
 	go func() {
 		if *nodeType == 1 {
@@ -38,6 +40,8 @@ func main() {
 		}
 	}()
 	for {
-
+		if *nodeType == 1 {
+			messaging.PingPong()
+		}
 	}
 }
