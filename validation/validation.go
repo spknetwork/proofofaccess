@@ -31,7 +31,7 @@ func CreatProofHash(hash string, CID string) string {
 	// Get the length of the CIDs
 	length := len(cids)
 	// Create the file contents
-	file := ""
+	proofHash := ""
 	// Get the seed from the hash
 	seed := int(proofcrypto.GetIntFromHash(hash))
 
@@ -43,15 +43,12 @@ func CreatProofHash(hash string, CID string) string {
 		}
 		// If the seed is equal to the current index, append the hash to the file contents
 		if i == seed {
-			fmt.Println("Seed: ", seed)
-			fmt.Println("Length ", length)
-			file = file + AppendHashToFile(hash, cids[seed])
-			seed = seed + int(proofcrypto.GetIntFromHash(hash+string(i)))
-
+			proofHash = proofHash + proofcrypto.HashFile(AppendHashToFile(hash, cids[seed]))
+			seed = seed + int(proofcrypto.GetIntFromHash(hash+proofHash))
 		}
 	}
 	// Create the proof hash
-	proofHash := proofcrypto.HashFile(file)
+	proofHash = proofcrypto.HashFile(proofHash)
 	fmt.Println("Proof Hash: ", proofHash)
 	return proofHash
 }

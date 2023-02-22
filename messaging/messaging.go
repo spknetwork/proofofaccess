@@ -43,7 +43,6 @@ func HandleMessage(message string, nodeType *int) {
 			HandleProofOfAccess(request)
 		}
 		if request.Type == "PingPongPong" {
-			fmt.Println("PingPongPong received")
 			start := localdata.GetTime(request.Hash)
 			fmt.Println("Start time:", start)
 			elapsed := time.Since(start)
@@ -110,14 +109,12 @@ func PingPong() {
 }
 
 func PingPongPing(hash string) {
-	fmt.Println("PingPongPing")
 	jsonString := `{"type": "PingPongPing", "hash":"` + hash + `"}`
 	jsonString = strings.TrimSpace(jsonString)
 	pubsub.Publish(jsonString, localdata.GetNodeName())
 }
 
 func PingPongPong(hash string) {
-	fmt.Println("PingPongPong")
 	jsonString := `{"type": "PingPongPong", "hash":"` + hash + `"}`
 	jsonString = strings.TrimSpace(jsonString)
 	pubsub.Publish(jsonString, localdata.GetNodeName())

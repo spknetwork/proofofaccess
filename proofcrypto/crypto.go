@@ -13,8 +13,6 @@ import (
 // Hash the file contents
 func HashFile(fileContents string) string {
 	hash := sha256.Sum256([]byte(fileContents))
-	fmt.Printf("Hash of modified file contents: %x\n", hash)
-
 	return fmt.Sprintf("%x", hash)
 }
 
@@ -34,7 +32,7 @@ func GetIntFromHash(hash string) uint32 {
 	h := fnv.New32a()
 	// Write the input string to the hash object
 	h.Write([]byte(hash))
-	// Get the 32-bit hash value as a uint32 and convert to a number between 1 and 100
+	// Get the 32-bit hash value as a uint32 and convert to a number between 1 and 10
 	hashValue := h.Sum32()%10 + 1
 	return hashValue
 }

@@ -33,7 +33,6 @@ func SaveTime(hash string) {
 // Gets the time from the database
 func GetTime(hash string) time.Time {
 	data := database.Read([]byte(hash + "time"))
-	fmt.Println("Time from database:", string(data))
 	parsedTime, _ := time.Parse(Layout, string(data))
 	return parsedTime
 }
@@ -41,7 +40,6 @@ func GetTime(hash string) time.Time {
 // SetElapsed
 // Sets the elapsed time to the database
 func SetElapsed(hash string, elapsed time.Duration) {
-	fmt.Println("Elapsed saved to database:", elapsed.String())
 	database.Update([]byte(hash+"elapsed"), []byte(elapsed.String()))
 }
 
@@ -82,5 +80,4 @@ func SetNodeName(name string) {
 
 func GetNodeName() string {
 	return NodeName
-
 }

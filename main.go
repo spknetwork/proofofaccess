@@ -34,7 +34,6 @@ func main() {
 		for {
 			// Read the message from pubsub
 			msg, _ := pubsub.Read(sub)
-			fmt.Println("Received message:", msg)
 			// Handle the message
 			messaging.HandleMessage(msg, nodeType)
 		}
