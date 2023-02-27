@@ -1,6 +1,8 @@
 FROM golang:latest
 
-WORKDIR /app
+ENV NODE=${NODE}
+
+WORKDIR /proofofaccess
 
 COPY go.mod go.sum ./
 
@@ -8,4 +10,3 @@ RUN go mod download
 
 COPY . .
 
-CMD ["go", "run", "main.go"]

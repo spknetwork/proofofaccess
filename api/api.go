@@ -79,7 +79,7 @@ func Api() {
 	})
 
 	// Start the server
-	err := http.ListenAndServe(":8080", nil)
+	err := http.ListenAndServe(":3000", nil)
 	if err != nil {
 		fmt.Println(err)
 	}

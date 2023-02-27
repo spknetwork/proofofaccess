@@ -6,7 +6,7 @@ import (
 	ipfs "github.com/ipfs/go-ipfs-api"
 )
 
-var Shell = ipfs.NewLocalShell()
+var Shell = ipfs.NewShell("ipfs:5001")
 
 // Subscribe to a topic
 func Subscribe(username string) (*ipfs.PubSubSubscription, error) {

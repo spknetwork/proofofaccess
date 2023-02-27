@@ -43,10 +43,7 @@ func HandleMessage(message string, nodeType *int) {
 			HandleProofOfAccess(request)
 		}
 		if request.Type == "PingPongPong" {
-			start := localdata.GetTime(request.Hash)
-			fmt.Println("Start time:", start)
-			elapsed := time.Since(start)
-			fmt.Println("Elapsed time:", elapsed)
+
 		}
 	}
 

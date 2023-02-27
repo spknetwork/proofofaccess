@@ -1,54 +1,28 @@
 # proof-of-access
-[...]
+Proof of Access is a go app that validates you are storing a file on ipfs
 
 # Usage
+Set your username in the .env file. Then run the following commands:
 
-go run main.go -node=1 -username=nathansenn
+docker-compose build
+docker-compose up
 
-go run main.go -node=2 -username=nathansenn
+http://localhost:3000
 
-http://localhost:8080/validate?name=nathansenn&CID=bafybeiaxeriwyaug2xt3x5xj6uf3mmrw4jh2qw2f6f45et77iqwl6fn25m
+enter your username and the CID hash you want to prove you have stored
 
 # License
-[...]
-
-# Acknowledgements
-[...]
-
-# References
-[...]
+GNU General Public License v3.0
 
 # Contact
-[...]
+nathan@d.buzz
 
 # Contributors
-[...]
-
-# Contributing
-[...]
-
-# Code of Conduct
-[...]
+https://github.com/nathansenn
 
 # Funding
-[...]
+https://spk.network/ is funding this project.
 
-# Disclaimer
-[...]
 
-# Changelog
-[...]
-
-# TODO
-[...]
-
-# Roadmap
-[...]
-
-# FAQ
-[...]
-
-# Glossary
-[...]
 
 

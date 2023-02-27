@@ -1,12 +1,11 @@
 version: '3'
 services:
-  proofofaccess:
-    build:
-      context: .
-      dockerfile: Dockerfile
+  validator:
+    build: .
+    command: [ "go", "run", "main.go", "-node=1", "-username=${USERNAME}" ]
     restart: unless-stopped
     ports:
-      - 8080:8080
+      - 3000:3000
     environment:
       - ipfshost=ipfs
       - ipfsprotocol=http
@@ -15,8 +14,23 @@ services:
     tty: true
     networks:
       - proofofaccess
+
+  storage:
+    build: .
+    command: ["go", "run", "main.go", "-node=2", "-username=${USERNAME}"]
+    restart: unless-stopped
+    environment:
+      - ipfshost=ipfs
+      - ipfsprotocol=http
+      - ipfsport=5001
+    stdin_open: true
+    tty: true
+    networks:
+      - proofofaccess
+
   ipfs:
     image: ipfs/kubo:latest
+    command: ["daemon", "--enable-pubsub-experiment"]
     restart: unless-stopped
     deploy:
       resources:
@@ -24,6 +38,8 @@ services:
           memory: 500m
     ports:
       - 5001:5001
+      - 4001:4001
+      - 8080:8081
     volumes:
       - ipfs:/data/ipfs
     networks:
