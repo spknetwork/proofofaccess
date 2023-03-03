@@ -5,7 +5,8 @@ Proof of Access is a go app that validates you are storing a file on ipfs
 Set your username in the .env file. Then run the following commands:
 
 docker-compose build
-docker-compose up
+docker run -p 3000:3000 --interactive --tty proofofaccess_app ./main -node 1 -username nathansmith
+docker run --interactive --tty proofofaccess_app ./main -node 2 -username nathansenn
 
 http://localhost:3000
 
