@@ -9,7 +9,7 @@ import (
 
 // Shell
 // Create a new IPFS shell
-var Shell = ipfs.NewShell("ipfs:5001")
+var Shell = ipfs.NewShell("host.docker.internal:5001")
 
 // Download
 // Add a file to IPFS

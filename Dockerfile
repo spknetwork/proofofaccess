@@ -1,12 +1,9 @@
 FROM golang:latest
 
-ENV NODE=${NODE}
-
-WORKDIR /proofofaccess
-
-COPY go.mod go.sum ./
-
-RUN go mod download
+WORKDIR /app
 
 COPY . .
 
+RUN go build -o main .
+
+CMD ["./main"]

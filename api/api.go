@@ -52,11 +52,11 @@ func Api() {
 		localdata.SaveTime(hash)
 
 		// Send the proof request to the storage node
-		pubsub.Publish(proofJson, localdata.GetNodeName())
+		pubsub.Publish(proofJson, name)
 
 		// Wait for the proof to be validated
 		for status := localdata.GetStatus(hash); status == "Pending"; status = localdata.GetStatus(hash) {
-			time.Sleep(1 * time.Second)
+			time.Sleep(30 * time.Millisecond)
 		}
 
 		// Get the proof status and time elapsed

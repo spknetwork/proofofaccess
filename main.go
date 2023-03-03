@@ -40,7 +40,7 @@ func main() {
 	}()
 	for {
 		if *nodeType == 1 {
-			messaging.PingPong()
+			//messaging.PingPong()
 		}
 	}
 }

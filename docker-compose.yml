@@ -1,53 +1,5 @@
-version: '3'
-services:
-  validator:
-    build: .
-    command: [ "go", "run", "main.go", "-node=1", "-username=${USERNAME}" ]
-    restart: unless-stopped
-    ports:
-      - 3000:3000
-    environment:
-      - ipfshost=ipfs
-      - ipfsprotocol=http
-      - ipfsport=5001
-    stdin_open: true
-    tty: true
-    networks:
-      - proofofaccess
-
-  storage:
-    build: .
-    command: ["go", "run", "main.go", "-node=2", "-username=${USERNAME}"]
-    restart: unless-stopped
-    environment:
-      - ipfshost=ipfs
-      - ipfsprotocol=http
-      - ipfsport=5001
-    stdin_open: true
-    tty: true
-    networks:
-      - proofofaccess
-
-  ipfs:
-    image: ipfs/kubo:latest
-    command: ["daemon", "--enable-pubsub-experiment"]
-    restart: unless-stopped
-    deploy:
-      resources:
-        limits:
-          memory: 500m
-    ports:
-      - 5001:5001
-      - 4001:4001
-      - 8080:8081
-    volumes:
-      - ipfs:/data/ipfs
-    networks:
-      - proofofaccess
-volumes:
-  ipfs:
-  snap:
-
-networks:
-  proofofaccess:
-
+  version: '3'
+  services:
+    app:
+      build: .
+      network_mode: host

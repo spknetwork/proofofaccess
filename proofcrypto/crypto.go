@@ -28,11 +28,18 @@ func CreateRandomHash() string {
 
 // GetIntFromHash
 // get a random number from a hash
-func GetIntFromHash(hash string) uint32 {
+func GetIntFromHash(hash string, length uint32) uint32 {
+	if length <= 7 {
+		return 1
+	}
 	h := fnv.New32a()
 	// Write the input string to the hash object
 	h.Write([]byte(hash))
 	// Get the 32-bit hash value as a uint32 and convert to a number between 1 and 10
-	hashValue := h.Sum32()%10 + 1
+	hashValue := h.Sum32() % length
+	// Ensure that hashValue is not zero
+	if hashValue == 0 {
+		hashValue = 1
+	}
 	return hashValue
 }

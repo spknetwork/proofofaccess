@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"proofofaccess/ipfs"
+	"proofofaccess/localdata"
 	"proofofaccess/proofcrypto"
 )
 
@@ -12,13 +13,16 @@ type RequestProof struct {
 	Hash   string `json:"hash"`
 	CID    string `json:"CID"`
 	Status string `json:"status"`
+	User   string `json:"user"`
 }
 
 // AppendHashToFile
 // Download CID from IPFS and Append Hash to File contents
 func AppendHashToFile(hash string, CID string) string {
 	file, _ := ipfs.Download(CID)
+	fmt.Println("File: ")
 	fileContents := file.String()
+	fmt.Println("hash: ", hash)
 	fileContents += hash
 	return fileContents
 }
@@ -33,7 +37,7 @@ func CreatProofHash(hash string, CID string) string {
 	// Create the file contents
 	proofHash := ""
 	// Get the seed from the hash
-	seed := int(proofcrypto.GetIntFromHash(hash))
+	seed := int(proofcrypto.GetIntFromHash(hash, uint32(length)))
 
 	// Loop through all the CIDs and append the hash to the file contents
 	for i := 1; i <= length; i++ {
@@ -44,7 +48,8 @@ func CreatProofHash(hash string, CID string) string {
 		// If the seed is equal to the current index, append the hash to the file contents
 		if i == seed {
 			proofHash = proofHash + proofcrypto.HashFile(AppendHashToFile(hash, cids[seed]))
-			seed = seed + int(proofcrypto.GetIntFromHash(hash+proofHash))
+			seed = seed + int(proofcrypto.GetIntFromHash(hash+proofHash, uint32(length)))
+			fmt.Println("Seed: ", seed)
 		}
 	}
 	// Create the proof hash
@@ -61,6 +66,7 @@ func ProofRequestJson(hash string, CID string) (string, error) {
 		Hash:   hash,
 		CID:    CID,
 		Status: "Pending",
+		User:   localdata.GetNodeName(),
 	}
 	requestProofJson, err := json.Marshal(requestProof)
 	if err != nil {

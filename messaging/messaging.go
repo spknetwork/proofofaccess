@@ -3,6 +3,7 @@ package messaging
 import (
 	"encoding/json"
 	"fmt"
+	"proofofaccess/database"
 	"proofofaccess/localdata"
 	"proofofaccess/proofcrypto"
 	"proofofaccess/pubsub"
@@ -16,16 +17,17 @@ type Request struct {
 	Hash string `json:"hash"`
 	CID  string `json:"CID"`
 	Seed string `json:"seed"`
+	User string `json:"user"`
 }
 
 var request Request
 
 // SendProof
 // This is the function that sends the proof of access to the validation node
-func SendProof(hash string, seed string) {
+func SendProof(hash string, seed string, user string) {
 	jsonString := `{"type": "ProofOfAccess", "hash":"` + hash + `", "seed":"` + seed + `"}`
 	jsonString = strings.TrimSpace(jsonString)
-	pubsub.Publish(jsonString, localdata.GetNodeName())
+	pubsub.Publish(jsonString, user)
 }
 
 // HandleMessage
@@ -36,7 +38,7 @@ func HandleMessage(message string, nodeType *int) {
 	if err != nil {
 		fmt.Println("Error decoding JSON:", err)
 	}
-
+	fmt.Println("Message received:", message)
 	//Handle proof of access response from storage node
 	if *nodeType == 1 {
 		if request.Type == "ProofOfAccess" {
@@ -63,8 +65,9 @@ func HandleMessage(message string, nodeType *int) {
 func HandleRequestProof(request Request) {
 	CID := request.CID
 	hash := request.Hash
+	user := request.User
 	validationHash := validation.CreatProofHash(hash, CID)
-	SendProof(validationHash, hash)
+	SendProof(validationHash, hash, user)
 }
 
 // HandleProofOfAccess
@@ -81,9 +84,15 @@ func HandleProofOfAccess(request Request) {
 	localdata.SetElapsed(request.Seed, elapsed)
 
 	// Get the CID and Seed
-	CID := request.CID
+	data := database.Read([]byte(request.Seed))
+	var message Request
+	err := json.Unmarshal([]byte(string(data)), &message)
+	if err != nil {
+		fmt.Println("Error decoding JSON:", err)
+	}
+	CID := message.CID
+	fmt.Println("CID:", CID)
 	Seed := request.Seed
-
 	// Create the proof hash
 	validationHash := validation.CreatProofHash(Seed, CID)
 
