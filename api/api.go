@@ -3,7 +3,6 @@ package api
 import (
 	"encoding/json"
 	"fmt"
-	"net/http"
 	"proofofaccess/database"
 	"proofofaccess/localdata"
 	"proofofaccess/proofcrypto"
@@ -11,6 +10,9 @@ import (
 	"proofofaccess/validation"
 	"strconv"
 	"time"
+
+	"github.com/gin-gonic/gin"
+	"github.com/gorilla/websocket"
 )
 
 // ExampleResponse
@@ -20,21 +22,43 @@ type ExampleResponse struct {
 	Elapsed string `json:"Elapsed"`
 }
 
+var upgrader = websocket.Upgrader{
+	ReadBufferSize:  1024,
+	WriteBufferSize: 1024,
+}
+
 var CID = ""
 
 // Api
 // Starts the API and handles the requests
 func Api() {
-	// Handle the API requests
-	http.Handle("/", http.FileServer(http.Dir("public")))
+	// Create a new Gin router
+	r := gin.Default()
 
-	http.HandleFunc("/validate", func(w http.ResponseWriter, r *http.Request) {
-		// Check that the request is a GET request
-		CheckRequestMethod(r, w, "GET")
+	// Serve the index.html file on the root route
+	r.StaticFile("/", "./public/index.html")
 
-		// Check that the request contains query parameters
-		name := CheckRequestQuery(r, w, "name")
-		CID = CheckRequestQuery(r, w, "cid")
+	// Handle the API request
+	r.GET("/validate", func(c *gin.Context) {
+		// Upgrade the HTTP connection to a WebSocket connection
+		conn, err := upgrader.Upgrade(c.Writer, c.Request, nil)
+		if err != nil {
+			fmt.Println(err)
+			return
+		}
+		defer conn.Close()
+
+		// Read the username and CID from the WebSocket connection
+		var msg struct {
+			Name string `json:"name"`
+			CID  string `json:"cid"`
+		}
+		if err := conn.ReadJSON(&msg); err != nil {
+			fmt.Println(err)
+			return
+		}
+		name := msg.Name
+		CID = msg.CID
 
 		// Pubsub channel
 		pubsub.Subscribe(name)
@@ -69,39 +93,21 @@ func Api() {
 		// Encode the response as JSON
 		jsonResponse, err := json.Marshal(response)
 		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
+			fmt.Println(err)
 			return
 		}
 
-		// Write the JSON response to the response writer
-		w.Header().Set("Content-Type", "application/json")
-		w.Write(jsonResponse)
+		// Write the JSON response to the WebSocket connection
+		if err := conn.WriteMessage(websocket.TextMessage, jsonResponse); err != nil {
+			fmt.Println(err)
+			return
+		}
 	})
 
+	r.Static("/public", "./public")
 	// Start the server
-	err := http.ListenAndServe(":3000", nil)
+	err := r.Run(":3000")
 	if err != nil {
 		fmt.Println(err)
-	}
-}
-
-// CheckRequestQuery
-// Check that the request contains a query parameter
-func CheckRequestQuery(r *http.Request, w http.ResponseWriter, query string) string {
-	name := r.URL.Query().Get(query)
-	pubsub.Subscribe(name)
-	if name == "" {
-		http.Error(w, "Please provide a "+query, http.StatusBadRequest)
-		return ""
-	}
-	return name
-}
-
-// CheckRequestMethod
-// Check that the request is a GET request
-func CheckRequestMethod(r *http.Request, w http.ResponseWriter, method string) {
-	if r.Method != method {
-		http.Error(w, "Invalid request method", http.StatusMethodNotAllowed)
-		return
 	}
 }

@@ -44,3 +44,16 @@ func Refs(CID string) ([]string, error) {
 
 	return cidsList, nil
 }
+
+func IsPinned(cid string) bool {
+	// Check if the CID is pinned
+	fmt.Println("Checking if CID is pinned")
+	pins, err := Shell.Pins()
+	if err != nil {
+		fmt.Println("Error getting pins:", err)
+		return false
+	}
+
+	_, ok := pins[cid]
+	return ok
+}

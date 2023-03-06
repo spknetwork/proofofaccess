@@ -22,7 +22,7 @@
     </style>
 </head>
 <body>
-<img src="spk.png" alt="Logo">
+<img src="public/spk.png" alt="SPK Logo">
 
 <form>
     <h2>Proof Of Access</h2>
@@ -41,16 +41,18 @@
         const name = document.getElementById('name').value;
         const cid = document.getElementById('cid').value;
 
-        fetch(`/validate?name=${name}&cid=${cid}`)
-            .then(response => response.json())
-            .then(data => {
-                const resultsDiv = document.getElementById('results');
-                resultsDiv.innerHTML = `Access: ${data.Status}, Message: ${data.Elapsed}`;
-            })
-            .catch(error => {
-                console.error('Error:', error);
-            });
+        const socket = new WebSocket(`ws://${location.host}/validate`);
+        socket.addEventListener('open', () => {
+            socket.send(JSON.stringify({ name, cid }));
+        });
+        socket.addEventListener('message', (event) => {
+            const data = JSON.parse(event.data);
+            const resultsDiv = document.getElementById('results');
+            resultsDiv.innerHTML = `Access: ${data.Status}, Message: ${data.Elapsed}`;
+            socket.close();
+        });
     }
+
 </script>
 
 </body>

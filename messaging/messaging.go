@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"proofofaccess/database"
+	"proofofaccess/ipfs"
 	"proofofaccess/localdata"
 	"proofofaccess/proofcrypto"
 	"proofofaccess/pubsub"
@@ -66,8 +67,12 @@ func HandleRequestProof(request Request) {
 	CID := request.CID
 	hash := request.Hash
 	user := request.User
-	validationHash := validation.CreatProofHash(hash, CID)
-	SendProof(validationHash, hash, user)
+	if ipfs.IsPinned(CID) == true {
+		validationHash := validation.CreatProofHash(hash, CID)
+		SendProof(validationHash, hash, user)
+	} else {
+		SendProof("", hash, user)
+	}
 }
 
 // HandleProofOfAccess
