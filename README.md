@@ -2,6 +2,14 @@
 Proof of Access is a go app that validates you are storing a file on ipfs
 
 # Usage
+go run main.go -node 1 -username nathansmith
+go run main.go -node 2 -username nathansenn
+
+To run the app in docker, you need to have docker installed. Then run the following commands:
+
+For this build you will need to change ipfs and pubsub to
+var Shell = ipfs.NewShell("host.docker.internal:5001")
+
 docker-compose build
 
 macOS

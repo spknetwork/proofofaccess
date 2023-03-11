@@ -6,7 +6,6 @@ import (
 	"proofofaccess/database"
 	"proofofaccess/ipfs"
 	"proofofaccess/localdata"
-	"proofofaccess/proofcrypto"
 	"proofofaccess/pubsub"
 	"proofofaccess/validation"
 	"strings"
@@ -22,6 +21,9 @@ type Request struct {
 }
 
 var request Request
+
+var Ping = map[string]bool{}
+var ProofRequest = map[string]bool{}
 
 // SendProof
 // This is the function that sends the proof of access to the validation node
@@ -46,7 +48,8 @@ func HandleMessage(message string, nodeType *int) {
 			HandleProofOfAccess(request)
 		}
 		if request.Type == "PingPongPong" {
-
+			Ping[request.Hash] = true
+			fmt.Println("PingPongPong received")
 		}
 	}
 
@@ -56,7 +59,8 @@ func HandleMessage(message string, nodeType *int) {
 			HandleRequestProof(request)
 		}
 		if request.Type == "PingPongPing" {
-			PingPongPong(request.Hash)
+			fmt.Println("PingPongPing received")
+			PingPongPong(request.Hash, request.User)
 		}
 	}
 }
@@ -96,37 +100,37 @@ func HandleProofOfAccess(request Request) {
 		fmt.Println("Error decoding JSON:", err)
 	}
 	CID := message.CID
+	ProofRequest[CID] = true
 	fmt.Println("CID:", CID)
 	Seed := request.Seed
 	// Create the proof hash
 	validationHash := validation.CreatProofHash(Seed, CID)
 
 	// Check if the proof of access is valid
-	if validationHash == request.Hash && elapsed < 150*time.Millisecond {
+	if validationHash == request.Hash && elapsed < 500*time.Millisecond {
 		fmt.Println("Proof of access is valid")
 		fmt.Println(request.Seed)
 		localdata.SetStatus(request.Seed, CID, "Valid")
 	} else {
-		localdata.SetStatus(request.Seed, CID, "Invalid")
 		fmt.Println("Proof of access is invalid took too long")
+		localdata.SetStatus(request.Seed, CID, "Invalid")
 	}
 }
 
-func PingPong() {
-	hash := proofcrypto.CreateRandomHash()
+func PingPong(hash string, user string) {
 	localdata.SaveTime(hash)
-	PingPongPing(hash)
+	PingPongPing(hash, user)
 	time.Sleep(1 * time.Second)
 }
 
-func PingPongPing(hash string) {
-	jsonString := `{"type": "PingPongPing", "hash":"` + hash + `"}`
+func PingPongPing(hash string, user string) {
+	jsonString := `{"type": "PingPongPing", "hash":"` + hash + `", "user":"` + localdata.GetNodeName() + `"}`
 	jsonString = strings.TrimSpace(jsonString)
-	pubsub.Publish(jsonString, localdata.GetNodeName())
+	pubsub.Publish(jsonString, user)
 }
 
-func PingPongPong(hash string) {
-	jsonString := `{"type": "PingPongPong", "hash":"` + hash + `"}`
+func PingPongPong(hash string, user string) {
+	jsonString := `{"type": "PingPongPong", "hash":"` + hash + `", "user":"` + user + `"}`
 	jsonString = strings.TrimSpace(jsonString)
-	pubsub.Publish(jsonString, localdata.GetNodeName())
+	pubsub.Publish(jsonString, user)
 }

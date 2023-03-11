@@ -54,8 +54,9 @@ func Read(key []byte) []byte {
 	defer txn.Discard()
 	// Read the data from the database
 	item, err := txn.Get(key)
+
 	if err != nil {
-		log.Fatal(err)
+		log.Panic(err)
 	}
 	val, err := item.ValueCopy(nil)
 	if err != nil {

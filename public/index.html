@@ -27,7 +27,7 @@
 <form>
     <h2>Proof Of Access</h2>
     <p>Enter your username and CID to prove you have access to the file.</p>
-    <label for="name">Username:</label>
+    <label for="name">Hive Username:</label>
     <input type="text" id="name" name="name"><br><br>
     <label for="cid">CID:</label>
     <input type="text" id="cid" name="CID"><br><br>
@@ -42,18 +42,19 @@
         const cid = document.getElementById('cid').value;
 
         const socket = new WebSocket(`ws://${location.host}/validate`);
+
         socket.addEventListener('open', () => {
             socket.send(JSON.stringify({ name, cid }));
         });
+
         socket.addEventListener('message', (event) => {
             const data = JSON.parse(event.data);
             const resultsDiv = document.getElementById('results');
             resultsDiv.innerHTML = `Access: ${data.Status}, Message: ${data.Elapsed}`;
-            socket.close();
         });
     }
-
 </script>
+
 
 </body>
 </html>

@@ -36,7 +36,7 @@ func GetIntFromHash(hash string, length uint32) uint32 {
 	// Write the input string to the hash object
 	h.Write([]byte(hash))
 	// Get the 32-bit hash value as a uint32 and convert to a number between 1 and 10
-	hashValue := h.Sum32() % length
+	hashValue := h.Sum32()%length + 1
 	// Ensure that hashValue is not zero
 	if hashValue == 0 {
 		hashValue = 1
