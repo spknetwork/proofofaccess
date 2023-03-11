@@ -6,7 +6,7 @@ import (
 	ipfs "github.com/ipfs/go-ipfs-api"
 )
 
-var Shell = ipfs.NewShell("host.docker.internal:5001")
+var Shell = ipfs.NewLocalShell()
 
 // Subscribe to a topic
 func Subscribe(username string) (*ipfs.PubSubSubscription, error) {
@@ -32,7 +32,7 @@ func Read(sub *ipfs.PubSubSubscription) (string, error) {
 
 // Publish a message to a topic
 func Publish(message string, user string) error {
-	fmt.Println("Publishing message:", message+" to user:", user)
+	//fmt.Println("Publishing message:", message)
 	err := Shell.PubSubPublish(user, message)
 	if err != nil {
 		fmt.Println("Error publishing message:", err)
