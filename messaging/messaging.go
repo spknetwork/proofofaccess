@@ -120,7 +120,6 @@ func HandleProofOfAccess(request Request) {
 func PingPong(hash string, user string) {
 	localdata.SaveTime(hash)
 	PingPongPing(hash, user)
-	time.Sleep(1 * time.Second)
 }
 
 func PingPongPing(hash string, user string) {

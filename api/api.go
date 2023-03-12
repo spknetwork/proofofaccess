@@ -63,21 +63,16 @@ func Api() {
 		CID = msg.CID
 		rand := proofcrypto.CreateRandomHash()
 
-		// Create a response struct
-		response := ExampleResponse{Status: "Connecting to Peer", Elapsed: "0"}
-
-		// Encode the response as JSON
-		jsonResponse, err := json.Marshal(response)
-		if err != nil {
-			fmt.Println(err)
-			return
-		}
-
-		// Write the JSON response to the WebSocket connection
-		conn.WriteMessage(websocket.TextMessage, jsonResponse)
-
+		WsResponse("Connecting to Peer", "0", conn)
+		i := 0
 		for ping := messaging.Ping[rand]; ping == false; ping = messaging.Ping[rand] {
 			messaging.PingPong(rand, name)
+			if i > 5 {
+				WsResponse("Could not connect to peer try again", "0", conn)
+				return
+			}
+			time.Sleep(1 * time.Second)
+			i++
 		}
 
 		// Create a random seed hash
@@ -95,36 +90,13 @@ func Api() {
 		// Send the proof request to the storage node
 		pubsub.Publish(proofJson, name)
 
-		// Create a response struct
-		response = ExampleResponse{Status: "Waiting Proof", Elapsed: "0"}
-
-		// Encode the response as JSON
-		jsonResponse, err = json.Marshal(response)
-		if err != nil {
-			fmt.Println(err)
-			return
-		}
-
-		// Write the JSON response to the WebSocket connection
-		conn.WriteMessage(websocket.TextMessage, jsonResponse)
-
+		// Create a channel to wait for the proof
+		WsResponse("Waiting for Proof", "0", conn)
 		for proofReq := messaging.ProofRequest[CID]; proofReq == false; proofReq = messaging.ProofRequest[CID] {
 			time.Sleep(30 * time.Millisecond)
 		}
 
-		// Create a response struct
-		response = ExampleResponse{Status: "Validating", Elapsed: "0"}
-
-		// Encode the response as JSON
-		jsonResponse, err = json.Marshal(response)
-		if err != nil {
-			fmt.Println(err)
-			return
-		}
-
-		// Write the JSON response to the WebSocket connection
-		conn.WriteMessage(websocket.TextMessage, jsonResponse)
-
+		WsResponse("Validating", "0", conn)
 		// Wait for the proof to be validated
 		for status := localdata.GetStatus(hash); status == "Pending"; status = localdata.GetStatus(hash) {
 			time.Sleep(30 * time.Millisecond)
@@ -134,21 +106,7 @@ func Api() {
 		status := localdata.GetStatus(hash)
 		elapsed := localdata.GetElapsed(hash)
 
-		// Create a response struct
-		response = ExampleResponse{Status: status, Elapsed: strconv.FormatFloat(float64(elapsed.Milliseconds()), 'f', 0, 64) + "ms"}
-
-		// Encode the response as JSON
-		jsonResponse, err = json.Marshal(response)
-		if err != nil {
-			fmt.Println(err)
-			return
-		}
-
-		// Write the JSON response to the WebSocket connection
-		if err := conn.WriteMessage(websocket.TextMessage, jsonResponse); err != nil {
-			fmt.Println(err)
-			return
-		}
+		WsResponse(status, strconv.FormatFloat(float64(elapsed.Milliseconds()), 'f', 0, 64)+"ms", conn)
 	})
 	r.POST("/write", func(c *gin.Context) {
 		key := c.PostForm("key")
@@ -173,4 +131,19 @@ func Api() {
 	if err != nil {
 		fmt.Println(err)
 	}
+}
+
+func WsResponse(Status string, Elapsed string, conn *websocket.Conn) {
+	// Create a response struct
+	response := ExampleResponse{Status: Status, Elapsed: Elapsed}
+
+	// Encode the response as JSON
+	jsonResponse, err := json.Marshal(response)
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+
+	// Write the JSON response to the WebSocket connection
+	conn.WriteMessage(websocket.TextMessage, jsonResponse)
 }
