@@ -57,3 +57,24 @@ func IsPinned(cid string) bool {
 	_, ok := pins[cid]
 	return ok
 }
+
+func IpfsPingNode(peerID string) error {
+	// Ping the specified node using its peer ID
+	peer, err := Shell.FindPeer(peerID)
+	if err != nil {
+		return fmt.Errorf("error pinging node: %v", err)
+	}
+	fmt.Println("Peer Addrs", peer.Addrs)
+
+	return nil
+}
+
+func IpfsPeerID() {
+	// Get the IPFS peer ID
+	peerID, err := Shell.ID()
+	if err != nil {
+		fmt.Println("Error getting peer ID:", err)
+		return
+	}
+	fmt.Println("Peer ID:", peerID.ID)
+}

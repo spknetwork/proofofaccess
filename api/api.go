@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"net/http"
 	"proofofaccess/database"
+	"proofofaccess/hive"
+	"proofofaccess/ipfs"
 	"proofofaccess/localdata"
 	"proofofaccess/messaging"
 	"proofofaccess/proofcrypto"
@@ -21,6 +23,7 @@ import (
 // Define a struct to represent the data we want to return from the API
 type ExampleResponse struct {
 	Status  string `json:"Status"`
+	Message string `json:"Message"`
 	Elapsed string `json:"Elapsed"`
 }
 
@@ -61,14 +64,26 @@ func Api() {
 		}
 		name := msg.Name
 		CID = msg.CID
+		fmt.Println("test")
+		WsResponse("Connecting", "Connecting to Peer", "0", conn)
+		ipfsid := hive.GetIpfsID(name)
+		if ipfsid == "" {
+			WsResponse("IpfsPeerIDError", "Please enable Proof of Access and register your ipfs node to your hive account", "0", conn)
+			return
+		}
+
+		err = ipfs.IpfsPingNode(ipfsid)
+		if err != nil {
+			fmt.Println(err)
+			return
+		}
 		rand := proofcrypto.CreateRandomHash()
 
-		WsResponse("Connecting to Peer", "0", conn)
 		i := 0
 		for ping := messaging.Ping[rand]; ping == false; ping = messaging.Ping[rand] {
 			messaging.PingPong(rand, name)
 			if i > 5 {
-				WsResponse("Could not connect to peer try again", "0", conn)
+				WsResponse("Connection Error", "Could not connect to peer try again", "0", conn)
 				return
 			}
 			time.Sleep(1 * time.Second)
@@ -91,12 +106,12 @@ func Api() {
 		pubsub.Publish(proofJson, name)
 
 		// Create a channel to wait for the proof
-		WsResponse("Waiting for Proof", "0", conn)
+		WsResponse("Waiting Proof", "Waiting for Proof", "0", conn)
 		for proofReq := messaging.ProofRequest[CID]; proofReq == false; proofReq = messaging.ProofRequest[CID] {
 			time.Sleep(30 * time.Millisecond)
 		}
 
-		WsResponse("Validating", "0", conn)
+		WsResponse("Validating", "Validating", "0", conn)
 		// Wait for the proof to be validated
 		for status := localdata.GetStatus(hash); status == "Pending"; status = localdata.GetStatus(hash) {
 			time.Sleep(30 * time.Millisecond)
@@ -106,7 +121,7 @@ func Api() {
 		status := localdata.GetStatus(hash)
 		elapsed := localdata.GetElapsed(hash)
 
-		WsResponse(status, strconv.FormatFloat(float64(elapsed.Milliseconds()), 'f', 0, 64)+"ms", conn)
+		WsResponse(status, status, strconv.FormatFloat(float64(elapsed.Milliseconds()), 'f', 0, 64)+"ms", conn)
 	})
 	r.POST("/write", func(c *gin.Context) {
 		key := c.PostForm("key")
@@ -133,9 +148,9 @@ func Api() {
 	}
 }
 
-func WsResponse(Status string, Elapsed string, conn *websocket.Conn) {
+func WsResponse(Status string, message string, Elapsed string, conn *websocket.Conn) {
 	// Create a response struct
-	response := ExampleResponse{Status: Status, Elapsed: Elapsed}
+	response := ExampleResponse{Status: Status, Message: message, Elapsed: Elapsed}
 
 	// Encode the response as JSON
 	jsonResponse, err := json.Marshal(response)
