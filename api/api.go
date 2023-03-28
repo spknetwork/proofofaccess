@@ -64,21 +64,26 @@ func Api() {
 		}
 		name := msg.Name
 		CID = msg.CID
+		var ipfsid = ""
 		fmt.Println("test")
-		WsResponse("Connecting", "Connecting to Peer", "0", conn)
-		ipfsid := hive.GetIpfsID(name)
-		if ipfsid == "" {
+		WsResponse("FetchingHiveAccount", "Fetching Peer ID from Hive", "0", conn)
+		err, ipfsid = hive.GetIpfsID(name)
+		if err != nil {
 			WsResponse("IpfsPeerIDError", "Please enable Proof of Access and register your ipfs node to your hive account", "0", conn)
+			fmt.Println(err)
 			return
 		}
 
+		WsResponse("Connecting", "Connecting to Peer", "0", conn)
+		fmt.Println(ipfsid)
 		err = ipfs.IpfsPingNode(ipfsid)
 		if err != nil {
+			WsResponse("PeerNotFound", "Peer Not Found", "0", conn)
 			fmt.Println(err)
 			return
 		}
 		rand := proofcrypto.CreateRandomHash()
-
+		fmt.Println("rand", rand)
 		i := 0
 		for ping := messaging.Ping[rand]; ping == false; ping = messaging.Ping[rand] {
 			messaging.PingPong(rand, name)
@@ -89,7 +94,7 @@ func Api() {
 			time.Sleep(1 * time.Second)
 			i++
 		}
-
+		fmt.Println("Connected")
 		// Create a random seed hash
 		hash := proofcrypto.CreateRandomHash()
 
@@ -101,7 +106,7 @@ func Api() {
 
 		// Save the proof time
 		localdata.SaveTime(hash)
-
+		WsResponse("Requesting", "Requesting Proof", "0", conn)
 		// Send the proof request to the storage node
 		pubsub.Publish(proofJson, name)
 
@@ -142,7 +147,7 @@ func Api() {
 
 	r.Static("/public", "./public")
 	// Start the server
-	err := r.Run(":3000")
+	err := r.Run(":8001")
 	if err != nil {
 		fmt.Println(err)
 	}

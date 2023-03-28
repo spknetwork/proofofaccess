@@ -33,13 +33,15 @@ func Save(key []byte, value []byte) {
 // Update the value associated with a key
 func Update(key []byte, value []byte) {
 	// Update the value associated with a key
+	fmt.Println("Updating value")
 	err := DB.Update(func(txn *badger.Txn) error {
 		err := txn.Set([]byte(key), []byte(value))
 		if err != nil {
-			return err
+			log.Fatal(err)
 		}
 		return nil
 	})
+	fmt.Println("Value updated")
 	if err != nil {
 		fmt.Printf("Error updating value: %v\n", err)
 		return

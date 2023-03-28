@@ -107,7 +107,7 @@ func HandleProofOfAccess(request Request) {
 	validationHash := validation.CreatProofHash(Seed, CID)
 
 	// Check if the proof of access is valid
-	if validationHash == request.Hash && elapsed < 500*time.Millisecond {
+	if validationHash == request.Hash && elapsed < 2500*time.Millisecond {
 		fmt.Println("Proof of access is valid")
 		fmt.Println(request.Seed)
 		localdata.SetStatus(request.Seed, CID, "Valid")
@@ -118,13 +118,16 @@ func HandleProofOfAccess(request Request) {
 }
 
 func PingPong(hash string, user string) {
+	fmt.Println("PingPong")
 	localdata.SaveTime(hash)
+	fmt.Println("PingPongPing sent")
 	PingPongPing(hash, user)
 }
 
 func PingPongPing(hash string, user string) {
 	jsonString := `{"type": "PingPongPing", "hash":"` + hash + `", "user":"` + localdata.GetNodeName() + `"}`
 	jsonString = strings.TrimSpace(jsonString)
+	fmt.Println("PingPongPing sent")
 	pubsub.Publish(jsonString, user)
 }
 

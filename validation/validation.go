@@ -34,13 +34,17 @@ func CreatProofHash(hash string, CID string) string {
 	cids := SelectIPFSRefs(CID, hash)
 	// Get the length of the CIDs
 	length := len(cids)
+	fmt.Println("length", length)
 	// Create the file contents
 	proofHash := ""
 	// Get the seed from the hash
-	seed := int(proofcrypto.GetIntFromHash(hash, uint32(length)))
-
+	var seed = 0
+	if length > 0 {
+		seed = int(proofcrypto.GetIntFromHash(hash, uint32(length)))
+	}
+	fmt.Println("Seed: ", seed)
 	// Loop through all the CIDs and append the hash to the file contents
-	for i := 1; i <= length; i++ {
+	for i := 0; i <= length; i++ {
 		// If the seed is greater than the length of the CIDs, break
 		if seed >= length {
 			break

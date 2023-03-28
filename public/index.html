@@ -44,10 +44,31 @@
             color: #4a5568;
             z-index: 2;
             transition: all 0.3s ease-in-out;
-            margin-right: 20px;
+            margin-right: 65px;
+        }
+        .step5 {
+            position: relative;
+            width: 70px;
+            height: 70px;
+            border-radius: 50%;
+            background-color: #fff;
+            border: 2px solid #cbd5e0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 16px;
+            font-weight: bold;
+            color: #4a5568;
+            z-index: 2;
+            transition: all 0.3s ease-in-out;
         }
 
         .step.completed {
+            background-color: #38a169;
+            color: #fff;
+            border-color: #38a169;
+        }
+        .step5.completed {
             background-color: #38a169;
             color: #fff;
             border-color: #38a169;
@@ -78,8 +99,8 @@
         .line {
             position: absolute;
             top: 50%;
-            left: calc(50% + 37px);
-            width: 25px;
+            left: calc(50% + 36.5px);
+            width: 66px;
             height: 2px;
             background-color: #cbd5e0;
             z-index: 1;
@@ -91,6 +112,11 @@
         }
 
         .step.error {
+            background-color: #f56565;
+            color: #fff;
+            border-color: #f56565;
+        }
+        .step5.error {
             background-color: #f56565;
             color: #fff;
             border-color: #f56565;
@@ -135,7 +161,7 @@
         <div class="step-text">Step 4</div>
         <div class="line"></div>
     </div>
-    <div class="step">
+    <div class="step5">
         <div class="step-number">5</div>
         <div class="step-text">Step 5</div>
     </div>
@@ -154,78 +180,88 @@
         socket.addEventListener('open', () => {
             const steps = document.querySelectorAll('.step');
             const stepText = document.querySelectorAll('.step-text');
-            steps[0].classList.remove('error');
-            steps[0].classList.remove('completed');
-            steps[0].classList.remove('working');
-            steps[1].classList.remove('error');
-            steps[1].classList.remove('completed');
-            steps[1].classList.remove('working');
-            steps[2].classList.remove('error');
-            steps[2].classList.remove('completed');
-            steps[2].classList.remove('working');
-            steps[3].classList.remove('error');
-            steps[3].classList.remove('completed');
-            steps[3].classList.remove('working');
-            steps[4].classList.remove('error');
-            steps[4].classList.remove('completed');
-            steps[4].classList.remove('working');
-            steps[0].classList.add('working');
-            stepText[0].innerHTML = 'Connecting to Peer';
+            const lines = document.querySelectorAll('.line');
+            const step5 = document.querySelectorAll('.step5');
+            for (let i = 0; i < steps.length; i++) {
+                steps[i].classList.remove('error');
+                steps[i].classList.remove('completed');
+                steps[i].classList.remove('working');
+            }
+            for (let i = 0; i < stepText.length; i++) {
+                stepText[i].innerHTML = 'Step ' + (i + 1);
+            }
+            for (let i = 0; i < lines.length; i++) {
+                lines[i].classList.remove('completed');
+            }
+            step5[0].classList.remove('completed');
+            step5[0].classList.remove('error');
+
         });
 
         // update the progress tracker when a message is received
         socket.addEventListener('message', (event) => {
             const data = JSON.parse(event.data);
             const steps = document.querySelectorAll('.step');
+            const step5 = document.querySelectorAll('.step5');
             const lines = document.querySelectorAll('.line');
             const stepText = document.querySelectorAll('.step-text');
-            if (data.Status === 'Connecting to Peer') {
+            if (data.Status === 'FetchingHiveAccount'){
                 steps[0].classList.add('working');
-                stepText[0].innerHTML = 'Connecting to Peer';
-            } else if (data.Status === 'IpfsPeerIDError') {
-                steps[0].classList.remove('working');
-                steps[0].classList.add('error');
-                stepText[0].innerHTML = 'Error: Invalid Peer ID';
-            } else if (data.Status === 'Connection Error') {
-                steps[0].classList.remove('working');
-                steps[0].classList.add('error');
-                stepText[0].innerHTML = 'Error: Connection Error';
-            } else if (data.Status === 'Waiting Proof') {
-                steps[0].classList.remove('working');
+                stepText[0].innerHTML = 'Fetching Hive Account';
+            } else if (data.Status === 'Connecting') {
                 steps[0].classList.add('completed');
                 lines[0].classList.add('completed');
+                steps[1].classList.remove('working');
                 steps[1].classList.add('working');
-                stepText[1].innerHTML = 'Waiting Proof';
-            } else if (data.Status === "Validating"){
+                stepText[1].innerHTML = 'Connecting to Peer';
+            } else if (data.Status === 'IpfsPeerIDError') {
+                steps[0].classList.add('completed');
+                lines[0].classList.add('completed');
+                steps[1].classList.remove('working');
+                steps[1].classList.add('error');
+                stepText[1].innerHTML = 'Error: Invalid Peer ID';
+            } else if (data.Status === 'PeerNotFound') {
+                steps[0].classList.add('completed');
+                lines[0].classList.add('completed');
+                steps[1].classList.remove('working');
+                steps[1].classList.add('error');
+                stepText[1].innerHTML = 'Error: Peer Not Found';
+            } else if (data.Status === 'Connection Error') {
+                steps[1].classList.remove('working');
+                steps[1].classList.add('error');
+                stepText[1].innerHTML = 'Error: Connection Error';
+            } else if (data.Status === 'Requesting') {
                 steps[1].classList.remove('working');
                 steps[1].classList.add('completed');
                 lines[1].classList.add('completed');
                 steps[2].classList.add('working');
-                stepText[2].innerHTML = 'Validating';
-            } else if (data.Status === "Validated"){
+                stepText[2].innerHTML = 'Requesting';
+            } else if (data.Status === 'Waiting Proof') {
+                stepText[2].innerHTML = 'Waiting for Proof';
+            } else if (data.Status === 'Proof Received') {
                 steps[2].classList.remove('working');
                 steps[2].classList.add('completed');
                 lines[2].classList.add('completed');
+                steps[2].classList.add('completed');
+                stepText[2].innerHTML = 'Proof Received';
+            } else if (data.Status === "Validating"){
+                steps[2].classList.add('completed');
+                lines[2].classList.add('completed');
                 steps[3].classList.add('working');
-                stepText[3].innerHTML = 'Validated';
-            } else if (data.Status === "Validating Proof"){
+                stepText[3].innerHTML = 'Validating';
+            } else if (data.Status === "Valid"){
                 steps[3].classList.remove('working');
                 steps[3].classList.add('completed');
                 lines[3].classList.add('completed');
-                steps[4].classList.add('working');
-                stepText[4].innerHTML = 'Validating Proof';
-            } else if (data.Status === "Proof Validated"){
-                steps[4].classList.remove('working');
-                steps[4].classList.add('completed');
-                lines[4].classList.add('completed');
+                step5[0].classList.add('completed');
                 stepText[4].innerHTML = 'Proof Validated';
-            } else if (data.Status === "Proof Invalid"){
-                steps[4].classList.remove('working');
-                steps[4].classList.add('error');
+            } else if (data.Status === "Invalid"){
+                steps[3].classList.remove('working');
+                steps[3].classList.add('completed');
+                lines[3].classList.add('completed');
+                step5[0].classList.add('error');
                 stepText[4].innerHTML = 'Proof Invalid';
             }
-            const resultsDiv = document.getElementById('results');
-            resultsDiv.innerHTML = `Access: ${data.Status}, Message: ${data.Elapsed}`;
         });
 
         // send the username and CID over the WebSocket connection

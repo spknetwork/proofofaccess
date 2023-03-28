@@ -32,7 +32,7 @@ func Read(sub *ipfs.PubSubSubscription) (string, error) {
 
 // Publish a message to a topic
 func Publish(message string, user string) error {
-	//fmt.Println("Publishing message:", message)
+	fmt.Println("Publishing message:", message, user)
 	err := Shell.PubSubPublish(user, message)
 	if err != nil {
 		fmt.Println("Error publishing message:", err)
