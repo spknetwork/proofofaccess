@@ -104,17 +104,23 @@ func HandleProofOfAccess(request Request) {
 	fmt.Println("CID:", CID)
 	Seed := request.Seed
 	// Create the proof hash
-	validationHash := validation.CreatProofHash(Seed, CID)
-
-	// Check if the proof of access is valid
-	if validationHash == request.Hash && elapsed < 2500*time.Millisecond {
-		fmt.Println("Proof of access is valid")
-		fmt.Println(request.Seed)
-		localdata.SetStatus(request.Seed, CID, "Valid")
+	var validationHash string
+	if request.Hash != "" {
+		validationHash = validation.CreatProofHash(Seed, CID)
+		if validationHash == request.Hash && elapsed < 2500*time.Millisecond {
+			fmt.Println("Proof of access is valid")
+			fmt.Println(request.Seed)
+			localdata.SetStatus(request.Seed, CID, "Valid")
+		} else {
+			fmt.Println("Proof of access is invalid took too long")
+			localdata.SetStatus(request.Seed, CID, "Invalid")
+		}
 	} else {
-		fmt.Println("Proof of access is invalid took too long")
+		fmt.Println("Proof is invalid")
 		localdata.SetStatus(request.Seed, CID, "Invalid")
 	}
+
+	// Check if the proof of access is valid
 }
 
 func PingPong(hash string, user string) {

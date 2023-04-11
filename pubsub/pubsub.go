@@ -27,6 +27,7 @@ func Read(sub *ipfs.PubSubSubscription) (string, error) {
 		fmt.Println("Error receiving message:", err)
 		return "", err
 	}
+	fmt.Println("Message from: ", msg.From.String())
 	return string(msg.Data), nil
 }
 

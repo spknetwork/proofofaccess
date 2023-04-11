@@ -3,24 +3,17 @@
 <head>
     <title>Proof Of Access</title>
     <style>
-        form {
+        form, div {
             display: flex;
             flex-direction: column;
             align-items: center;
         }
-        div{
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-        }
-
         img {
             display: block;
             margin: 0 auto;
             padding-top: 20px;
             width: 200px;
         }
-
         .container {
             display: flex;
             flex-direction: row;
@@ -28,8 +21,7 @@
             margin-top: 50px;
             position: relative;
         }
-
-        .step {
+        .step, .step5 {
             position: relative;
             width: 70px;
             height: 70px;
@@ -44,36 +36,15 @@
             color: #4a5568;
             z-index: 2;
             transition: all 0.3s ease-in-out;
+        }
+        .step {
             margin-right: 65px;
         }
-        .step5 {
-            position: relative;
-            width: 70px;
-            height: 70px;
-            border-radius: 50%;
-            background-color: #fff;
-            border: 2px solid #cbd5e0;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            font-size: 16px;
-            font-weight: bold;
-            color: #4a5568;
-            z-index: 2;
-            transition: all 0.3s ease-in-out;
-        }
-
-        .step.completed {
+        .completed {
             background-color: #38a169;
             color: #fff;
             border-color: #38a169;
         }
-        .step5.completed {
-            background-color: #38a169;
-            color: #fff;
-            border-color: #38a169;
-        }
-
         .step-text {
             position: absolute;
             top: calc(100% + 10px);
@@ -87,7 +58,6 @@
             line-height: 1.2;
             white-space: nowrap;
         }
-
         h1 {
             text-align: center;
             font-size: 32px;
@@ -95,7 +65,6 @@
             margin-top: 50px;
             color: #4a5568;
         }
-
         .line {
             position: absolute;
             top: 50%;
@@ -106,17 +75,10 @@
             z-index: 1;
             transition: all 0.3s ease-in-out;
         }
-
-        .step.working {
+        .working {
             border-color: #48bb78;
         }
-
-        .step.error {
-            background-color: #f56565;
-            color: #fff;
-            border-color: #f56565;
-        }
-        .step5.error {
+        .error {
             background-color: #f56565;
             color: #fff;
             border-color: #f56565;
@@ -124,13 +86,22 @@
         .line.completed {
             background-color: #48bb78;
         }
+        /* Add new style for map container */
+        #map {
+            width: 70%;
+            height: 30vh;
+            margin-top: 30px;
+            margin: 0 auto;
+        }
     </style>
+    <!-- Include Leaflet CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css" />
 </head>
 <body>
 <img src="public/spk.png" alt="SPK Logo">
-
+<!-- Add the new map container -->
+<div id="map"></div>
 <h1>Proof Of Access</h1>
-
 <form>
     <p>Enter your username and CID to prove you have access to the file.</p>
     <label for="name">Hive Username:</label>
@@ -140,135 +111,130 @@
     <button type="button" onclick="submitForm()">Submit</button>
 </form>
 <div class="container">
-    <div class="step">
-        <div class="step-number">1</div>
-        <div class="step-text">Step 1</div>
-        <div class="line"></div>
-    </div>
-    <div class="step">
-        <div class="step-number">2</div>
-        <div class="step-text">Step 2</div>
-        <div class="line"></div>
-    </div>
-    <div class="step">
-        <div class="step-number">3</div>
-        <div class="step-text">Step 3</div>
-        <div class="line"></div>
-    </div>
-    <div class="step">
-        <div class="step-number">
-            4</div>
-        <div class="step-text">Step 4</div>
-        <div class="line"></div>
-    </div>
-    <div class="step5">
-        <div class="step-number">5</div>
-        <div class="step-text">Step 5</div>
-    </div>
-
+    <div class="step" id="step1"><div class="step-number">1</div><div class="step-text">Step 1</div><div class="line"></div></div>
+    <div class="step" id="step2"><div class="step-number">2</div><div class="step-text">Step 2</div><div class="line"></div></div>
+    <div class="step" id="step3"><div class="step-number">3</div><div class="step-text">Step 3</div><div class="line"></div></div>
+    <div class="step" id="step4"><div class="step-number">4</div><div class="step-text">Step 4</div><div class="line"></div></div>
+    <div class="step5" id="step5"><div class="step-number">5</div><div class="step-text">Step 5</div></div>
 </div>
 <div id="results"></div>
 
+<!-- Include Leaflet JS -->
+<script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
 <script>
+    // ... existing script ...
     function submitForm() {
         const name = document.getElementById('name').value;
         const cid = document.getElementById('cid').value;
-
         const socket = new WebSocket(`ws://${location.host}/validate`);
 
-        // update the progress tracker when the WebSocket connection is opened
-        socket.addEventListener('open', () => {
-            const steps = document.querySelectorAll('.step');
-            const stepText = document.querySelectorAll('.step-text');
-            const lines = document.querySelectorAll('.line');
-            const step5 = document.querySelectorAll('.step5');
-            for (let i = 0; i < steps.length; i++) {
-                steps[i].classList.remove('error');
-                steps[i].classList.remove('completed');
-                steps[i].classList.remove('working');
-            }
-            for (let i = 0; i < stepText.length; i++) {
-                stepText[i].innerHTML = 'Step ' + (i + 1);
-            }
-            for (let i = 0; i < lines.length; i++) {
-                lines[i].classList.remove('completed');
-            }
-            step5[0].classList.remove('completed');
-            step5[0].classList.remove('error');
+        const steps = document.querySelectorAll('.step, .step5');
+        const stepTexts = document.querySelectorAll('.step-text');
+        const lines = document.querySelectorAll('.line');
 
+        socket.addEventListener('open', () => {
+            steps.forEach((step) => {
+                step.classList.remove('error', 'completed', 'working');
+            });
+            lines.forEach((line) => {
+                line.classList.remove('completed');
+            });
         });
 
-        // update the progress tracker when a message is received
         socket.addEventListener('message', (event) => {
             const data = JSON.parse(event.data);
-            const steps = document.querySelectorAll('.step');
-            const step5 = document.querySelectorAll('.step5');
-            const lines = document.querySelectorAll('.line');
-            const stepText = document.querySelectorAll('.step-text');
-            if (data.Status === 'FetchingHiveAccount'){
-                steps[0].classList.add('working');
-                stepText[0].innerHTML = 'Fetching Hive Account';
-            } else if (data.Status === 'Connecting') {
-                steps[0].classList.add('completed');
-                lines[0].classList.add('completed');
-                steps[1].classList.remove('working');
-                steps[1].classList.add('working');
-                stepText[1].innerHTML = 'Connecting to Peer';
-            } else if (data.Status === 'IpfsPeerIDError') {
-                steps[0].classList.add('completed');
-                lines[0].classList.add('completed');
-                steps[1].classList.remove('working');
-                steps[1].classList.add('error');
-                stepText[1].innerHTML = 'Error: Invalid Peer ID';
-            } else if (data.Status === 'PeerNotFound') {
-                steps[0].classList.add('completed');
-                lines[0].classList.add('completed');
-                steps[1].classList.remove('working');
-                steps[1].classList.add('error');
-                stepText[1].innerHTML = 'Error: Peer Not Found';
-            } else if (data.Status === 'Connection Error') {
-                steps[1].classList.remove('working');
-                steps[1].classList.add('error');
-                stepText[1].innerHTML = 'Error: Connection Error';
-            } else if (data.Status === 'Requesting') {
-                steps[1].classList.remove('working');
-                steps[1].classList.add('completed');
-                lines[1].classList.add('completed');
-                steps[2].classList.add('working');
-                stepText[2].innerHTML = 'Requesting';
-            } else if (data.Status === 'Waiting Proof') {
-                stepText[2].innerHTML = 'Waiting for Proof';
-            } else if (data.Status === 'Proof Received') {
-                steps[2].classList.remove('working');
-                steps[2].classList.add('completed');
-                lines[2].classList.add('completed');
-                steps[2].classList.add('completed');
-                stepText[2].innerHTML = 'Proof Received';
-            } else if (data.Status === "Validating"){
-                steps[2].classList.add('completed');
-                lines[2].classList.add('completed');
-                steps[3].classList.add('working');
-                stepText[3].innerHTML = 'Validating';
-            } else if (data.Status === "Valid"){
-                steps[3].classList.remove('working');
-                steps[3].classList.add('completed');
-                lines[3].classList.add('completed');
-                step5[0].classList.add('completed');
-                stepText[4].innerHTML = 'Proof Validated';
-            } else if (data.Status === "Invalid"){
-                steps[3].classList.remove('working');
-                steps[3].classList.add('completed');
-                lines[3].classList.add('completed');
-                step5[0].classList.add('error');
-                stepText[4].innerHTML = 'Proof Invalid';
+
+            const statusMap = {
+                'FetchingHiveAccount': { stepIndex: 0, classes: ['working'], text: 'Fetching Hive Account' },
+                'Connecting': { stepIndex: 0, nextStepIndex: 1, classes: ['completed'], nextClasses: ['working'], text: 'Connecting to Peer' },
+                'IpfsPeerIDError': { stepIndex: 1, classes: ['error'], text: 'Error: Invalid Peer ID' },
+                'PeerNotFound': { stepIndex: 1, classes: ['error'], text: 'Error: Peer Not Found' },
+                'Connection Error': { stepIndex: 1, classes: ['error'], text: 'Error: Connection Error' },
+                'Requesting': { stepIndex: 1, nextStepIndex: 2, classes: ['completed'], nextClasses: ['working'], text: 'Requesting' },
+                'Waiting Proof': { stepIndex: 2, classes: ['completed'], text: 'Waiting for Proof' },
+                'Proof Received': { stepIndex: 2, nextStepIndex: 3, classes: ['completed'], nextClasses: ['working'], text: 'Proof Received' },
+                'Validating': { stepIndex: 3, classes: ['working'], text: 'Validating' },
+                'Valid': { stepIndex: 3, classes: ['completed'], text: 'Proof Validated', step5Classes: ['completed'], step5TextValue: 'Valid' },
+                'Invalid': { stepIndex: 3, classes: ['completed'], text: 'Validating', step5Classes: ['error'], step5TextValue: 'Proof Invalid' }
+            };
+
+            if (statusMap[data.Status]) {
+                const { stepIndex, nextStepIndex, classes, nextClasses, step5Classes, text, step5TextValue } = statusMap[data.Status];
+                steps[stepIndex].classList.remove('error', 'completed', 'working');
+                steps[stepIndex].classList.add(...classes);
+                if (nextStepIndex !== undefined) {
+                    steps[nextStepIndex].classList.remove('error', 'completed', 'working');
+                    steps[nextStepIndex].classList.add(...nextClasses);
+                }
+                if (step5Classes !== undefined) {
+                    const step5 = document.querySelector('.step5');
+                    step5.classList.remove('error', 'completed');
+                    step5.classList.add(...step5Classes);
+                    const step5TextElement = document.querySelector('.step5 .step-text');
+                    step5TextElement.innerHTML = step5TextValue;
+                }
+                if (classes.includes('completed')) {
+                    lines[stepIndex].classList.add('completed');
+                }
+                stepTexts[stepIndex].innerHTML = text;
             }
         });
 
-        // send the username and CID over the WebSocket connection
         socket.addEventListener('open', () => {
             socket.send(JSON.stringify({ name, cid }));
         });
     }
+    // IP Node Map script
+
+    const map = L.map('map').setView([0, 0], 2);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+    }).addTo(map);
+
+    // Replace this with an array of 10 random IP addresses
+    const ipAddresses = [
+        '8.8.8.8',
+        '8.8.4.4',
+        '208.67.222.222',
+        '208.67.220.220',
+        '195.46.39.39',
+        '195.46.39.40',
+        '198.206.14.241',
+        '198.206.14.242',
+        '23.253.163.53',
+        '23.253.163.54',
+    ];
+
+    async function fetchNodeLocations() {
+        try {
+            const apiKey = '77d12fea45e0aa44177ba9015265ce3f'; // Replace with your ipapi API key
+            const locations = await Promise.all(ipAddresses.map(async ip => {
+                const response = await fetch(`http://api.ipapi.com/${ip}?access_key=${apiKey}`);
+                const data = await response.json();
+                return data;
+            }));
+
+            return locations;
+        } catch (error) {
+            console.error('Error fetching node locations:', error);
+        }
+    }
+
+    async function addNodeMarkers() {
+        const locations = await fetchNodeLocations();
+        locations.forEach(location => {
+            if (location) {
+                const marker = L.marker([location.latitude, location.longitude]).addTo(map);
+                marker.bindPopup(`
+              <strong>${location.city}, ${location.region_name}, ${location.country_name}</strong><br>
+              IP: ${location.ip}<br>
+              Lat: ${location.latitude}, Lon: ${location.longitude}
+            `);
+            }
+        });
+    }
+
+    addNodeMarkers();
 
 </script>
 </body>

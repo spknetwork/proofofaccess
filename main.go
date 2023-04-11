@@ -4,6 +4,7 @@ import (
 	"flag"
 	"fmt"
 	"proofofaccess/api"
+	"proofofaccess/database"
 	"proofofaccess/ipfs"
 	"proofofaccess/localdata"
 	"proofofaccess/messaging"
@@ -20,6 +21,8 @@ var Hash = ""
 // Main function
 func main() {
 	// Parse the command line flags
+	//ipfs.GetIPFromPeerID("12D3KooWRyRUE8TXAmBViGhJ1emTsjYzTt8PVCoypRzZGB8yvUHU")
+	database.Init()
 	flag.Parse()
 	localdata.SetNodeName(*username)
 	ipfs.IpfsPeerID()

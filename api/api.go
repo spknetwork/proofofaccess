@@ -42,7 +42,6 @@ func Api() {
 
 	// Serve the index.html file on the root route
 	r.StaticFile("/", "./public/index.html")
-
 	// Handle the API request
 	r.GET("/validate", func(c *gin.Context) {
 		// Upgrade the HTTP connection to a WebSocket connection
@@ -136,7 +135,6 @@ func Api() {
 			"message": "Data saved successfully",
 		})
 	})
-
 	r.GET("/read", func(c *gin.Context) {
 		key := c.Query("key")
 		value := database.Read([]byte(key))
@@ -144,7 +142,6 @@ func Api() {
 			"value": string(value),
 		})
 	})
-
 	r.Static("/public", "./public")
 	// Start the server
 	err := r.Run(":8001")
