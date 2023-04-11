@@ -46,19 +46,37 @@ func Close() {
 	}
 }
 
-// Delete the database
-func Delete() {
-	err := DB.DropAll()
-	if err != nil {
-		log.Fatal(err)
-	}
-}
-
 func checkDatabaseOpen() error {
 	if DB == nil {
 		return ErrDatabaseClosed
 	}
 	return nil
+}
+
+// Delete
+// Delete the value associated with a key
+func Delete(key []byte) {
+	if err := checkDatabaseOpen(); err != nil {
+		log.Fatal(err)
+	}
+
+	fmt.Println("Deleting value")
+	err := DB.Update(func(txn *badger.Txn) error {
+		err := txn.Delete([]byte(key))
+		if err != nil {
+			if err == badger.ErrKeyNotFound {
+				fmt.Println("Key not found")
+			} else {
+				log.Panic(err)
+			}
+		}
+		return nil
+	})
+	fmt.Println("Value deleted")
+	if err != nil {
+		fmt.Printf("Error deleting value: %v\n", err)
+		return
+	}
 }
 
 // Save

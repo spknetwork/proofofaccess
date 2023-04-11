@@ -142,6 +142,21 @@ func Api() {
 			"value": string(value),
 		})
 	})
+	r.GET("/update", func(c *gin.Context) {
+		key := c.Query("key")
+		value := c.Query("value")
+		database.Update([]byte(key), []byte(value))
+		c.JSON(http.StatusOK, gin.H{
+			"message": "Data Updated successfully",
+		})
+	})
+	r.GET("/delete", func(c *gin.Context) {
+		key := c.Query("key")
+		database.Delete([]byte(key))
+		c.JSON(http.StatusOK, gin.H{
+			"message": "Data Deleted successfully",
+		})
+	})
 	r.Static("/public", "./public")
 	// Start the server
 	err := r.Run(":8001")
