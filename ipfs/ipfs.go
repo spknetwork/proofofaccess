@@ -11,7 +11,7 @@ import (
 
 // Shell
 // Create a new IPFS shell
-var Shell = ipfs.NewLocalShell()
+var Shell = ipfs.NewShell("localhost:5001")
 
 // Download
 // Add a file to IPFS

@@ -129,8 +129,7 @@ func Read(key []byte) []byte {
 	if err := checkDatabaseOpen(); err != nil {
 		log.Fatal(err)
 	}
-
-	fmt.Println("Reading data from database")
+	//fmt.Println("Reading data from database")
 	txn := DB.NewTransaction(false)
 	defer txn.Discard()
 
