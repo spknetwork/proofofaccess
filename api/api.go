@@ -7,7 +7,6 @@ import (
 	"net/http"
 	"proofofaccess/database"
 	"proofofaccess/hive"
-	"proofofaccess/ipfs"
 	"proofofaccess/localdata"
 	"proofofaccess/messaging"
 	"proofofaccess/proofcrypto"
@@ -88,8 +87,10 @@ func handleValidate(c *gin.Context) {
 
 	// Read the username and CID from the WebSocket connection
 	var msg struct {
-		Name string `json:"name"`
-		CID  string `json:"cid"`
+		Name   string `json:"name"`
+		CID    string `json:"cid"`
+		SALT   string `json:"salt"`
+		PEERID string `json:"peerid"`
 	}
 	if err := conn.ReadJSON(&msg); err != nil {
 		log.Error(err)
@@ -98,31 +99,35 @@ func handleValidate(c *gin.Context) {
 	}
 	name := msg.Name
 	CID = msg.CID
-	var ipfsid = ""
+	peerid := msg.PEERID
 	log.Info("test")
-	WsResponse("FetchingHiveAccount", "Fetching Peer ID from Hive", "0", conn)
-	ipfsid, err = hive.GetIpfsID(name)
-	if err != nil {
-		WsResponse("IpfsPeerIDError", "Please enable Proof of Access and register your ipfs node to your hive account", "0", conn)
-		log.Error(err)
-		return
+	if peerid == "" && name != "" {
+		WsResponse("FetchingHiveAccount", "Fetching Peer ID from Hive", "0", conn)
+		peerid, err = hive.GetIpfsID(name)
+		if err != nil {
+			WsResponse("IpfsPeerIDError", "Please enable Proof of Access and register your ipfs node to your hive account", "0", conn)
+			log.Error(err)
+			return
+		}
 	}
-
 	WsResponse("Connecting", "Connecting to Peer", "0", conn)
-	log.Info(ipfsid)
-	err = ipfs.IpfsPingNode(ipfsid)
+	log.Info(peerid)
+	// err = ipfs.IpfsPingNode(peerid)
 	if err != nil {
 		WsResponse("PeerNotFound", "Peer Not Found", "0", conn)
 		log.Error(err)
 		return
 	}
-	rand, err := proofcrypto.CreateRandomHash()
-	if err != nil {
-		WsResponse("Error", "Failed to create random hash", "0", conn)
-		log.Error(err)
-		return
+	var salt = msg.SALT
+	if salt == "" {
+		salt, err = proofcrypto.CreateRandomHash()
+		if err != nil {
+			WsResponse("Error", "Failed to create random hash", "0", conn)
+			log.Error(err)
+			return
+		}
+		log.Info("rand: ", salt)
 	}
-	log.Info("rand", rand)
 	i := 0
 	timeout := time.NewTicker(1 * time.Second)
 	defer timeout.Stop()
@@ -134,11 +139,11 @@ func handleValidate(c *gin.Context) {
 		for {
 			select {
 			case <-timeout.C:
-				if messaging.Ping[rand] {
+				if messaging.Ping[salt] {
 					close(pingDone)
 					return
 				}
-				messaging.PingPong(rand, name)
+				messaging.PingPong(salt, name)
 				i++
 				if i > 5 {
 					WsResponse("Connection Error", "Could not connect to peer try again", "0", conn)

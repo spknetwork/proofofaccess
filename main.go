@@ -5,14 +5,14 @@ import (
 	"flag"
 	"os"
 	"os/signal"
+	"proofofaccess/api"
+	"proofofaccess/localdata"
 	"syscall"
 	"time"
 
 	"github.com/sirupsen/logrus"
-	"proofofaccess/api"
 	"proofofaccess/database"
 	"proofofaccess/ipfs"
-	"proofofaccess/localdata"
 	"proofofaccess/messaging"
 	"proofofaccess/pubsub"
 )
@@ -42,14 +42,14 @@ func main() {
 }
 
 func initialize(ctx context.Context) {
-	if *nodeType == 1 {
-		database.Init()
-	}
-
 	localdata.SetNodeName(*username)
 	ipfs.IpfsPeerID()
 
-	go api.StartAPI(ctx, *nodeType)
+	if *nodeType == 1 {
+		database.Init()
+		go api.StartAPI(ctx, *nodeType)
+	}
+
 	go pubsubHandler(ctx)
 	go fetchPins(ctx)
 }

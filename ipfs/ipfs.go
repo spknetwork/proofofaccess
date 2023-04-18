@@ -65,14 +65,15 @@ func IpfsPingNode(peerID string) error {
 	return nil
 }
 
-func IpfsPeerID() {
+func IpfsPeerID() string {
 	// Get the IPFS peer ID
 	peerID, err := Shell.ID()
 	if err != nil {
 		fmt.Println("Error getting peer ID:", err)
-		return
+		return ""
 	}
 	fmt.Println("Peer ID:", peerID.ID)
+	return peerID.ID
 }
 
 // GetIPFromPeerID takes a string representation of a peer ID and returns the public IP address of the peer if available.
