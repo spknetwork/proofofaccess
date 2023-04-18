@@ -37,13 +37,11 @@ func Init() {
 	}
 }
 
-func Close() {
+func Close() error {
 	if DB != nil {
-		err := DB.Close()
-		if err != nil {
-			log.Fatal(err)
-		}
+		return DB.Close()
 	}
+	return ErrDatabaseClosed
 }
 
 func checkDatabaseOpen() error {

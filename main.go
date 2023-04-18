@@ -1,8 +1,14 @@
 package main
 
 import (
+	"context"
 	"flag"
-	"fmt"
+	"os"
+	"os/signal"
+	"syscall"
+	"time"
+
+	"github.com/sirupsen/logrus"
 	"proofofaccess/api"
 	"proofofaccess/database"
 	"proofofaccess/ipfs"
@@ -11,41 +17,86 @@ import (
 	"proofofaccess/pubsub"
 )
 
-// Declare a variable to store the node type
-var nodeType = flag.Int("node", 1, "Node type 1 = validation 2 = access")
-var username = flag.String("username", "", "Node type 1 = validation 2 = access")
+var (
+	nodeType  = flag.Int("node", 1, "Node type 1 = validation 2 = access")
+	username  = flag.String("username", "", "Node type 1 = validation 2 = access")
+	CID, Hash string
+	log       = logrus.New()
+)
 
-var CID = ""
-var Hash = ""
-
-// Main function
 func main() {
-	// Parse the command line flags
-	//ipfs.GetIPFromPeerID("12D3KooWRyRUE8TXAmBViGhJ1emTsjYzTt8PVCoypRzZGB8yvUHU")
-	database.Init()
 	flag.Parse()
+	ctx, cancel := context.WithCancel(context.Background())
+
+	setupCloseHandler(cancel)
+	initialize(ctx)
+
+	<-ctx.Done()
+
+	log.Info("Shutting down...")
+	if *nodeType == 1 {
+		if err := database.Close(); err != nil {
+			log.Error("Error closing the database: ", err)
+		}
+	}
+}
+
+func initialize(ctx context.Context) {
+	if *nodeType == 1 {
+		database.Init()
+	}
+
 	localdata.SetNodeName(*username)
 	ipfs.IpfsPeerID()
-	// Start the API
+
+	go api.StartAPI(ctx, *nodeType)
+	go pubsubHandler(ctx)
+	go fetchPins(ctx)
+}
+
+func setupCloseHandler(cancel context.CancelFunc) {
+	signalChan := make(chan os.Signal, 1)
+	signal.Notify(signalChan, os.Interrupt, syscall.SIGTERM)
+
 	go func() {
-		if *nodeType == 1 {
-			api.Api()
-		}
+		sig := <-signalChan
+		log.Infof("Received signal: %v. Shutting down...", sig)
+		cancel()
 	}()
-	// Subscribe to pubsub channel
-	sub, _ := pubsub.Subscribe(*username)
-	fmt.Println("User:", *username)
-	go func() {
-		for {
-			// Read the message from pubsub
-			msg, _ := pubsub.Read(sub)
-			// Handle the message
+}
+
+func pubsubHandler(ctx context.Context) {
+	sub, err := pubsub.Subscribe(*username)
+	if err != nil {
+		log.Error("Error subscribing to pubsub: ", err)
+		return
+	}
+
+	log.Info("User:", *username)
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		default:
+			msg, err := pubsub.Read(sub)
+			if err != nil {
+				log.Error("Error reading from pubsub: ", err)
+				continue
+			}
 			messaging.HandleMessage(msg, nodeType)
 		}
-	}()
+	}
+}
+
+func fetchPins(ctx context.Context) {
 	for {
-		if *nodeType == 1 {
-			//messaging.PingPong()
+		select {
+		case <-ctx.Done():
+			return
+		default:
+			ipfs.Pins, _ = ipfs.Shell.Pins()
+			time.Sleep(10 * time.Second)
 		}
 	}
 }

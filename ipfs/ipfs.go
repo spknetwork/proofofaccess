@@ -12,6 +12,7 @@ import (
 // Shell
 // Create a new IPFS shell
 var Shell = ipfs.NewShell("localhost:5001")
+var Pins = map[string]ipfs.PinInfo{}
 
 // Download
 // Add a file to IPFS
@@ -49,14 +50,7 @@ func Refs(CID string) ([]string, error) {
 
 func IsPinned(cid string) bool {
 	// Check if the CID is pinned
-	fmt.Println("Checking if CID is pinned")
-	pins, err := Shell.Pins()
-	if err != nil {
-		fmt.Println("Error getting pins:", err)
-		return false
-	}
-
-	_, ok := pins[cid]
+	_, ok := Pins[cid]
 	return ok
 }
 

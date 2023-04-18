@@ -1,6 +1,7 @@
 package api
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -17,152 +18,262 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/gorilla/websocket"
+	"github.com/sirupsen/logrus"
 )
 
-// ExampleResponse
-// Define a struct to represent the data we want to return from the API
 type ExampleResponse struct {
 	Status  string `json:"Status"`
 	Message string `json:"Message"`
 	Elapsed string `json:"Elapsed"`
 }
 
-var upgrader = websocket.Upgrader{
-	ReadBufferSize:  1024,
-	WriteBufferSize: 1024,
-}
+var (
+	upgrader = websocket.Upgrader{
+		ReadBufferSize:  1024,
+		WriteBufferSize: 1024,
+	}
+	CID = ""
+	log = logrus.New()
+)
 
-var CID = ""
-
-// Api
-// Starts the API and handles the requests
-func Api() {
-	// Create a new Gin router
+func StartAPI(ctx context.Context, nodeType int) {
 	r := gin.Default()
 
 	// Serve the index.html file on the root route
 	r.StaticFile("/", "./public/index.html")
+
 	// Handle the API request
-	r.GET("/validate", func(c *gin.Context) {
-		// Upgrade the HTTP connection to a WebSocket connection
-		conn, err := upgrader.Upgrade(c.Writer, c.Request, nil)
-		if err != nil {
-			fmt.Println(err)
-			return
-		}
-		defer conn.Close()
+	r.GET("/validate", handleValidate)
+	r.POST("/write", handleWrite)
+	r.GET("/read", handleRead)
+	r.GET("/update", handleUpdate)
+	r.GET("/delete", handleDelete)
+	r.Static("/public", "./public")
 
-		// Read the username and CID from the WebSocket connection
-		var msg struct {
-			Name string `json:"name"`
-			CID  string `json:"cid"`
-		}
-		if err := conn.ReadJSON(&msg); err != nil {
-			fmt.Println(err)
-			return
-		}
-		name := msg.Name
-		CID = msg.CID
-		var ipfsid = ""
-		fmt.Println("test")
-		WsResponse("FetchingHiveAccount", "Fetching Peer ID from Hive", "0", conn)
-		err, ipfsid = hive.GetIpfsID(name)
-		if err != nil {
-			WsResponse("IpfsPeerIDError", "Please enable Proof of Access and register your ipfs node to your hive account", "0", conn)
-			fmt.Println(err)
-			return
-		}
+	// Start the server
+	server := &http.Server{
+		Addr:    ":8001",
+		Handler: r,
+	}
 
-		WsResponse("Connecting", "Connecting to Peer", "0", conn)
-		fmt.Println(ipfsid)
-		err = ipfs.IpfsPingNode(ipfsid)
-		if err != nil {
-			WsResponse("PeerNotFound", "Peer Not Found", "0", conn)
-			fmt.Println(err)
-			return
+	go func() {
+		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			log.Fatalf("listen: %s\n", err)
 		}
-		rand := proofcrypto.CreateRandomHash()
-		fmt.Println("rand", rand)
-		i := 0
-		for ping := messaging.Ping[rand]; ping == false; ping = messaging.Ping[rand] {
-			messaging.PingPong(rand, name)
-			if i > 5 {
-				WsResponse("Connection Error", "Could not connect to peer try again", "0", conn)
+	}()
+
+	<-ctx.Done()
+
+	ctxShutdown, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	if err := server.Shutdown(ctxShutdown); err != nil {
+		log.Fatalf("server shutdown failed: %s\n", err)
+	}
+}
+
+func handleValidate(c *gin.Context) {
+	// Upgrade the HTTP connection to a WebSocket connection
+	log.Info("Entering handleValidate")
+	conn, err := upgrader.Upgrade(c.Writer, c.Request, nil)
+	if err != nil {
+		log.Error(err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to upgrade connection"})
+		return
+	}
+	defer func() {
+		log.Info("Closing WebSocket connection")
+		conn.Close()
+	}()
+
+	// Read the username and CID from the WebSocket connection
+	var msg struct {
+		Name string `json:"name"`
+		CID  string `json:"cid"`
+	}
+	if err := conn.ReadJSON(&msg); err != nil {
+		log.Error(err)
+		WsResponse("Error", "Failed to read JSON from WebSocket connection", "0", conn)
+		return
+	}
+	name := msg.Name
+	CID = msg.CID
+	var ipfsid = ""
+	log.Info("test")
+	WsResponse("FetchingHiveAccount", "Fetching Peer ID from Hive", "0", conn)
+	ipfsid, err = hive.GetIpfsID(name)
+	if err != nil {
+		WsResponse("IpfsPeerIDError", "Please enable Proof of Access and register your ipfs node to your hive account", "0", conn)
+		log.Error(err)
+		return
+	}
+
+	WsResponse("Connecting", "Connecting to Peer", "0", conn)
+	log.Info(ipfsid)
+	err = ipfs.IpfsPingNode(ipfsid)
+	if err != nil {
+		WsResponse("PeerNotFound", "Peer Not Found", "0", conn)
+		log.Error(err)
+		return
+	}
+	rand, err := proofcrypto.CreateRandomHash()
+	if err != nil {
+		WsResponse("Error", "Failed to create random hash", "0", conn)
+		log.Error(err)
+		return
+	}
+	log.Info("rand", rand)
+	i := 0
+	timeout := time.NewTicker(1 * time.Second)
+	defer timeout.Stop()
+
+	pingDone := make(chan struct{})
+	defer close(pingDone)
+
+	go func() {
+		for {
+			select {
+			case <-timeout.C:
+				if messaging.Ping[rand] {
+					close(pingDone)
+					return
+				}
+				messaging.PingPong(rand, name)
+				i++
+				if i > 5 {
+					WsResponse("Connection Error", "Could not connect to peer try again", "0", conn)
+					return
+				}
+			case <-pingDone:
 				return
 			}
-			time.Sleep(1 * time.Second)
-			i++
 		}
-		fmt.Println("Connected")
-		// Create a random seed hash
-		hash := proofcrypto.CreateRandomHash()
+	}()
 
-		// Create a proof request
-		proofJson, _ := validation.ProofRequestJson(hash, CID)
+	<-pingDone
 
-		// Save the proof request to the database
-		database.Save([]byte(hash), []byte(proofJson))
-
-		// Save the proof time
-		localdata.SaveTime(hash)
-		WsResponse("Requesting", "Requesting Proof", "0", conn)
-		// Send the proof request to the storage node
-		pubsub.Publish(proofJson, name)
-
-		// Create a channel to wait for the proof
-		WsResponse("Waiting Proof", "Waiting for Proof", "0", conn)
-		for proofReq := messaging.ProofRequest[CID]; proofReq == false; proofReq = messaging.ProofRequest[CID] {
-			time.Sleep(30 * time.Millisecond)
-		}
-
-		WsResponse("Validating", "Validating", "0", conn)
-		// Wait for the proof to be validated
-		for status := localdata.GetStatus(hash); status == "Pending"; status = localdata.GetStatus(hash) {
-			time.Sleep(30 * time.Millisecond)
-		}
-
-		// Get the proof status and time elapsed
-		status := localdata.GetStatus(hash)
-		elapsed := localdata.GetElapsed(hash)
-
-		WsResponse(status, status, strconv.FormatFloat(float64(elapsed.Milliseconds()), 'f', 0, 64)+"ms", conn)
-	})
-	r.POST("/write", func(c *gin.Context) {
-		key := c.PostForm("key")
-		value := c.PostForm("value")
-		database.Save([]byte(key), []byte(value))
-		c.JSON(http.StatusOK, gin.H{
-			"message": "Data saved successfully",
-		})
-	})
-	r.GET("/read", func(c *gin.Context) {
-		key := c.Query("key")
-		value := database.Read([]byte(key))
-		c.JSON(http.StatusOK, gin.H{
-			"value": string(value),
-		})
-	})
-	r.GET("/update", func(c *gin.Context) {
-		key := c.Query("key")
-		value := c.Query("value")
-		database.Update([]byte(key), []byte(value))
-		c.JSON(http.StatusOK, gin.H{
-			"message": "Data Updated successfully",
-		})
-	})
-	r.GET("/delete", func(c *gin.Context) {
-		key := c.Query("key")
-		database.Delete([]byte(key))
-		c.JSON(http.StatusOK, gin.H{
-			"message": "Data Deleted successfully",
-		})
-	})
-	r.Static("/public", "./public")
-	// Start the server
-	err := r.Run(":8001")
+	log.Info("Connected")
+	// Create a random seed hash
+	hash, err := proofcrypto.CreateRandomHash()
 	if err != nil {
-		fmt.Println(err)
+		WsResponse("Error", "Failed to create random seed hash", "0", conn)
+		log.Error(err)
+		return
 	}
+
+	// Create a proof request
+	proofJson, err := validation.ProofRequestJson(hash, CID)
+	if err != nil {
+		WsResponse("Error", "Failed to create proof request JSON", "0", conn)
+		log.Error(err)
+		return
+	}
+
+	// Save the proof request to the database
+	database.Save([]byte(hash), []byte(proofJson))
+
+	// Save the proof time
+	localdata.SaveTime(hash)
+	WsResponse("Requesting", "Requesting Proof", "0", conn)
+	// Send the proof request to the storage node
+	err = pubsub.Publish(proofJson, name)
+	if err != nil {
+		WsResponse("Error", "Failed to send proof request to storage node", "0", conn)
+		log.Error(err)
+		return
+	}
+
+	// Create a channel to wait for the proof
+	WsResponse("Waiting Proof", "Waiting for Proof", "0", conn)
+	proofTimeout := time.NewTicker(30 * time.Millisecond)
+	defer proofTimeout.Stop()
+
+	proofDone := make(chan struct{})
+	defer close(proofDone)
+
+	go func() {
+		for {
+			select {
+			case <-proofTimeout.C:
+				if messaging.ProofRequest[CID] {
+					close(proofDone)
+					return
+				}
+			case <-proofDone:
+				return
+			}
+		}
+	}()
+
+	<-proofDone
+
+	WsResponse("Validating", "Validating", "0", conn)
+
+	// Wait for the proof to be validated
+	statusTimeout := time.NewTicker(30 * time.Millisecond)
+	defer statusTimeout.Stop()
+
+	statusDone := make(chan struct{})
+	defer close(statusDone)
+
+	go func() {
+		for {
+			select {
+			case <-statusTimeout.C:
+				status := localdata.GetStatus(hash)
+				if status != "Pending" {
+					close(statusDone)
+					return
+				}
+			case <-statusDone:
+				return
+			}
+		}
+	}()
+
+	<-statusDone
+
+	// Get the proof status and time elapsed
+	status := localdata.GetStatus(hash)
+	elapsed := localdata.GetElapsed(hash)
+
+	WsResponse(status, status, strconv.FormatFloat(float64(elapsed.Milliseconds()), 'f', 0, 64)+"ms", conn)
+	fmt.Println("Proof Status:", status)
+	log.Info("Exiting handleValidate")
+}
+
+func handleWrite(c *gin.Context) {
+	key := c.PostForm("key")
+	value := c.PostForm("value")
+	database.Save([]byte(key), []byte(value))
+	c.JSON(http.StatusOK, gin.H{
+		"message": "Data saved successfully",
+	})
+}
+
+func handleRead(c *gin.Context) {
+	key := c.Query("key")
+	value := database.Read([]byte(key))
+	c.JSON(http.StatusOK, gin.H{
+		"value": string(value),
+	})
+}
+
+func handleUpdate(c *gin.Context) {
+	key := c.Query("key")
+	value := c.Query("value")
+	database.Update([]byte(key), []byte(value))
+	c.JSON(http.StatusOK, gin.H{
+		"message": "Data Updated successfully",
+	})
+}
+
+func handleDelete(c *gin.Context) {
+	key := c.Query("key")
+	database.Delete([]byte(key))
+	c.JSON(http.StatusOK, gin.H{
+		"message": "Data Deleted successfully",
+	})
 }
 
 func WsResponse(Status string, message string, Elapsed string, conn *websocket.Conn) {

@@ -18,12 +18,12 @@ func HashFile(fileContents string) string {
 
 // CreateRandomHash
 // Create a random hash
-func CreateRandomHash() string {
+func CreateRandomHash() (string, error) {
 	source := rand.NewSource(time.Now().UnixNano())
 	random := rand.New(source)
 	randomNumber := random.Intn(5000000000) + 1
-	hash, _ := multihash.Sum([]byte(fmt.Sprintf("%d", randomNumber)), multihash.SHA2_256, -1)
-	return hash.B58String()
+	hash, err := multihash.Sum([]byte(fmt.Sprintf("%d", randomNumber)), multihash.SHA2_256, -1)
+	return hash.B58String(), err
 }
 
 // GetIntFromHash
