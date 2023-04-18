@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"proofofaccess/database"
 	"proofofaccess/hive"
+	"proofofaccess/ipfs"
 	"proofofaccess/localdata"
 	"proofofaccess/messaging"
 	"proofofaccess/proofcrypto"
@@ -112,7 +113,7 @@ func handleValidate(c *gin.Context) {
 	}
 	WsResponse("Connecting", "Connecting to Peer", "0", conn)
 	log.Info(peerid)
-	// err = ipfs.IpfsPingNode(peerid)
+	err = ipfs.IpfsPingNode(peerid)
 	if err != nil {
 		WsResponse("PeerNotFound", "Peer Not Found", "0", conn)
 		log.Error(err)
