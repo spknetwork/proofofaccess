@@ -121,11 +121,13 @@
 
 <!-- Include Leaflet JS -->
 <script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
+
 <script>
     // ... existing script ...
     function submitForm() {
         const name = document.getElementById('name').value;
         const cid = document.getElementById('cid').value;
+        resetStepTexts();
         const socket = new WebSocket(`ws://${location.host}/validate`);
 
         const steps = document.querySelectorAll('.step, .step5');
@@ -146,23 +148,23 @@
 
             const statusMap = {
                 'FetchingHiveAccount': { stepIndex: 0, classes: ['working'], text: 'Fetching Hive Account' },
-                'Connecting': { stepIndex: 0, nextStepIndex: 1, classes: ['completed'], nextClasses: ['working'], text: 'Connecting to Peer' },
-                'IpfsPeerIDError': { stepIndex: 1, classes: ['error'], text: 'Error: Invalid Peer ID' },
+                'FoundHiveAccount': { stepIndex: 0, classes: ['completed'], text: 'Hive Account Found' },
+                'Connecting': { stepIndex: 1, nextStepIndex: 1, classes: ['working'], text: 'Connecting to Peer' },
                 'PeerNotFound': { stepIndex: 1, classes: ['error'], text: 'Error: Peer Not Found' },
+                'Connected': { stepIndex: 1, nextStepIndex: 1, classes: ['completed'], text: 'Connecting to Peer' },
                 'Connection Error': { stepIndex: 1, classes: ['error'], text: 'Error: Connection Error' },
-                'Requesting': { stepIndex: 1, nextStepIndex: 2, classes: ['completed'], nextClasses: ['working'], text: 'Requesting' },
-                'Waiting Proof': { stepIndex: 2, classes: ['completed'], text: 'Waiting for Proof' },
-                'Proof Received': { stepIndex: 2, nextStepIndex: 3, classes: ['completed'], nextClasses: ['working'], text: 'Proof Received' },
-                'Validating': { stepIndex: 3, classes: ['working'], text: 'Validating' },
-                'Valid': { stepIndex: 3, classes: ['completed'], text: 'Proof Validated', step5Classes: ['completed'], step5TextValue: 'Valid' },
-                'Invalid': { stepIndex: 3, classes: ['completed'], text: 'Validating', step5Classes: ['error'], step5TextValue: 'Proof Invalid' }
+                'RequestingProof': { stepIndex: 2, prevStepIndex: 1, prevClasses: ['completed'], nextStepIndex: 3, classes: ['working'], text: 'RequestingProof' },
+                'Waiting Proof': { stepIndex: 3, prevStepIndex: 2, prevClasses: ['completed'], classes: ['completed'], text: 'Waiting for Proof' },
+                'ProofReceived': { stepIndex: 3, nextStepIndex: 4, classes: ['completed'], nextClasses: ['working'], text: 'Proof Received' },
+                'Validating': { stepIndex: 4, classes: ['working'], text: 'Validating' },
+                'Valid': { stepIndex: 4, classes: ['completed'], text: 'Proof Validated', step5Classes: ['completed'], step5TextValue: 'Valid' },
+                'Invalid': { stepIndex: 4, classes: ['completed'], text: 'Validating', step5Classes: ['error'], step5TextValue: 'Proof Invalid' }
             };
-
             if (statusMap[data.Status]) {
-                const { stepIndex, nextStepIndex, classes, nextClasses, step5Classes, text, step5TextValue } = statusMap[data.Status];
+                const { stepIndex, prevStepIndex, prevClasses, nextStepIndex, classes, nextClasses, step5Classes, text, step5TextValue } = statusMap[data.Status];
                 steps[stepIndex].classList.remove('error', 'completed', 'working');
                 steps[stepIndex].classList.add(...classes);
-                if (nextStepIndex !== undefined) {
+                if (nextStepIndex !== undefined && nextClasses !== undefined) { // Add check for nextClasses
                     steps[nextStepIndex].classList.remove('error', 'completed', 'working');
                     steps[nextStepIndex].classList.add(...nextClasses);
                 }
@@ -176,6 +178,10 @@
                 if (classes.includes('completed')) {
                     lines[stepIndex].classList.add('completed');
                 }
+                if (prevStepIndex !== undefined && prevClasses !== undefined) { // Add check for prevClasses
+                    steps[prevStepIndex].classList.remove('error', 'completed', 'working');
+                    steps[prevStepIndex].classList.add(...prevClasses);
+                }
                 stepTexts[stepIndex].innerHTML = text;
             }
         });
@@ -184,28 +190,54 @@
             socket.send(JSON.stringify({ name, cid }));
         });
     }
-    // IP Node Map script
 
+    function resetStepTexts() {
+        const initialStepTexts = [
+            'Step 1',
+            'Step 2',
+            'Step 3',
+            'Step 4',
+            'Step 5'
+        ];
+
+        const stepTexts = document.querySelectorAll('.step-text');
+        stepTexts.forEach((stepText, index) => {
+            stepText.innerHTML = initialStepTexts[index];
+        });
+    }
+    // Replace IP Node Map script with the updated version
     const map = L.map('map').setView([0, 0], 2);
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
         attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
     }).addTo(map);
 
-    // Replace this with an array of 10 random IP addresses
-    const ipAddresses = [
-        '8.8.8.8',
-        '8.8.4.4',
-        '208.67.222.222',
-        '208.67.220.220',
-        '195.46.39.39',
-        '195.46.39.40',
-        '198.206.14.241',
-        '198.206.14.242',
-        '23.253.163.53',
-        '23.253.163.54',
-    ];
+    async function fetchSPKRunners() {
+        try {
+            const response = await fetch('https://spkinstant.hivehoneycomb.com/runners');
+            const data = await response.json();
+            return data.result;
+        } catch (error) {
+            console.error('Error fetching SPK runners:', error);
+        }
+    }
 
-    async function fetchNodeLocations() {
+    async function getIPsFromURLs(urls) {
+        return await Promise.all(urls.map(async url => {
+            try {
+                console.log(`Fetching IP for ${url}`);
+                const response = await fetch(`http://localhost:8001/get-ip?domain=${url.hostname}`);
+                const data = await response.json();
+                const ipAddress = data.ip;
+                console.log(`IP for ${url}:`, ipAddress);
+                return ipAddress;
+            } catch (error) {
+                console.error(`Error fetching IP for ${url}:`, error);
+            }
+        }));
+    }
+
+
+    async function fetchNodeLocations(ipAddresses) {
         try {
             const apiKey = '77d12fea45e0aa44177ba9015265ce3f'; // Replace with your ipapi API key
             const locations = await Promise.all(ipAddresses.map(async ip => {
@@ -221,20 +253,29 @@
     }
 
     async function addNodeMarkers() {
-        const locations = await fetchNodeLocations();
-        locations.forEach(location => {
-            if (location) {
+        const spkRunners = await fetchSPKRunners();
+        const urls = spkRunners.map(runner => new URL(runner.api));
+        const ipAddresses = await getIPsFromURLs(urls);
+        const locations = await fetchNodeLocations(ipAddresses);
+        locations.forEach((location, index) => {
+            console.log(location);
+            if (location.latitude && location.longitude) {
+                const accountName = spkRunners[index].account;
+                console.log("test: ",accountName);
                 const marker = L.marker([location.latitude, location.longitude]).addTo(map);
                 marker.bindPopup(`
               <strong>${location.city}, ${location.region_name}, ${location.country_name}</strong><br>
               IP: ${location.ip}<br>
-              Lat: ${location.latitude}, Lon: ${location.longitude}
+              Lat: ${location.latitude}, Lon: ${location.longitude}<br>
+              Account: ${accountName}
             `);
             }
         });
     }
 
+
     addNodeMarkers();
+</script>
 
 </script>
 </body>

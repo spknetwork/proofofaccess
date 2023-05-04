@@ -8,29 +8,47 @@ import (
 	"proofofaccess/localdata"
 	"proofofaccess/pubsub"
 	"proofofaccess/validation"
-	"strings"
 	"time"
 )
 
 type Request struct {
 	Type string `json:"type"`
 	Hash string `json:"hash"`
-	CID  string `json:"CID"`
+	CID  string `json:"cid"`
 	Seed string `json:"seed"`
 	User string `json:"user"`
 }
+
+const (
+	Layout            = "2006-01-02 15:04:05.999999 -0700 MST m=+0.000000000"
+	TypeProofOfAccess = "ProofOfAccess"
+	TypeRequestProof  = "RequestProof"
+	TypePingPongPing  = "PingPongPing"
+	TypePingPongPong  = "PingPongPong"
+)
 
 var request Request
 
 var Ping = map[string]bool{}
 var ProofRequest = map[string]bool{}
+var ProofRequestStatus = map[string]bool{}
 
 // SendProof
 // This is the function that sends the proof of access to the validation node
 func SendProof(hash string, seed string, user string) {
-	jsonString := `{"type": "ProofOfAccess", "hash":"` + hash + `", "seed":"` + seed + `"}`
-	jsonString = strings.TrimSpace(jsonString)
-	pubsub.Publish(jsonString, user)
+	data := map[string]string{
+		"type": TypeProofOfAccess,
+		"hash": hash,
+		"seed": seed,
+		"user": user,
+	}
+	jsonData, err := json.Marshal(data)
+	if err != nil {
+		fmt.Println("Error encoding JSON:", err)
+		return
+	}
+
+	pubsub.Publish(string(jsonData), user)
 }
 
 // HandleMessage
@@ -40,14 +58,15 @@ func HandleMessage(message string, nodeType *int) {
 	err := json.Unmarshal([]byte(message), &request)
 	if err != nil {
 		fmt.Println("Error decoding JSON:", err)
+		return
 	}
 	fmt.Println("Message received:", message)
 	//Handle proof of access response from storage node
 	if *nodeType == 1 {
-		if request.Type == "ProofOfAccess" {
+		if request.Type == TypeProofOfAccess {
 			HandleProofOfAccess(request)
 		}
-		if request.Type == "PingPongPong" {
+		if request.Type == TypePingPongPong {
 			Ping[request.Hash] = true
 			fmt.Println("PingPongPong received")
 		}
@@ -55,10 +74,10 @@ func HandleMessage(message string, nodeType *int) {
 
 	//Handle request for proof request from validation node
 	if *nodeType == 2 {
-		if request.Type == "RequestProof" {
+		if request.Type == TypeRequestProof {
 			HandleRequestProof(request)
 		}
-		if request.Type == "PingPongPing" {
+		if request.Type == TypePingPongPing {
 			fmt.Println("PingPongPing received")
 			PingPongPong(request.Hash, request.User)
 		}
@@ -74,9 +93,11 @@ func HandleRequestProof(request Request) {
 	if ipfs.IsPinned(CID) == true {
 		validationHash := validation.CreatProofHash(hash, CID)
 		SendProof(validationHash, hash, user)
+
 	} else {
 		SendProof("", hash, user)
 	}
+
 }
 
 // HandleProofOfAccess
@@ -84,7 +105,6 @@ func HandleRequestProof(request Request) {
 func HandleProofOfAccess(request Request) {
 	// Get the start time from the seed
 	start := localdata.GetTime(request.Seed)
-	fmt.Println("Start time:", start)
 
 	// Get the current time
 	elapsed := time.Since(start)
@@ -99,19 +119,20 @@ func HandleProofOfAccess(request Request) {
 	if err != nil {
 		fmt.Println("Error decoding JSON:", err)
 	}
-	CID := message.CID
-	ProofRequest[CID] = true
-	fmt.Println("CID:", CID)
-	Seed := request.Seed
+	seed := message.Seed
+	CID := localdata.GetStatus(seed).CID
+	ProofRequest[seed] = true
 	// Create the proof hash
 	var validationHash string
 	if request.Hash != "" {
-		validationHash = validation.CreatProofHash(Seed, CID)
+		validationHash = validation.CreatProofHash(seed, CID)
+		// Check if the proof of access is valid
 		if validationHash == request.Hash && elapsed < 2500*time.Millisecond {
 			fmt.Println("Proof of access is valid")
 			fmt.Println(request.Seed)
 			localdata.SetStatus(request.Seed, CID, "Valid")
 		} else {
+			fmt.Println("Elapsed time:", elapsed)
 			fmt.Println("Proof of access is invalid took too long")
 			localdata.SetStatus(request.Seed, CID, "Invalid")
 		}
@@ -119,8 +140,7 @@ func HandleProofOfAccess(request Request) {
 		fmt.Println("Proof is invalid")
 		localdata.SetStatus(request.Seed, CID, "Invalid")
 	}
-
-	// Check if the proof of access is valid
+	ProofRequestStatus[seed] = true
 }
 
 func PingPong(hash string, user string) {
@@ -131,14 +151,29 @@ func PingPong(hash string, user string) {
 }
 
 func PingPongPing(hash string, user string) {
-	jsonString := `{"type": "PingPongPing", "hash":"` + hash + `", "user":"` + localdata.GetNodeName() + `"}`
-	jsonString = strings.TrimSpace(jsonString)
-	fmt.Println("PingPongPing sent")
-	pubsub.Publish(jsonString, user)
+	data := map[string]string{
+		"type": TypePingPongPing,
+		"hash": hash,
+		"user": localdata.GetNodeName(),
+	}
+	jsonData, err := json.Marshal(data)
+	if err != nil {
+		fmt.Println("Error encoding JSON:", err)
+		return
+	}
+	pubsub.Publish(string(jsonData), user)
 }
 
 func PingPongPong(hash string, user string) {
-	jsonString := `{"type": "PingPongPong", "hash":"` + hash + `", "user":"` + user + `"}`
-	jsonString = strings.TrimSpace(jsonString)
-	pubsub.Publish(jsonString, user)
+	data := map[string]string{
+		"type": TypePingPongPong,
+		"hash": hash,
+		"user": user,
+	}
+	jsonData, err := json.Marshal(data)
+	if err != nil {
+		fmt.Println("Error encoding JSON:", err)
+		return
+	}
+	pubsub.Publish(string(jsonData), user)
 }

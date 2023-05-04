@@ -47,7 +47,7 @@ func initialize(ctx context.Context) {
 
 	if *nodeType == 1 {
 		database.Init()
-		go api.StartAPI(ctx, *nodeType)
+		go api.StartAPI(ctx)
 	}
 
 	go pubsubHandler(ctx)

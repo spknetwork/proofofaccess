@@ -23,12 +23,12 @@ var NodeName = ""
 
 // SaveTime
 // Saves the time to the database
-func SaveTime(hash string) {
+func SaveTime(salt string) {
 	fmt.Println("Saving time to database")
 	Time = time.Now()
 	timeStr := Time.Format(Layout)
 	fmt.Println("Time:", timeStr)
-	database.Update([]byte(hash+"time"), []byte(timeStr))
+	database.Update([]byte(salt+"time"), []byte(timeStr))
 	fmt.Println("Time saved to database")
 }
 
@@ -56,21 +56,21 @@ func GetElapsed(hash string) time.Duration {
 
 // GetStatus
 // Gets the status from the database
-func GetStatus(hash string) string {
-	data := database.Read([]byte(hash))
+func GetStatus(seed string) Message {
+	data := database.Read([]byte(seed))
 	var message Message
 	err := json.Unmarshal([]byte(string(data)), &message)
 	if err != nil {
 		fmt.Println("Error decoding JSON:", err)
 	}
-	return message.Status
+	return message
 }
 
 // SetStatus
 // Sets the status to the database
-func SetStatus(seed string, hash string, status string) {
+func SetStatus(seed string, cid string, status string) {
 
-	jsonString := `{"type": "ProofOfAccess", "hash":"` + hash + `", "seed":"` + seed + `", "status":"` + status + `"}`
+	jsonString := `{"type": "ProofOfAccess", "CID":"` + cid + `", "seed":"` + seed + `", "status":"` + status + `"}`
 	jsonString = strings.TrimSpace(jsonString)
 	database.Update([]byte(seed), []byte(jsonString))
 }
