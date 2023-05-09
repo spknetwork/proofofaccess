@@ -225,7 +225,7 @@
         return await Promise.all(urls.map(async url => {
             try {
                 console.log(`Fetching IP for ${url}`);
-                const response = await fetch(`http://localhost:8001/get-ip?domain=${url.hostname}`);
+                const response = await fetch(`http://${location.host}/get-ip?domain=${url.hostname}`);
                 const data = await response.json();
                 const ipAddress = data.ip;
                 console.log(`IP for ${url}:`, ipAddress);
