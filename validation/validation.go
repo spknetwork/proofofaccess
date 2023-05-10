@@ -8,6 +8,8 @@ import (
 	"proofofaccess/proofcrypto"
 )
 
+const Layout = "2006-01-02 15:04:05.999999 -0700 MST m=+0.000000000"
+
 type RequestProof struct {
 	Type   string `json:"type"`
 	Hash   string `json:"hash"`
@@ -31,7 +33,7 @@ func AppendHashToFile(hash string, CID string) string {
 // Create Proof Hash
 func CreatProofHash(hash string, CID string) string {
 	// Get all the file blocks CIDs from the Target Files CID
-	cids := SelectIPFSRefs(CID, hash)
+	cids := ipfs.SavedRefs[CID]
 	// Get the length of the CIDs
 	length := len(cids)
 	fmt.Println("length", length)
@@ -78,11 +80,4 @@ func ProofRequestJson(hash string, CID string) (string, error) {
 		return "", err
 	}
 	return string(requestProofJson), nil
-}
-
-// SelectIPFSRefs
-// Get all the file blocks CIDs from the Target Files CID
-func SelectIPFSRefs(CID string, hash string) []string {
-	cids, _ := ipfs.Refs(CID)
-	return cids
 }

@@ -19,17 +19,15 @@ type Message struct {
 	Status string `json:"status"`
 }
 
+var Synced = false
 var NodeName = ""
 
 // SaveTime
 // Saves the time to the database
 func SaveTime(salt string) {
-	fmt.Println("Saving time to database")
 	Time = time.Now()
 	timeStr := Time.Format(Layout)
-	fmt.Println("Time:", timeStr)
 	database.Update([]byte(salt+"time"), []byte(timeStr))
-	fmt.Println("Time saved to database")
 }
 
 // GetTime

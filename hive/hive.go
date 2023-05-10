@@ -63,14 +63,9 @@ func GetIpfsID(user string) (string, error) {
 	}
 
 	// Check if the ipfs_node_id field is present in the metadata
-	profile, ok := postingMetadata["profile"].(map[string]interface{})
+	ipfsNodeID, ok := postingMetadata["peerId"].(string)
 	if !ok {
 		fmt.Println("Error: profile field not found in posting JSON metadata")
-		return "", err
-	}
-	ipfsNodeID, ok := profile["ipfs_node_id"].(string)
-	if !ok {
-		fmt.Println("Error: ipfs_node_id field not found in posting JSON metadata")
 		return "", err
 	}
 
