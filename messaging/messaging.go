@@ -93,7 +93,6 @@ func HandleRequestProof(request Request) {
 	if ipfs.IsPinned(CID) == true {
 		validationHash := validation.CreatProofHash(hash, CID)
 		SendProof(validationHash, hash, user)
-
 	} else {
 		SendProof("", hash, user)
 	}

@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"flag"
+	"fmt"
 	"os"
 	"os/signal"
 	"proofofaccess/api"
@@ -88,15 +89,48 @@ func pubsubHandler(ctx context.Context) {
 		}
 	}
 }
-
 func fetchPins(ctx context.Context) {
 	for {
 		select {
 		case <-ctx.Done():
 			return
 		default:
-			ipfs.Pins, _ = ipfs.Shell.Pins()
-			time.Sleep(10 * time.Second)
+			ipfs.Pins = ipfs.NewPins
+			allPins, err := ipfs.Shell.Pins() // Fetch all pins
+			if err != nil {
+				fmt.Println("Error fetching pins:", err)
+				continue
+			}
+			ipfs.NewPins = make(map[string]interface{})
+			for key, pinInfo := range allPins {
+				if pinInfo.Type == "recursive" {
+					ipfs.NewPins[key] = key
+				}
+			}
+
+			// Calculate the length of the map and the number of keys not found in Pins
+			mapLength := len(ipfs.NewPins)
+			keysNotFound := 0
+
+			// Iterate through the keys in NewPins
+			for key := range ipfs.NewPins {
+				// Check if the key exists in Pins
+
+				if _, exists := ipfs.Pins[key]; !exists {
+					// If the key doesn't exist in Pins, add it to the pinsNotIncluded map
+					ipfs.SavedRefs[key], _ = ipfs.Refs(key)
+					if localdata.Synced == false {
+						fmt.Println("Synced: ", float64(keysNotFound)/float64(mapLength)*100, "%")
+					}
+					keysNotFound++
+				}
+			}
+			if localdata.Synced == false {
+				fmt.Println("Synced: ", 100)
+				localdata.Synced = true
+			}
+
+			time.Sleep(60 * time.Second)
 		}
 	}
 }
