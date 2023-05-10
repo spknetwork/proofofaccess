@@ -67,26 +67,30 @@ func setupCloseHandler(cancel context.CancelFunc) {
 }
 
 func pubsubHandler(ctx context.Context) {
-	sub, err := pubsub.Subscribe(*username)
-	if err != nil {
-		log.Error("Error subscribing to pubsub: ", err)
-		return
-	}
-
-	log.Info("User:", *username)
-
-	for {
-		select {
-		case <-ctx.Done():
+	if pubsub.Shell != nil {
+		sub, err := pubsub.Subscribe(*username)
+		if err != nil {
+			log.Error("Error subscribing to pubsub: ", err)
 			return
-		default:
-			msg, err := pubsub.Read(sub)
-			if err != nil {
-				log.Error("Error reading from pubsub: ", err)
-				continue
-			}
-			messaging.HandleMessage(msg, nodeType)
 		}
+
+		log.Info("User:", *username)
+
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			default:
+				msg, err := pubsub.Read(sub)
+				if err != nil {
+					log.Error("Error reading from pubsub: ", err)
+					continue
+				}
+				messaging.HandleMessage(msg, nodeType)
+			}
+		}
+	} else {
+		time.Sleep(1 * time.Second)
 	}
 }
 func fetchPins(ctx context.Context) {
