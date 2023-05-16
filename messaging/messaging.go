@@ -77,7 +77,8 @@ func HandleMessage(message string, nodeType *int) {
 		if request.Type == TypePingPongPong {
 			validatorName := request.User
 			localdata.Validators[validatorName] = true
-			fmt.Println("PingPongPong received")
+			fmt.Println("Validator", validatorName, "is online")
+			fmt.Println(validatorName, ": ", localdata.Validators[validatorName])
 		}
 	}
 	if request.Type == TypePingPongPong {
@@ -86,7 +87,7 @@ func HandleMessage(message string, nodeType *int) {
 	}
 	if request.Type == TypePingPongPing {
 		fmt.Println("PingPongPing received")
-		PingPongPong(request.Hash, request.User)
+		PingPongPong(request.Hash, localdata.NodeName)
 	}
 }
 
