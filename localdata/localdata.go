@@ -21,6 +21,7 @@ type Message struct {
 
 var Synced = false
 var NodeName = ""
+var Validators = map[string]bool{}
 
 // SaveTime
 // Saves the time to the database

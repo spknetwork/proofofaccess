@@ -66,10 +66,7 @@ func HandleMessage(message string, nodeType *int) {
 		if request.Type == TypeProofOfAccess {
 			HandleProofOfAccess(request)
 		}
-		if request.Type == TypePingPongPong {
-			Ping[request.Hash] = true
-			fmt.Println("PingPongPong received")
-		}
+
 	}
 
 	//Handle request for proof request from validation node
@@ -77,10 +74,19 @@ func HandleMessage(message string, nodeType *int) {
 		if request.Type == TypeRequestProof {
 			HandleRequestProof(request)
 		}
-		if request.Type == TypePingPongPing {
-			fmt.Println("PingPongPing received")
-			PingPongPong(request.Hash, request.User)
+		if request.Type == TypePingPongPong {
+			validatorName := request.User
+			localdata.Validators[validatorName] = true
+			fmt.Println("PingPongPong received")
 		}
+	}
+	if request.Type == TypePingPongPong {
+		Ping[request.Hash] = true
+		fmt.Println("PingPongPong received")
+	}
+	if request.Type == TypePingPongPing {
+		fmt.Println("PingPongPing received")
+		PingPongPong(request.Hash, request.User)
 	}
 }
 
