@@ -46,7 +46,6 @@ func connectToPeer(peerID string, conn *websocket.Conn, msg *message) error {
 	salt := msg.SALT
 	if salt == "" {
 		salt, err = proofcrypto.CreateRandomHash()
-		sendWsResponse(wsError, "Failed to create random hash", "0", conn)
 		if err != nil {
 			sendWsResponse(wsError, "Failed to create random hash", "0", conn)
 			log.Error(err)

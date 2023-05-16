@@ -66,10 +66,7 @@ func HandleMessage(message string, nodeType *int) {
 		if request.Type == TypeProofOfAccess {
 			HandleProofOfAccess(request)
 		}
-		if request.Type == TypePingPongPong {
-			Ping[request.Hash] = true
-			fmt.Println("PingPongPong received")
-		}
+
 	}
 
 	//Handle request for proof request from validation node
@@ -77,10 +74,20 @@ func HandleMessage(message string, nodeType *int) {
 		if request.Type == TypeRequestProof {
 			HandleRequestProof(request)
 		}
-		if request.Type == TypePingPongPing {
-			fmt.Println("PingPongPing received")
-			PingPongPong(request.Hash, request.User)
+		if request.Type == TypePingPongPong {
+			validatorName := request.User
+			localdata.Validators[validatorName] = true
+			fmt.Println("Validator", validatorName, "is online")
+			fmt.Println(validatorName, ": ", localdata.Validators[validatorName])
 		}
+	}
+	if request.Type == TypePingPongPong {
+		Ping[request.Hash] = true
+		fmt.Println("PingPongPong received")
+	}
+	if request.Type == TypePingPongPing {
+		fmt.Println("PingPongPing received")
+		PingPongPong(request.Hash, request.User)
 	}
 }
 
@@ -131,6 +138,7 @@ func HandleProofOfAccess(request Request) {
 			fmt.Println(request.Seed)
 			localdata.SetStatus(request.Seed, CID, "Valid")
 		} else {
+			fmt.Println("Request Hash", request.Hash)
 			fmt.Println("Elapsed time:", elapsed)
 			fmt.Println("Proof of access is invalid took too long")
 			localdata.SetStatus(request.Seed, CID, "Invalid")
@@ -167,7 +175,7 @@ func PingPongPong(hash string, user string) {
 	data := map[string]string{
 		"type": TypePingPongPong,
 		"hash": hash,
-		"user": user,
+		"user": localdata.GetNodeName(),
 	}
 	jsonData, err := json.Marshal(data)
 	if err != nil {

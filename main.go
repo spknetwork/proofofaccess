@@ -8,6 +8,8 @@ import (
 	"os/signal"
 	"proofofaccess/api"
 	"proofofaccess/localdata"
+	"proofofaccess/proofcrypto"
+	"strconv"
 	"syscall"
 	"time"
 
@@ -35,24 +37,47 @@ func main() {
 	<-ctx.Done()
 
 	log.Info("Shutting down...")
-	if *nodeType == 1 {
-		if err := database.Close(); err != nil {
-			log.Error("Error closing the database: ", err)
-		}
+
+	if err := database.Close(); err != nil {
+		log.Error("Error closing the database: ", err)
 	}
+
 }
 
 func initialize(ctx context.Context) {
 	localdata.SetNodeName(*username)
+	localdata.NodeType = *nodeType
 	ipfs.IpfsPeerID()
 
+	database.Init()
 	if *nodeType == 1 {
-		database.Init()
 		go api.StartAPI(ctx)
 	}
 
 	go pubsubHandler(ctx)
 	go fetchPins(ctx)
+	go connectToValidators(ctx, nodeType)
+}
+
+func connectToValidators(ctx context.Context, nodeType *int) {
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		default:
+			if *nodeType == 2 {
+				for i := 1; i <= 20; i++ {
+					validatorName := "validator" + strconv.Itoa(i)
+					fmt.Println("Connecting to validator: ", validatorName)
+					salt, _ := proofcrypto.CreateRandomHash()
+
+					messaging.PingPong(salt, validatorName)
+
+				}
+				time.Sleep(5 * time.Second)
+			}
+		}
+	}
 }
 
 func setupCloseHandler(cancel context.CancelFunc) {
