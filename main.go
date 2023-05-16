@@ -66,14 +66,15 @@ func connectToValidators(ctx context.Context, nodeType *int) {
 			return
 		default:
 			if *nodeType == 2 {
-				for i := 1; i <= 2; i++ {
+				for i := 1; i <= 20; i++ {
 					validatorName := "validator" + strconv.Itoa(i)
 					fmt.Println("Connecting to validator: ", validatorName)
 					salt, _ := proofcrypto.CreateRandomHash()
-					time.Sleep(1 * time.Second)
+
 					messaging.PingPong(salt, validatorName)
 
 				}
+				time.Sleep(5 * time.Second)
 			}
 		}
 	}
