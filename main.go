@@ -46,6 +46,7 @@ func main() {
 
 func initialize(ctx context.Context) {
 	localdata.SetNodeName(*username)
+	localdata.NodeType = *nodeType
 	ipfs.IpfsPeerID()
 
 	database.Init()

@@ -34,6 +34,10 @@ func AppendHashToFile(hash string, CID string) string {
 func CreatProofHash(hash string, CID string) string {
 	// Get all the file blocks CIDs from the Target Files CID
 	cids := ipfs.SavedRefs[CID]
+	if localdata.NodeType == 1 {
+		cids = SelectIPFSRefs(CID, hash)
+	}
+
 	// Get the length of the CIDs
 	length := len(cids)
 	fmt.Println("length", length)
@@ -80,4 +84,11 @@ func ProofRequestJson(hash string, CID string) (string, error) {
 		return "", err
 	}
 	return string(requestProofJson), nil
+}
+
+// SelectIPFSRefs
+// Get all the file blocks CIDs from the Target Files CID
+func SelectIPFSRefs(CID string, hash string) []string {
+	cids, _ := ipfs.Refs(CID)
+	return cids
 }
