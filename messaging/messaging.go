@@ -87,7 +87,7 @@ func HandleMessage(message string, nodeType *int) {
 	}
 	if request.Type == TypePingPongPing {
 		fmt.Println("PingPongPing received")
-		PingPongPong(request.Hash, localdata.NodeName)
+		PingPongPong(request.Hash, request.User)
 	}
 }
 
@@ -174,7 +174,7 @@ func PingPongPong(hash string, user string) {
 	data := map[string]string{
 		"type": TypePingPongPong,
 		"hash": hash,
-		"user": user,
+		"user": localdata.GetNodeName(),
 	}
 	jsonData, err := json.Marshal(data)
 	if err != nil {
