@@ -152,7 +152,7 @@ func HandleProofOfAccess(request Request) {
 
 func PingPong(hash string, user string) {
 	fmt.Println("PingPong")
-	localdata.SaveTime(hash)
+	//localdata.SaveTime(hash)
 	fmt.Println("PingPongPing sent")
 	PingPongPing(hash, user)
 }

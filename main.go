@@ -49,8 +49,8 @@ func initialize(ctx context.Context) {
 	localdata.NodeType = *nodeType
 	ipfs.IpfsPeerID()
 
-	database.Init()
 	if *nodeType == 1 {
+		database.Init()
 		go api.StartAPI(ctx)
 	}
 
