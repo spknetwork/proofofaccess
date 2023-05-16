@@ -138,6 +138,7 @@ func HandleProofOfAccess(request Request) {
 			fmt.Println(request.Seed)
 			localdata.SetStatus(request.Seed, CID, "Valid")
 		} else {
+			fmt.Println("Request Hash", request.Hash)
 			fmt.Println("Elapsed time:", elapsed)
 			fmt.Println("Proof of access is invalid took too long")
 			localdata.SetStatus(request.Seed, CID, "Invalid")
