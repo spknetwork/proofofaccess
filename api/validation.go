@@ -128,22 +128,18 @@ func waitForProofStatus(salt string, cid string, conn *websocket.Conn) (string, 
 	proofTimeout := time.NewTicker(validationTimeout)
 	defer proofTimeout.Stop()
 
-	proofStart := make(chan struct{})
+	proofStart := make(chan struct{}, 1)
 	defer close(proofStart)
 
 	go func() {
 		for {
-			select {
-			case <-proofTimeout.C:
-				if messaging.ProofRequest[cid] {
-					sendWsResponse(wsProofReceived, "ProofReceived", "0", conn)
-					sendWsResponse(wsValidating, "Validating", "0", conn)
-					close(proofStart)
-					return
-				}
-			case <-proofStart:
+			if messaging.ProofRequest[salt] {
+				sendWsResponse(wsProofReceived, "ProofReceived", "0", conn)
+				sendWsResponse(wsValidating, "Validating", "0", conn)
 				return
 			}
+			//wait 1 second before checking again
+			time.Sleep(100 * time.Millisecond)
 		}
 	}()
 

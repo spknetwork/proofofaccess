@@ -33,11 +33,9 @@ func AppendHashToFile(hash string, CID string) string {
 // Create Proof Hash
 func CreatProofHash(hash string, CID string) string {
 	// Get all the file blocks CIDs from the Target Files CID
-	cids := ipfs.SavedRefs[CID]
-	if localdata.NodeType == 1 {
-		cids = SelectIPFSRefs(CID, hash)
-	}
-
+	fmt.Println("CID: ", CID)
+	cids := localdata.SavedRefs[CID]
+	fmt.Println("cids: ", cids)
 	// Get the length of the CIDs
 	length := len(cids)
 	fmt.Println("length", length)

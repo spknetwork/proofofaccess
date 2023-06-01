@@ -22,7 +22,11 @@ type Message struct {
 var Synced = false
 var NodeName = ""
 var Validators = map[string]bool{}
+var ValidatorsStatus = map[string]string{}
+var NodesStatus = map[string]string{}
 var NodeType int
+var PinFileCids = map[string][]string{}
+var SavedRefs = map[string][]string{}
 
 // SaveTime
 // Saves the time to the database
@@ -69,7 +73,7 @@ func GetStatus(seed string) Message {
 // SetStatus
 // Sets the status to the database
 func SetStatus(seed string, cid string, status string) {
-
+	fmt.Println("SetStatus", seed, cid, status)
 	jsonString := `{"type": "ProofOfAccess", "CID":"` + cid + `", "seed":"` + seed + `", "status":"` + status + `"}`
 	jsonString = strings.TrimSpace(jsonString)
 	database.Update([]byte(seed), []byte(jsonString))

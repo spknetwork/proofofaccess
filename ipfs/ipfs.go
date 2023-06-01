@@ -2,10 +2,13 @@ package ipfs
 
 import (
 	"bytes"
+	"encoding/json"
 	"fmt"
 	ipfs "github.com/ipfs/go-ipfs-api"
 	"io/ioutil"
 	"net"
+	"os"
+	"proofofaccess/localdata"
 	"strings"
 )
 
@@ -14,7 +17,8 @@ import (
 var Shell = ipfs.NewShell("localhost:5001")
 var Pins = make(map[string]interface{})
 var NewPins = make(map[string]interface{})
-var SavedRefs = map[string][]string{}
+
+var AllPins = map[string]ipfs.PinInfo{}
 
 // Download
 // Add a file to IPFS
@@ -38,6 +42,7 @@ func Download(fileHash string) (bytes.Buffer, error) {
 func Refs(CID string) ([]string, error) {
 	cids, err := Shell.Refs(CID, true)
 	if err != nil {
+		fmt.Println("Error getting refs:", err)
 		return nil, err
 	}
 
@@ -52,7 +57,7 @@ func Refs(CID string) ([]string, error) {
 
 func IsPinned(cid string) bool {
 	// Check if the CID is pinned
-	_, ok := SavedRefs[cid]
+	_, ok := localdata.SavedRefs[cid]
 	return ok
 }
 
@@ -138,4 +143,111 @@ func isPrivateIP(ip net.IP) bool {
 	}
 
 	return false
+}
+
+// UploadTextToFile
+// Write text to a local file and then upload it to IPFS
+func UploadTextToFile(text, filePath string) (string, error) {
+	// Write the given text to a file
+	err := ioutil.WriteFile(filePath, []byte(text), 0644)
+	if err != nil {
+		return "", fmt.Errorf("error writing to file: %v", err)
+	}
+
+	// Read the file
+	file, err := os.Open(filePath)
+	if err != nil {
+		return "", fmt.Errorf("error reading file: %v", err)
+	}
+	defer file.Close()
+
+	// Upload the file to IPFS
+	cid, err := Shell.Add(file)
+	if err != nil {
+		return "", fmt.Errorf("error uploading file to IPFS: %v", err)
+	}
+
+	// Optional: remove the local file after uploading
+	err = os.Remove(filePath)
+	if err != nil {
+		fmt.Printf("warning: error removing local file: %v\n", err)
+	}
+
+	return cid, nil
+}
+
+// DownloadAndDecodeJSON downloads a JSON file from IPFS and decodes its contents.
+// The result is stored in the given destination.
+func DownloadAndDecodeJSON(fileHash string, dest interface{}) error {
+	// Download the file from IPFS
+	fmt.Println("Downloading file: ", fileHash)
+	fileReader, err := Shell.Cat(fileHash)
+	if err != nil {
+		return fmt.Errorf("error downloading file: %v", err)
+	}
+	defer fileReader.Close()
+
+	// Read the file into a bytes buffer
+	fileContents, err := ioutil.ReadAll(fileReader)
+	if err != nil {
+		return fmt.Errorf("error reading file contents: %v", err)
+	}
+
+	// Decode the JSON contents of the file into the destination
+	err = json.Unmarshal(fileContents, dest)
+	if err != nil {
+		return fmt.Errorf("error decoding JSON: %v", err)
+	}
+
+	return nil
+}
+func SyncNode(allPins map[string]ipfs.PinInfo, name string) {
+	Pins = NewPins
+	fmt.Println("Fetching pins...")
+	AllPins = allPins
+	fmt.Println("Number of pins: ", len(allPins))
+	if len(allPins) == 0 {
+		fmt.Println("No pins found")
+		return
+	}
+	NewPins = make(map[string]interface{})
+	for key, pinInfo := range allPins {
+		if pinInfo.Type == "recursive" {
+			NewPins[key] = key
+		}
+	}
+	fmt.Println("Number of recursive pins: ", len(NewPins))
+	// Calculate the length of the map and the number of keys not found in Pins
+	mapLength := len(NewPins)
+	keysNotFound := 0
+	fmt.Println("Syncing...")
+	// Iterate through the keys in NewPins
+	for key := range NewPins {
+		// Check if the key exists in Pins
+		if _, exists := Pins[key]; !exists {
+			// If the key doesn't exist in Pins, add it to the pinsNotIncluded map
+			fmt.Println("Key not found: ", key)
+			var err error
+			localdata.SavedRefs[key], err = Refs(key)
+			if err != nil {
+				fmt.Println("Error: ", err)
+			}
+			println("SavedRefs: ", len(localdata.SavedRefs[key]))
+
+		} else {
+			fmt.Println("Key found: ", key)
+		}
+		fmt.Println("Key: ", key)
+		// Print the progress of the sync
+		fmt.Println("Keys: ", keysNotFound)
+		fmt.Println("Synced", name, " : ", float64(keysNotFound)/float64(mapLength)*100, "%")
+		keysNotFound++
+		if keysNotFound == mapLength {
+			fmt.Println("Synced: ", name)
+			localdata.NodesStatus[name] = "Synced"
+			return
+		}
+	}
+	localdata.NodesStatus[name] = "Failed"
+	return
 }

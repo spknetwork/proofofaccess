@@ -34,7 +34,7 @@ func StartAPI(ctx context.Context) {
 	r.StaticFile("/", "./public/index.html")
 
 	// Handle the API request
-	r.GET("/validate", handleValidate)
+	go r.GET("/validate", handleValidate)
 	r.POST("/write", handleWrite)
 	r.GET("/read", handleRead)
 	r.GET("/update", handleUpdate)
@@ -45,7 +45,7 @@ func StartAPI(ctx context.Context) {
 
 	// Start the server
 	server := &http.Server{
-		Addr:    ":8001",
+		Addr:    ":8000",
 		Handler: r,
 	}
 

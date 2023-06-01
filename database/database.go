@@ -11,6 +11,7 @@ import (
 // DB
 // Open the database
 var DB *badger.DB
+var Lock = false
 
 // ErrDatabaseClosed is an error indicating that the database is closed
 var ErrDatabaseClosed = errors.New("database is closed")
@@ -54,6 +55,12 @@ func checkDatabaseOpen() error {
 // Delete
 // Delete the value associated with a key
 func Delete(key []byte) {
+	if Lock == true {
+		for Lock == true {
+			time.Sleep(10 * time.Millisecond)
+		}
+	}
+	Lock = true
 	if err := checkDatabaseOpen(); err != nil {
 		log.Fatal(err)
 	}
@@ -68,11 +75,13 @@ func Delete(key []byte) {
 				log.Panic(err)
 			}
 		}
+		Lock = false
 		return nil
 	})
 	fmt.Println("Value deleted")
 	if err != nil {
 		fmt.Printf("Error deleting value: %v\n", err)
+		Lock = false
 		return
 	}
 }
@@ -83,8 +92,13 @@ func Save(key []byte, value []byte) {
 	if err := checkDatabaseOpen(); err != nil {
 		log.Fatal(err)
 	}
-
 	fmt.Println("Saving data to database")
+	if Lock == true {
+		for Lock == true {
+			time.Sleep(10 * time.Millisecond)
+		}
+	}
+	Lock = true
 	txn := DB.NewTransaction(true)
 	defer txn.Discard()
 
@@ -97,26 +111,38 @@ func Save(key []byte, value []byte) {
 	if err != nil {
 		log.Panic(err)
 	}
+	Lock = false
+	return
 }
 
 // Update
 // Update the value associated with a key
 func Update(key []byte, value []byte) {
 	if err := checkDatabaseOpen(); err != nil {
+		fmt.Println("Error checking database open")
 		log.Fatal(err)
 	}
 
 	fmt.Println("Updating value")
+	if Lock == true {
+		fmt.Println("Lock is true")
+		for Lock == true {
+			time.Sleep(10 * time.Millisecond)
+		}
+	}
+	Lock = true
 	err := DB.Update(func(txn *badger.Txn) error {
 		err := txn.Set([]byte(key), []byte(value))
 		if err != nil {
 			log.Panic(err)
 		}
+		Lock = false
 		return nil
 	})
 	fmt.Println("Value updated")
 	if err != nil {
 		fmt.Printf("Error updating value: %v\n", err)
+		Lock = false
 		return
 	}
 }
@@ -124,6 +150,12 @@ func Update(key []byte, value []byte) {
 // Read
 // Read the data from the database
 func Read(key []byte) []byte {
+	if Lock == true {
+		for Lock == true {
+			time.Sleep(10 * time.Millisecond)
+		}
+	}
+	Lock = true
 	if err := checkDatabaseOpen(); err != nil {
 		log.Fatal(err)
 	}
@@ -136,6 +168,7 @@ func Read(key []byte) []byte {
 	if err != nil {
 		if err == badger.ErrKeyNotFound {
 			fmt.Printf("Key not found: %v\n", err)
+			Lock = false
 			return nil
 		}
 		log.Panic(err)
@@ -144,6 +177,7 @@ func Read(key []byte) []byte {
 	if err != nil {
 		log.Panic(err)
 	}
+	Lock = false
 	return val
 }
 

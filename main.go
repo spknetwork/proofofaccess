@@ -25,6 +25,7 @@ var (
 	username  = flag.String("username", "", "Node type 1 = validation 2 = access")
 	CID, Hash string
 	log       = logrus.New()
+	newPins   = false
 )
 
 func main() {
@@ -43,7 +44,6 @@ func main() {
 	}
 
 }
-
 func initialize(ctx context.Context) {
 	localdata.SetNodeName(*username)
 	localdata.NodeType = *nodeType
@@ -52,13 +52,14 @@ func initialize(ctx context.Context) {
 	if *nodeType == 1 {
 		database.Init()
 		go api.StartAPI(ctx)
+	} else {
+		go fetchPins(ctx)
 	}
 
 	go pubsubHandler(ctx)
-	go fetchPins(ctx)
+
 	go connectToValidators(ctx, nodeType)
 }
-
 func connectToValidators(ctx context.Context, nodeType *int) {
 	for {
 		select {
@@ -74,12 +75,11 @@ func connectToValidators(ctx context.Context, nodeType *int) {
 					messaging.PingPong(salt, validatorName)
 
 				}
-				time.Sleep(5 * time.Second)
+				time.Sleep(120 * time.Second)
 			}
 		}
 	}
 }
-
 func setupCloseHandler(cancel context.CancelFunc) {
 	signalChan := make(chan os.Signal, 1)
 	signal.Notify(signalChan, os.Interrupt, syscall.SIGTERM)
@@ -90,7 +90,6 @@ func setupCloseHandler(cancel context.CancelFunc) {
 		cancel()
 	}()
 }
-
 func pubsubHandler(ctx context.Context) {
 	if pubsub.Shell != nil {
 		sub, err := pubsub.Subscribe(*username)
@@ -125,7 +124,13 @@ func fetchPins(ctx context.Context) {
 			return
 		default:
 			ipfs.Pins = ipfs.NewPins
-			allPins, err := ipfs.Shell.Pins() // Fetch all pins
+			fmt.Println("Fetching pins...")
+			allPins, err := ipfs.Shell.Pins()
+			for _, cid := range messaging.PinFileCids {
+				delete(allPins, cid)
+			}
+			ipfs.AllPins = allPins
+			// Fetch all pins
 			if err != nil {
 				fmt.Println("Error fetching pins:", err)
 				continue
@@ -139,6 +144,7 @@ func fetchPins(ctx context.Context) {
 
 			// Calculate the length of the map and the number of keys not found in Pins
 			mapLength := len(ipfs.NewPins)
+
 			keysNotFound := 0
 
 			// Iterate through the keys in NewPins
@@ -146,8 +152,9 @@ func fetchPins(ctx context.Context) {
 				// Check if the key exists in Pins
 
 				if _, exists := ipfs.Pins[key]; !exists {
+					newPins = true
 					// If the key doesn't exist in Pins, add it to the pinsNotIncluded map
-					ipfs.SavedRefs[key], _ = ipfs.Refs(key)
+					localdata.SavedRefs[key], _ = ipfs.Refs(key)
 					if localdata.Synced == false {
 						fmt.Println("Synced: ", float64(keysNotFound)/float64(mapLength)*100, "%")
 					}
@@ -158,7 +165,11 @@ func fetchPins(ctx context.Context) {
 				fmt.Println("Synced: ", 100)
 				localdata.Synced = true
 			}
-
+			if newPins == true {
+				fmt.Println("New pins found")
+				messaging.SendCIDS("validator1")
+			}
+			newPins = false
 			time.Sleep(60 * time.Second)
 		}
 	}
