@@ -4,15 +4,14 @@ import (
 	"context"
 	"fmt"
 	ipfs "github.com/ipfs/go-ipfs-api"
+	poaipfs "proofofaccess/ipfs"
 )
-
-var Shell = ipfs.NewShell("localhost:5001")
 
 // Subscribe to a topic
 func Subscribe(username string) (*ipfs.PubSubSubscription, error) {
 	_, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	sub, err := Shell.PubSubSubscribe(username)
+	sub, err := poaipfs.Shell.PubSubSubscribe(username)
 	if err != nil {
 		fmt.Println("Error subscribing:", err)
 		return nil, err
@@ -34,7 +33,7 @@ func Read(sub *ipfs.PubSubSubscription) (string, error) {
 // Publish a message to a topic
 func Publish(message string, user string) error {
 	fmt.Println("Publishing message:", message, user)
-	err := Shell.PubSubPublish(user, message)
+	err := poaipfs.Shell.PubSubPublish(user, message)
 	if err != nil {
 		fmt.Println("Error publishing message:", err)
 		return err

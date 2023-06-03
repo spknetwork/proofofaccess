@@ -4,6 +4,7 @@ import (
 	"context"
 	"flag"
 	"fmt"
+	shell "github.com/ipfs/go-ipfs-api"
 	"os"
 	"os/signal"
 	"proofofaccess/api"
@@ -23,6 +24,7 @@ import (
 var (
 	nodeType  = flag.Int("node", 1, "Node type 1 = validation 2 = access")
 	username  = flag.String("username", "", "Node type 1 = validation 2 = access")
+	ipfsPort  = flag.String("IPFS_PORT", "5001", "IPFS port number")
 	CID, Hash string
 	log       = logrus.New()
 	newPins   = false
@@ -30,6 +32,8 @@ var (
 
 func main() {
 	flag.Parse()
+
+	ipfs.Shell = shell.NewShell("localhost:" + *ipfsPort)
 	ctx, cancel := context.WithCancel(context.Background())
 
 	setupCloseHandler(cancel)
@@ -91,7 +95,7 @@ func setupCloseHandler(cancel context.CancelFunc) {
 	}()
 }
 func pubsubHandler(ctx context.Context) {
-	if pubsub.Shell != nil {
+	if ipfs.Shell != nil {
 		sub, err := pubsub.Subscribe(*username)
 		if err != nil {
 			log.Error("Error subscribing to pubsub: ", err)

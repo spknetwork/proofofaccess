@@ -14,7 +14,9 @@ import (
 
 // Shell
 // Create a new IPFS shell
-var Shell = ipfs.NewShell("localhost:5001")
+// Get flag for IPFS port
+var Shell *ipfs.Shell
+
 var Pins = make(map[string]interface{})
 var NewPins = make(map[string]interface{})
 
