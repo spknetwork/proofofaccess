@@ -21,15 +21,15 @@ func handleValidate(c *gin.Context) {
 		return
 	}
 
-	peerID, err := getPeerID(msg, conn)
-	if err != nil {
-		return
-	}
+	//peerID, err := getPeerID(msg, conn)
+	//if err != nil {
+	//	return
+	//}
 
-	err = connectToPeer(peerID, conn, msg)
-	if err != nil {
-		return
-	}
+	//err = connectToPeer(peerID, conn, msg)
+	//if err != nil {
+	//	return
+	//}
 
 	salt := msg.SALT
 	if salt == "" {
