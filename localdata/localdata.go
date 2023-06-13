@@ -21,12 +21,18 @@ type Message struct {
 
 var Synced = false
 var NodeName = ""
+var PeerNames = []string{}
+var ValidatorNames = []string{}
+var PeerStats = map[string][]string{}
+var PeerSize = map[string]int{}
 var Validators = map[string]bool{}
 var ValidatorsStatus = map[string]string{}
 var NodesStatus = map[string]string{}
 var NodeType int
 var PinFileCids = map[string][]string{}
 var SavedRefs = map[string][]string{}
+var NodeCount = 0
+var SyncedPercentage = float32(0)
 
 // SaveTime
 // Saves the time to the database
@@ -87,4 +93,21 @@ func SetNodeName(name string) {
 
 func GetNodeName() string {
 	return NodeName
+}
+func RemoveDuplicates(peerNames []string) []string {
+	encountered := map[string]bool{}
+	result := []string{}
+
+	for v := range peerNames {
+		if encountered[peerNames[v]] == true {
+			// Do not add duplicate.
+		} else {
+			// Record this element as encountered.
+			encountered[peerNames[v]] = true
+			// Append to result slice.
+			result = append(result, peerNames[v])
+		}
+	}
+
+	return result
 }

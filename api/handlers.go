@@ -56,7 +56,16 @@ func handleValidate(c *gin.Context) {
 	sendWsResponse(status, status, formatElapsed(elapsed), conn)
 	log.Info("Exiting handleValidate")
 }
-
+func handleStats(c *gin.Context) {
+	conn, err := upgradeToWebSocket(c)
+	if err != nil {
+		return
+	}
+	defer closeWebSocket(conn)
+	log.Info("Entering handleStats")
+	stats(conn)
+	return
+}
 func handleWrite(c *gin.Context) {
 	key := c.PostForm("key")
 	value := c.PostForm("value")

@@ -119,8 +119,10 @@ func HandleMessage(message string, nodeType *int) {
 	}
 	if request.Type == "Synced" {
 		fmt.Println("Synced with " + request.User)
+		localdata.Synced = true
 		go ReceiveSynced(request.User)
 	}
+	fmt.Println("Message handled")
 
 }
 
@@ -256,6 +258,7 @@ func SendCIDS(user string) {
 	pubsub.Publish(string(jsonData), user)
 }
 func SendSyncing(user string) {
+	localdata.Synced = true
 	data := map[string]string{
 		"type": "Syncing",
 		"user": localdata.GetNodeName(),
@@ -287,11 +290,14 @@ func ReceiveSyncing(user string) {
 	fmt.Println("Syncing with " + user)
 }
 func ReceiveSynced(user string) {
+	localdata.ValidatorNames = localdata.RemoveDuplicates(append(localdata.ValidatorNames, user))
 	localdata.ValidatorsStatus[user] = "Synced"
 	fmt.Println("Synced with " + user)
 }
 func SyncNode(user string) {
 	Nodes[user] = true
+	peerName := user
+	localdata.PeerNames = localdata.RemoveDuplicates(append(localdata.PeerNames, peerName))
 	localdata.NodesStatus[user] = "Syncing"
 	fmt.Println(request.CID)
 	var myData map[string]ipfsapi.PinInfo

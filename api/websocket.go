@@ -65,3 +65,9 @@ func sendWsResponse(status string, message string, elapsed string, conn *websock
 		return
 	}
 }
+func sendJsonWS(conn *websocket.Conn, json gin.H) {
+	err := conn.WriteJSON(json)
+	if err != nil {
+		return
+	}
+}

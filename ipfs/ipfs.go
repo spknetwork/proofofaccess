@@ -225,6 +225,11 @@ func SyncNode(allPins map[string]ipfs.PinInfo, name string) {
 	fmt.Println("Syncing...")
 	// Iterate through the keys in NewPins
 	for key := range NewPins {
+		size, _ := FileSize(key)
+		fmt.Println("Size: ", size)
+		fmt.Println("Name: ", name)
+		fmt.Println("PeerSize: ", localdata.PeerSize[name])
+		localdata.PeerSize[name] = localdata.PeerSize[name] + size
 		// Check if the key exists in Pins
 		if _, exists := Pins[key]; !exists {
 			// If the key doesn't exist in Pins, add it to the pinsNotIncluded map
@@ -252,4 +257,14 @@ func SyncNode(allPins map[string]ipfs.PinInfo, name string) {
 	}
 	localdata.NodesStatus[name] = "Failed"
 	return
+}
+func FileSize(cid string) (int, error) {
+	// Stat the object from IPFS
+	objectStats, err := Shell.ObjectStat(cid)
+	if err != nil {
+		return 0, fmt.Errorf("error retrieving object stats: %v", err)
+	}
+
+	// objectStats.DataSize is the size of the file in bytes.
+	return objectStats.CumulativeSize, nil
 }

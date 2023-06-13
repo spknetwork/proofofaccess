@@ -31,17 +31,18 @@ func StartAPI(ctx context.Context) {
 	r := gin.Default()
 
 	// Serve the index.html file on the root route
-	r.StaticFile("/", "./public/index.html")
-
+	go r.StaticFile("/", "./public/index.html")
+	go r.StaticFile("/stats", "./public/stats.html")
 	// Handle the API request
 	go r.GET("/validate", handleValidate)
-	r.POST("/write", handleWrite)
-	r.GET("/read", handleRead)
-	r.GET("/update", handleUpdate)
-	r.GET("/delete", handleDelete)
-	r.Static("/public", "./public")
+	go r.GET("/getstats", handleStats)
+	go r.POST("/write", handleWrite)
+	go r.GET("/read", handleRead)
+	go r.GET("/update", handleUpdate)
+	go r.GET("/delete", handleDelete)
+	go r.Static("/public", "./public")
 	// Handle the DNS lookup API request
-	r.GET("/get-ip", getIPHandler)
+	go r.GET("/get-ip", getIPHandler)
 
 	// Start the server
 	server := &http.Server{

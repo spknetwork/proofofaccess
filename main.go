@@ -55,11 +55,11 @@ func initialize(ctx context.Context) {
 
 	if *nodeType == 1 {
 		database.Init()
-		go api.StartAPI(ctx)
 	} else {
 		go fetchPins(ctx)
 	}
 
+	go api.StartAPI(ctx)
 	go pubsubHandler(ctx)
 
 	go connectToValidators(ctx, nodeType)
@@ -156,17 +156,22 @@ func fetchPins(ctx context.Context) {
 				// Check if the key exists in Pins
 
 				if _, exists := ipfs.Pins[key]; !exists {
+					size, _ := ipfs.FileSize(key)
+					localdata.PeerSize[localdata.NodeName] = localdata.PeerSize[localdata.NodeName] + size
 					newPins = true
 					// If the key doesn't exist in Pins, add it to the pinsNotIncluded map
 					localdata.SavedRefs[key], _ = ipfs.Refs(key)
 					if localdata.Synced == false {
-						fmt.Println("Synced: ", float64(keysNotFound)/float64(mapLength)*100, "%")
+
+						localdata.SyncedPercentage = float32(keysNotFound) / float32(mapLength) * 100
+						fmt.Println("Synced: ", localdata.SyncedPercentage, "%")
 					}
 					keysNotFound++
 				}
 			}
 			if localdata.Synced == false {
 				fmt.Println("Synced: ", 100)
+				localdata.SyncedPercentage = 100
 				localdata.Synced = true
 			}
 			if newPins == true {
