@@ -7,7 +7,6 @@ import (
 	ipfs "github.com/ipfs/go-ipfs-api"
 	"io/ioutil"
 	"net"
-	"net/http"
 	"os"
 	"proofofaccess/localdata"
 	"strings"
@@ -268,28 +267,4 @@ func FileSize(cid string) (int, error) {
 
 	// objectStats.DataSize is the size of the file in bytes.
 	return objectStats.CumulativeSize, nil
-}
-
-// RunGC runs the garbage collector on the IPFS node.
-func RunGC() error {
-	fmt.Println("Running IPFS garbage collector...")
-
-	// Replace with your IPFS API address if different
-	apiURL := "http://localhost:5001/api/v0/repo/gc"
-
-	// Create new request to `repo gc` endpoint
-	resp, err := http.Get(apiURL)
-	if err != nil {
-		return fmt.Errorf("error sending request: %v", err)
-	}
-	defer resp.Body.Close()
-
-	// Check the HTTP status code
-	if resp.StatusCode != http.StatusOK {
-		bodyBytes, _ := ioutil.ReadAll(resp.Body)
-		return fmt.Errorf("error in response from IPFS node: %s", string(bodyBytes))
-	}
-
-	fmt.Println("Garbage collection complete.")
-	return nil
 }
