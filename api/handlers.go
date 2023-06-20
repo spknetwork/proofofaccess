@@ -5,7 +5,10 @@ import (
 	"github.com/gin-gonic/gin"
 	"net"
 	"net/http"
+	"os"
 	"proofofaccess/database"
+	"proofofaccess/localdata"
+	"time"
 )
 
 func handleValidate(c *gin.Context) {
@@ -56,6 +59,26 @@ func handleValidate(c *gin.Context) {
 	sendWsResponse(status, status, formatElapsed(elapsed), conn)
 	log.Info("Exiting handleValidate")
 }
+func handleShutdown(c *gin.Context) {
+	if localdata.NodeType != 2 {
+
+		log.Info("Shutdown request received. Preparing to shut down the application...")
+
+		// Respond to the client
+		c.JSON(http.StatusOK, gin.H{
+			"message": "Shutdown request received. The application will shut down.",
+		})
+
+		// Use a goroutine to shut down the application after responding to the client
+		go func() {
+			// Wait a bit to make sure the response can be sent before the application shuts down
+			time.Sleep(5 * time.Second)
+			log.Info("Shutting down the application...")
+			os.Exit(0)
+		}()
+	}
+}
+
 func handleStats(c *gin.Context) {
 	conn, err := upgradeToWebSocket(c)
 	if err != nil {

@@ -35,6 +35,7 @@ func StartAPI(ctx context.Context) {
 	go r.StaticFile("/stats", "./public/stats.html")
 	// Handle the API request
 	go r.GET("/validate", handleValidate)
+	go r.POST("/shutdown", handleShutdown)
 	go r.GET("/getstats", handleStats)
 	go r.POST("/write", handleWrite)
 	go r.GET("/read", handleRead)

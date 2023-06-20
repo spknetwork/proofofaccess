@@ -63,6 +63,13 @@ func initialize(ctx context.Context) {
 	go pubsubHandler(ctx)
 
 	go connectToValidators(ctx, nodeType)
+	for {
+		time.Sleep(120 * time.Second)
+		err := ipfs.RunGC()
+		if err != nil {
+			fmt.Printf("Error running garbage collector: %v\n", err)
+		}
+	}
 }
 func connectToValidators(ctx context.Context, nodeType *int) {
 	for {
