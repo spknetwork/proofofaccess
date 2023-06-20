@@ -63,13 +63,7 @@ func initialize(ctx context.Context) {
 	go pubsubHandler(ctx)
 
 	go connectToValidators(ctx, nodeType)
-	for {
-		time.Sleep(120 * time.Second)
-		err := ipfs.RunGC()
-		if err != nil {
-			fmt.Printf("Error running garbage collector: %v\n", err)
-		}
-	}
+	go ipfsGarbageCollector(ctx)
 }
 func connectToValidators(ctx context.Context, nodeType *int) {
 	for {
@@ -187,6 +181,22 @@ func fetchPins(ctx context.Context) {
 			}
 			newPins = false
 			time.Sleep(60 * time.Second)
+		}
+	}
+}
+func ipfsGarbageCollector(ctx context.Context) {
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		default:
+			for {
+				time.Sleep(120 * time.Second)
+				err := ipfs.RunGC()
+				if err != nil {
+					fmt.Printf("Error running garbage collector: %v\n", err)
+				}
+			}
 		}
 	}
 }
