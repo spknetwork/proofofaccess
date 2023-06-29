@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/gorilla/websocket"
+	"math"
 	"proofofaccess/localdata"
 	"strings"
 )
@@ -42,7 +43,7 @@ func stats(c *websocket.Conn) {
 			"Peers":            strings.Join(localdata.PeerNames, ","),
 			"Validators":       strings.Join(localdata.ValidatorNames, ","),
 			"NetworkStorage":   fmt.Sprintf("%d MB", NetworkStorage),
-			"SyncedPercentage": fmt.Sprintf("%f", localdata.SyncedPercentage),
+			"SyncedPercentage": fmt.Sprintf("%f", math.Round(float64(localdata.SyncedPercentage))),
 		},
 	}
 
