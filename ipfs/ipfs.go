@@ -224,12 +224,13 @@ func SyncNode(allPins map[string]ipfs.PinInfo, name string) {
 	keysNotFound := 0
 	fmt.Println("Syncing...")
 	// Iterate through the keys in NewPins
+	var peersize = 0
 	for key := range NewPins {
 		size, _ := FileSize(key)
 		fmt.Println("Size: ", size)
 		fmt.Println("Name: ", name)
 		fmt.Println("PeerSize: ", localdata.PeerSize[name])
-		localdata.PeerSize[name] = localdata.PeerSize[name] + size
+		peersize = peersize + size
 		// Check if the key exists in Pins
 		if _, exists := Pins[key]; !exists {
 			// If the key doesn't exist in Pins, add it to the pinsNotIncluded map
@@ -250,11 +251,13 @@ func SyncNode(allPins map[string]ipfs.PinInfo, name string) {
 		fmt.Println("Synced", name, " : ", float64(keysNotFound)/float64(mapLength)*100, "%")
 		keysNotFound++
 		if keysNotFound == mapLength {
+			localdata.PeerSize[name] = peersize
 			fmt.Println("Synced: ", name)
 			localdata.NodesStatus[name] = "Synced"
 			return
 		}
 	}
+	localdata.PeerSize[name] = peersize
 	localdata.NodesStatus[name] = "Failed"
 	return
 }

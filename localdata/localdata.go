@@ -3,6 +3,7 @@ package localdata
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/gorilla/websocket"
 	"proofofaccess/database"
 	"strings"
 	"time"
@@ -33,6 +34,11 @@ var PinFileCids = map[string][]string{}
 var SavedRefs = map[string][]string{}
 var NodeCount = 0
 var SyncedPercentage = float32(0)
+var WsPeers = map[string]string{}
+var UseWS = false
+var WsClients = make(map[string]*websocket.Conn)
+var WsValidators = make(map[string]*websocket.Conn)
+var PingTime = make(map[string]time.Time)
 
 // SaveTime
 // Saves the time to the database

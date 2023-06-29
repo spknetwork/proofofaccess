@@ -3,6 +3,7 @@ package messaging
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/gorilla/websocket"
 	ipfsapi "github.com/ipfs/go-ipfs-api"
 	"log"
 	"proofofaccess/database"
@@ -57,13 +58,19 @@ func SendProof(hash string, seed string, user string) {
 		fmt.Println("Error encoding JSON:", err)
 		return
 	}
-
-	pubsub.Publish(string(jsonData), user)
+	if localdata.WsPeers[request.User] == request.User && localdata.NodeType == 1 {
+		ws := localdata.WsClients[request.User]
+		ws.WriteMessage(websocket.TextMessage, jsonData)
+	} else if localdata.UseWS == true && localdata.NodeType == 2 {
+		localdata.WsValidators["Validator1"].WriteMessage(websocket.TextMessage, jsonData)
+	} else {
+		pubsub.Publish(string(jsonData), user)
+	}
 }
 
 // HandleMessage
 // This is the function that handles the messages from the pubsub
-func HandleMessage(message string, nodeType *int) {
+func HandleMessage(message string) {
 	// JSON decode message
 	err := json.Unmarshal([]byte(message), &request)
 	if err != nil {
@@ -72,7 +79,7 @@ func HandleMessage(message string, nodeType *int) {
 	}
 	fmt.Println("Message received:", message)
 	//Handle proof of access response from storage node
-	if *nodeType == 1 {
+	if localdata.NodeType == 1 {
 		if request.Type == TypeProofOfAccess {
 			go HandleProofOfAccess(request)
 		}
@@ -80,7 +87,7 @@ func HandleMessage(message string, nodeType *int) {
 	}
 
 	//Handle request for proof request from validation node
-	if *nodeType == 2 {
+	if localdata.NodeType == 2 {
 		if request.Type == TypeRequestProof {
 			go HandleRequestProof(request)
 		}
@@ -98,7 +105,7 @@ func HandleMessage(message string, nodeType *int) {
 	if request.Type == TypePingPongPing {
 		fmt.Println("PingPongPing received")
 		PingPongPong(request.Hash, request.User)
-		if *nodeType == 1 && !Nodes[request.User] && localdata.NodesStatus[request.User] != "Synced" {
+		if localdata.NodeType == 1 && !Nodes[request.User] && localdata.NodesStatus[request.User] != "Synced" {
 			fmt.Println("syncing: " + request.User)
 			go RequestCIDS(request.User)
 		}
@@ -200,7 +207,15 @@ func PingPongPing(hash string, user string) {
 		fmt.Println("Error encoding JSON:", err)
 		return
 	}
-	pubsub.Publish(string(jsonData), user)
+	localdata.PingTime[request.User] = time.Now()
+	if localdata.WsPeers[request.User] == request.User && localdata.NodeType == 1 {
+		ws := localdata.WsClients[request.User]
+		ws.WriteMessage(websocket.TextMessage, jsonData)
+	} else if localdata.UseWS == true && localdata.NodeType == 2 {
+		localdata.WsValidators["Validator1"].WriteMessage(websocket.TextMessage, jsonData)
+	} else {
+		pubsub.Publish(string(jsonData), user)
+	}
 }
 func PingPongPong(hash string, user string) {
 	data := map[string]string{
@@ -213,7 +228,14 @@ func PingPongPong(hash string, user string) {
 		fmt.Println("Error encoding JSON:", err)
 		return
 	}
-	pubsub.Publish(string(jsonData), user)
+	if localdata.WsPeers[request.User] == request.User && localdata.NodeType == 1 {
+		ws := localdata.WsClients[request.User]
+		ws.WriteMessage(websocket.TextMessage, jsonData)
+	} else if localdata.UseWS == true && localdata.NodeType == 2 {
+		localdata.WsValidators["Validator1"].WriteMessage(websocket.TextMessage, jsonData)
+	} else {
+		pubsub.Publish(string(jsonData), user)
+	}
 }
 func RequestCIDS(user string) {
 	data := map[string]string{
@@ -225,7 +247,15 @@ func RequestCIDS(user string) {
 		fmt.Println("Error encoding JSON:", err)
 		return
 	}
-	pubsub.Publish(string(jsonData), user)
+	if localdata.WsPeers[request.User] == request.User && localdata.NodeType == 1 {
+		ws := localdata.WsClients[request.User]
+		ws.WriteMessage(websocket.TextMessage, jsonData)
+	} else if localdata.UseWS == true && localdata.NodeType == 2 {
+		localdata.WsValidators["Validator1"].WriteMessage(websocket.TextMessage, jsonData)
+	} else {
+		pubsub.Publish(string(jsonData), user)
+	}
+
 }
 func SendCIDS(user string) {
 	allPins, _ := ipfs.Shell.Pins()
@@ -255,7 +285,15 @@ func SendCIDS(user string) {
 		fmt.Println("Error encoding JSON:", err)
 		return
 	}
-	pubsub.Publish(string(jsonData), user)
+	if localdata.WsPeers[request.User] == request.User && localdata.NodeType == 1 {
+		ws := localdata.WsClients[request.User]
+		ws.WriteMessage(websocket.TextMessage, jsonData)
+	} else if localdata.UseWS == true && localdata.NodeType == 2 {
+		localdata.WsValidators["Validator1"].WriteMessage(websocket.TextMessage, jsonData)
+	} else {
+		pubsub.Publish(string(jsonData), user)
+	}
+
 }
 func SendSyncing(user string) {
 	localdata.Synced = true
@@ -269,7 +307,14 @@ func SendSyncing(user string) {
 		fmt.Println("Error encoding JSON:", err)
 		return
 	}
-	pubsub.Publish(string(jsonData), user)
+	if localdata.WsPeers[request.User] == request.User && localdata.NodeType == 1 {
+		ws := localdata.WsClients[request.User]
+		ws.WriteMessage(websocket.TextMessage, jsonData)
+	} else if localdata.UseWS == true && localdata.NodeType == 2 {
+		localdata.WsValidators["Validator1"].WriteMessage(websocket.TextMessage, jsonData)
+	} else {
+		pubsub.Publish(string(jsonData), user)
+	}
 }
 func SendSynced(user string) {
 	data := map[string]string{
@@ -282,7 +327,14 @@ func SendSynced(user string) {
 		fmt.Println("Error encoding JSON:", err)
 		return
 	}
-	pubsub.Publish(string(jsonData), user)
+	if localdata.WsPeers[request.User] == request.User && localdata.NodeType == 1 {
+		ws := localdata.WsClients[request.User]
+		ws.WriteMessage(websocket.TextMessage, jsonData)
+	} else if localdata.UseWS == true && localdata.NodeType == 2 {
+		localdata.WsValidators["Validator1"].WriteMessage(websocket.TextMessage, jsonData)
+	} else {
+		pubsub.Publish(string(jsonData), user)
+	}
 
 }
 func ReceiveSyncing(user string) {

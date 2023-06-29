@@ -4,6 +4,7 @@ import (
 	"context"
 	"flag"
 	"fmt"
+	"github.com/gorilla/websocket"
 	shell "github.com/ipfs/go-ipfs-api"
 	"os"
 	"os/signal"
@@ -25,6 +26,8 @@ var (
 	nodeType  = flag.Int("node", 1, "Node type 1 = validation 2 = access")
 	username  = flag.String("username", "", "Node type 1 = validation 2 = access")
 	ipfsPort  = flag.String("IPFS_PORT", "5001", "IPFS port number")
+	wsPort    = flag.String("WS_PORT", "8080", "Websocket port number")
+	useWS     = flag.Bool("useWS", false, "Use websocket")
 	CID, Hash string
 	log       = logrus.New()
 	newPins   = false
@@ -55,14 +58,14 @@ func initialize(ctx context.Context) {
 
 	if *nodeType == 1 {
 		database.Init()
+		go pubsubHandler(ctx)
+		go checkSynced(ctx)
 	} else {
 		go fetchPins(ctx)
 	}
 
 	go api.StartAPI(ctx)
-	go pubsubHandler(ctx)
 
-	go connectToValidators(ctx, nodeType)
 }
 func connectToValidators(ctx context.Context, nodeType *int) {
 	for {
@@ -71,7 +74,7 @@ func connectToValidators(ctx context.Context, nodeType *int) {
 			return
 		default:
 			if *nodeType == 2 {
-				for i := 1; i <= 20; i++ {
+				for i := 1; i <= 1; i++ {
 					validatorName := "validator" + strconv.Itoa(i)
 					fmt.Println("Connecting to validator: ", validatorName)
 					salt, _ := proofcrypto.CreateRandomHash()
@@ -114,7 +117,7 @@ func pubsubHandler(ctx context.Context) {
 					log.Error("Error reading from pubsub: ", err)
 					continue
 				}
-				messaging.HandleMessage(msg, nodeType)
+				messaging.HandleMessage(msg)
 			}
 		}
 	} else {
@@ -172,7 +175,13 @@ func fetchPins(ctx context.Context) {
 			if localdata.Synced == false {
 				fmt.Println("Synced: ", 100)
 				localdata.SyncedPercentage = 100
-				localdata.Synced = true
+				if *useWS && *nodeType == 2 {
+					localdata.UseWS = *useWS
+					go messaging.StartWsClient()
+				} else {
+					go pubsubHandler(ctx)
+					go connectToValidators(ctx, nodeType)
+				}
 			}
 			if newPins == true {
 				fmt.Println("New pins found")
@@ -182,4 +191,64 @@ func fetchPins(ctx context.Context) {
 			time.Sleep(60 * time.Second)
 		}
 	}
+}
+func checkSynced(ctx context.Context) {
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		default:
+			for _, peerName := range localdata.PeerNames {
+				if localdata.WsPeers[peerName] == peerName {
+					if isConnectionOpen(localdata.WsClients[peerName]) == false {
+						fmt.Println("Connection to validator", peerName, "lost")
+						localdata.WsPeers[peerName] = ""
+						localdata.WsClients[peerName] = nil
+						newPeerNames := make([]string, 0, len(localdata.PeerNames)-1)
+						for _, pn := range localdata.PeerNames {
+							if pn != peerName {
+								newPeerNames = append(newPeerNames, pn)
+							}
+						}
+						localdata.PeerNames = newPeerNames
+					}
+				} else {
+					// Get the start time from the seed
+					start := localdata.PingTime[peerName]
+
+					// Get the current time
+					elapsed := time.Since(start)
+					if elapsed.Seconds() > 121 {
+						newPeerNames := make([]string, 0, len(localdata.PeerNames)-1)
+						for _, pn := range localdata.PeerNames {
+							if pn != peerName {
+								newPeerNames = append(newPeerNames, pn)
+							}
+						}
+						localdata.PeerNames = newPeerNames
+					}
+				}
+			}
+			time.Sleep(60 * time.Second)
+		}
+
+	}
+}
+func isConnectionOpen(conn *websocket.Conn) bool {
+	var writeWait = 1 * time.Second
+	if err := conn.SetWriteDeadline(time.Now().Add(writeWait)); err != nil {
+		return false
+	}
+
+	// Write the ping message to the connection
+	if err := conn.WriteMessage(websocket.PingMessage, nil); err != nil {
+		return false
+	}
+
+	// Reset the write deadline
+	if err := conn.SetWriteDeadline(time.Time{}); err != nil {
+		return false
+	}
+
+	return true
 }

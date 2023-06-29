@@ -98,28 +98,34 @@ func createRandomHash(conn *websocket.Conn) (string, error) {
 	return hash, nil
 }
 
-func createProofRequest(salt string, CID string, conn *websocket.Conn) (string, error) {
+func createProofRequest(salt string, CID string, conn *websocket.Conn) ([]byte, error) {
 	localdata.SetStatus(salt, CID, "Pending")
 	proofJson, err := validation.ProofRequestJson(salt, CID)
 	if err != nil {
 		sendWsResponse(wsError, "Failed to create proof request JSON", "0", conn)
 		log.Error(err)
-		return "", err
+		return nil, err
 	}
 
 	return proofJson, nil
 }
 
-func sendProofRequest(salt string, proofJson string, name string, conn *websocket.Conn) error {
+func sendProofRequest(salt string, proofJson []byte, name string, conn *websocket.Conn) error {
 	sendWsResponse(wsRequestingProof, "RequestingProof", "0", conn)
-	err := pubsub.Publish(proofJson, name)
-	localdata.SaveTime(salt)
-	if err != nil {
-		sendWsResponse(wsError, "Failed to send proof request to storage node", "0", conn)
-		log.Error(err)
-		return err
+	if localdata.WsPeers[name] == name && localdata.NodeType == 1 {
+		ws := localdata.WsClients[name]
+		ws.WriteMessage(websocket.TextMessage, proofJson)
+	} else if localdata.UseWS == true && localdata.NodeType == 2 {
+		localdata.WsValidators["Validator1"].WriteMessage(websocket.TextMessage, proofJson)
+	} else {
+		err := pubsub.Publish(string(proofJson), name)
+		if err != nil {
+			sendWsResponse(wsError, "Failed to send proof request to storage node", "0", conn)
+			log.Error(err)
+			return err
+		}
 	}
-
+	localdata.SaveTime(salt)
 	return nil
 }
 

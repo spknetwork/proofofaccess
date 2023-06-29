@@ -28,22 +28,27 @@ type Response struct {
 }
 
 func StartAPI(ctx context.Context) {
-	r := gin.Default()
+	gin.SetMode(gin.ReleaseMode)
+	r := gin.New() // Use gin.New() instead of gin.Default()
+
+	// This will ensure that panics are still caught and returned as 500 error
+	r.Use(gin.Recovery())
 
 	// Serve the index.html file on the root route
-	go r.StaticFile("/", "./public/index.html")
-	go r.StaticFile("/stats", "./public/stats.html")
+	r.StaticFile("/", "./public/index.html")
+	r.StaticFile("/stats", "./public/stats.html")
 	// Handle the API request
-	go r.GET("/validate", handleValidate)
-	go r.POST("/shutdown", handleShutdown)
-	go r.GET("/getstats", handleStats)
-	go r.POST("/write", handleWrite)
-	go r.GET("/read", handleRead)
-	go r.GET("/update", handleUpdate)
-	go r.GET("/delete", handleDelete)
-	go r.Static("/public", "./public")
+	r.GET("/validate", handleValidate)
+	r.POST("/shutdown", handleShutdown)
+	r.GET("/getstats", handleStats)
+	r.POST("/write", handleWrite)
+	r.GET("/read", handleRead)
+	r.GET("/update", handleUpdate)
+	r.GET("/delete", handleDelete)
+	r.GET("/messaging", handleMessaging)
+	r.Static("/public", "./public")
 	// Handle the DNS lookup API request
-	go r.GET("/get-ip", getIPHandler)
+	r.GET("/get-ip", getIPHandler)
 
 	// Start the server
 	server := &http.Server{

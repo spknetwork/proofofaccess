@@ -68,7 +68,7 @@ func CreatProofHash(hash string, CID string) string {
 
 // ProofRequestJson
 // Validation Node Functions
-func ProofRequestJson(hash string, CID string) (string, error) {
+func ProofRequestJson(hash string, CID string) ([]byte, error) {
 	requestProof := RequestProof{
 		Type:   "RequestProof",
 		Hash:   hash,
@@ -79,9 +79,9 @@ func ProofRequestJson(hash string, CID string) (string, error) {
 	requestProofJson, err := json.Marshal(requestProof)
 	if err != nil {
 		fmt.Println(err)
-		return "", err
+		return nil, err
 	}
-	return string(requestProofJson), nil
+	return requestProofJson, nil
 }
 
 // SelectIPFSRefs

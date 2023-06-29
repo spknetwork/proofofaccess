@@ -1,15 +1,26 @@
 package api
 
 import (
+	"encoding/json"
 	"fmt"
 	"github.com/gin-gonic/gin"
+	"github.com/gorilla/websocket"
 	"net"
 	"net/http"
 	"os"
 	"proofofaccess/database"
 	"proofofaccess/localdata"
+	"proofofaccess/messaging"
 	"time"
 )
+
+var WsClients = make(map[string]*websocket.Conn)
+var broadcast = make(chan messaging.Request)
+
+type WSMessage struct {
+	Body   string `json:"body"`
+	Sender string `json:"sender"`
+}
 
 func handleValidate(c *gin.Context) {
 	log.Info("Entering handleValidate")
@@ -59,8 +70,38 @@ func handleValidate(c *gin.Context) {
 	sendWsResponse(status, status, formatElapsed(elapsed), conn)
 	log.Info("Exiting handleValidate")
 }
+func handleMessaging(c *gin.Context) {
+	ws, err := upgradeToWebSocket(c)
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer ws.Close()
+
+	for {
+		var msg messaging.Request
+		err := ws.ReadJSON(&msg)
+		if err != nil {
+			log.Printf("Error: %v", err)
+			if _, ok := localdata.WsClients[msg.User]; ok {
+				delete(localdata.WsClients, msg.User)
+			}
+			break
+		}
+		// Add client to the clients map
+		if localdata.WsPeers[msg.User] != msg.User && localdata.WsClients[msg.User] != ws {
+			localdata.WsClients[msg.User] = ws
+			localdata.WsPeers[msg.User] = msg.User
+		}
+		jsonData, err := json.Marshal(msg)
+		if err != nil {
+			fmt.Println("Error encoding JSON:", err)
+			return
+		}
+		go messaging.HandleMessage(string(jsonData))
+	}
+}
 func handleShutdown(c *gin.Context) {
-	if localdata.NodeType != 2 {
+	if localdata.NodeType != 1 {
 
 		log.Info("Shutdown request received. Preparing to shut down the application...")
 
