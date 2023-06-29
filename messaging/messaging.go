@@ -179,17 +179,17 @@ func HandleProofOfAccess(request Request) {
 		if validationHash == request.Hash && elapsed < 2500*time.Millisecond {
 			fmt.Println("Proof of access is valid")
 			fmt.Println(request.Seed)
-			localdata.SetStatus(request.Seed, CID, "Valid")
+			localdata.SetStatus(request.Seed, CID, "Valid", request.User)
 		} else {
 			fmt.Println("Request Hash", request.Hash)
 			fmt.Println("Validation Hash", validationHash)
 			fmt.Println("Elapsed time:", elapsed)
 			fmt.Println("Proof of access is invalid took too long")
-			localdata.SetStatus(request.Seed, CID, "Invalid")
+			localdata.SetStatus(request.Seed, CID, "Invalid", request.User)
 		}
 	} else {
 		fmt.Println("Proof is invalid")
-		localdata.SetStatus(request.Seed, CID, "Invalid")
+		localdata.SetStatus(request.Seed, CID, "Invalid", request.User)
 	}
 	ProofRequestStatus[seed] = true
 }

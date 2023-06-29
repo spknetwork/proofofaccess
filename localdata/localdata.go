@@ -84,11 +84,11 @@ func GetStatus(seed string) Message {
 
 // SetStatus
 // Sets the status to the database
-func SetStatus(seed string, cid string, status string) {
+func SetStatus(seed string, cid string, status string, name string) {
 	fmt.Println("SetStatus", seed, cid, status)
-	jsonString := `{"type": "ProofOfAccess", "CID":"` + cid + `", "seed":"` + seed + `", "status":"` + status + `"}`
+	jsonString := `{"type": "ProofOfAccess", "CID":"` + cid + `", "seed":"` + seed + `", "status":"` + status + `", "name":"` + name + `"}`
 	jsonString = strings.TrimSpace(jsonString)
-	database.Update([]byte(seed), []byte(jsonString))
+	database.Update([]byte("Stats"+seed), []byte(jsonString))
 }
 
 // SetNodeName

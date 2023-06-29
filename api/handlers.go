@@ -22,6 +22,26 @@ type WSMessage struct {
 	Sender string `json:"sender"`
 }
 
+func getStatsHandler(c *gin.Context) {
+	conn, err := upgradeToWebSocket(c)
+	if err != nil {
+		return
+	}
+	defer closeWebSocket(conn)
+
+	// Fetch stats from the database
+	stats := database.GetStats()
+
+	// Convert stats to JSON string
+	statsJson, err := json.Marshal(stats)
+	if err != nil {
+		fmt.Println("Error encoding stats to JSON:", err)
+		return
+	}
+
+	sendWsResponse("OK", string(statsJson), "0", conn)
+}
+
 func handleValidate(c *gin.Context) {
 	log.Info("Entering handleValidate")
 	conn, err := upgradeToWebSocket(c)
@@ -52,7 +72,7 @@ func handleValidate(c *gin.Context) {
 			return
 		}
 	}
-	proofJson, err := createProofRequest(salt, msg.CID, conn)
+	proofJson, err := createProofRequest(salt, msg.CID, conn, msg.Name)
 	if err != nil {
 		return
 	}

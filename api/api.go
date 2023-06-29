@@ -36,6 +36,7 @@ func StartAPI(ctx context.Context) {
 
 	// Serve the index.html file on the root route
 	r.StaticFile("/", "./public/index.html")
+	r.StaticFile("/node-stats", "./public/node-stats.html")
 	r.StaticFile("/stats", "./public/stats.html")
 	// Handle the API request
 	r.GET("/validate", handleValidate)
@@ -49,7 +50,7 @@ func StartAPI(ctx context.Context) {
 	r.Static("/public", "./public")
 	// Handle the DNS lookup API request
 	r.GET("/get-ip", getIPHandler)
-
+	r.GET("/get-stats", getStatsHandler)
 	// Start the server
 	server := &http.Server{
 		Addr:    ":8000",

@@ -1,12 +1,21 @@
 package database
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"github.com/dgraph-io/badger"
 	"log"
+	"strings"
 	"time"
 )
+
+type Message struct {
+	CID    string `json:"CID"`
+	Seed   string `json:"seed"`
+	Status string `json:"status"`
+	Name   string `json:"name"`
+}
 
 // DB
 // Open the database
@@ -207,4 +216,49 @@ func SetTime(key []byte, t time.Time) {
 	}
 
 	Save(key, []byte(t.Format(time.RFC3339Nano)))
+}
+
+// GetStats
+// Reads all the Stats from the database
+func GetStats() []Message {
+	if err := checkDatabaseOpen(); err != nil {
+		log.Fatal(err)
+	}
+
+	var messages []Message
+
+	err := DB.View(func(txn *badger.Txn) error {
+		opts := badger.DefaultIteratorOptions
+		opts.PrefetchSize = 10
+		it := txn.NewIterator(opts)
+		defer it.Close()
+
+		prefix := []byte("Stats")
+
+		for it.Seek(prefix); it.ValidForPrefix(prefix); it.Next() {
+			item := it.Item()
+			k := item.Key()
+			v, err := item.ValueCopy(nil)
+			if err != nil {
+				return err
+			}
+
+			if strings.HasPrefix(string(k), "Stats") {
+				var message Message
+				err := json.Unmarshal(v, &message)
+				if err != nil {
+					log.Println("Error decoding JSON:", err)
+					continue
+				}
+				messages = append(messages, message)
+			}
+		}
+
+		return nil
+	})
+	if err != nil {
+		log.Printf("Error reading all stats: %v\n", err)
+	}
+
+	return messages
 }

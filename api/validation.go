@@ -98,8 +98,8 @@ func createRandomHash(conn *websocket.Conn) (string, error) {
 	return hash, nil
 }
 
-func createProofRequest(salt string, CID string, conn *websocket.Conn) ([]byte, error) {
-	localdata.SetStatus(salt, CID, "Pending")
+func createProofRequest(salt string, CID string, conn *websocket.Conn, name string) ([]byte, error) {
+	localdata.SetStatus(salt, CID, "Pending", name)
 	proofJson, err := validation.ProofRequestJson(salt, CID)
 	if err != nil {
 		sendWsResponse(wsError, "Failed to create proof request JSON", "0", conn)
