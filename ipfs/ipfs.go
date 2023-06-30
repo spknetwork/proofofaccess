@@ -256,10 +256,7 @@ func SyncNode(allPins map[string]ipfs.PinInfo, name string) {
 		go func(i int, key string) {
 			defer wg.Done()
 			size, _ := FileSize(key)
-			fmt.Println("Size: ", size)
-			fmt.Println("Name: ", name)
 			lock.Lock()
-			fmt.Println("PeerSize: ", localdata.PeerSize[name])
 			peersize = peersize + size
 			lock.Unlock()
 			// Check if the key exists in Pins
@@ -297,6 +294,7 @@ func SyncNode(allPins map[string]ipfs.PinInfo, name string) {
 			lock.Lock()
 			localdata.PeerSize[name] = peersize
 			fmt.Println("Synced: ", name)
+			fmt.Println("PeerSize: ", peersize)
 			localdata.NodesStatus[name] = "Synced"
 			lock.Unlock()
 			return

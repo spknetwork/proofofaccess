@@ -35,7 +35,6 @@ func CreatProofHash(hash string, CID string) string {
 	// Get all the file blocks CIDs from the Target Files CID
 	fmt.Println("CID: ", CID)
 	cids := localdata.SavedRefs[CID]
-	fmt.Println("cids: ", cids)
 	// Get the length of the CIDs
 	length := len(cids)
 	fmt.Println("length", length)

@@ -12,6 +12,7 @@ import (
 	"proofofaccess/localdata"
 	"proofofaccess/proofcrypto"
 	"strconv"
+	"sync"
 	"syscall"
 	"time"
 
@@ -64,7 +65,15 @@ func initialize(ctx context.Context) {
 	} else {
 		go fetchPins(ctx)
 	}
+	if *useWS && *nodeType == 2 {
+		localdata.UseWS = *useWS
+		fmt.Println()
+		go messaging.StartWsClient()
 
+	} else {
+		go pubsubHandler(ctx)
+		go connectToValidators(ctx, nodeType)
+	}
 	go api.StartAPI(ctx)
 
 }
@@ -126,12 +135,18 @@ func pubsubHandler(ctx context.Context) {
 	}
 }
 func fetchPins(ctx context.Context) {
+	var lock sync.Mutex // Mutex lock
+	newPins := false    // Assuming this is a boolean based on your usage
+
 	for {
 		select {
 		case <-ctx.Done():
 			return
 		default:
+			lock.Lock()
 			ipfs.Pins = ipfs.NewPins
+			lock.Unlock()
+
 			fmt.Println("Fetching pins...")
 			allPins, err := ipfs.Shell.Pins()
 			for _, cid := range messaging.PinFileCids {
@@ -143,10 +158,16 @@ func fetchPins(ctx context.Context) {
 				fmt.Println("Error fetching pins:", err)
 				continue
 			}
+
+			lock.Lock()
 			ipfs.NewPins = make(map[string]interface{})
+			lock.Unlock()
+
 			for key, pinInfo := range allPins {
 				if pinInfo.Type == "recursive" {
+					lock.Lock()
 					ipfs.NewPins[key] = key
+					lock.Unlock()
 				}
 			}
 
@@ -155,44 +176,58 @@ func fetchPins(ctx context.Context) {
 
 			keysNotFound := 0
 
+			// Create a WaitGroup to wait for the function to finish
+			var wg sync.WaitGroup
+
 			// Iterate through the keys in NewPins
 			for key := range ipfs.NewPins {
-				// Check if the key exists in Pins
+				wg.Add(1)
+				go func(key string) {
+					defer wg.Done()
+					// Check if the key exists in Pins
+					lock.Lock()
+					_, exists := ipfs.Pins[key]
+					lock.Unlock()
 
-				if _, exists := ipfs.Pins[key]; !exists {
-					size, _ := ipfs.FileSize(key)
-					localdata.PeerSize[localdata.NodeName] = localdata.PeerSize[localdata.NodeName] + size
-					newPins = true
-					// If the key doesn't exist in Pins, add it to the pinsNotIncluded map
-					localdata.SavedRefs[key], _ = ipfs.Refs(key)
-					if localdata.Synced == false {
+					if !exists {
+						size, _ := ipfs.FileSize(key)
+						lock.Lock()
+						localdata.PeerSize[localdata.NodeName] += size
+						newPins = true
+						lock.Unlock()
 
+						// If the key doesn't exist in Pins, add it to the pinsNotIncluded map
+						savedRefs, _ := ipfs.Refs(key)
+						lock.Lock()
+						localdata.SavedRefs[key] = savedRefs
+						lock.Unlock()
+						lock.Lock()
 						localdata.SyncedPercentage = float32(keysNotFound) / float32(mapLength) * 100
 						fmt.Println("Synced: ", localdata.SyncedPercentage, "%")
+						lock.Unlock()
+						keysNotFound++
 					}
-					keysNotFound++
-				}
+				}(key)
 			}
-			if localdata.Synced == false {
-				fmt.Println("Synced: ", 100)
-				localdata.SyncedPercentage = 100
-				if *useWS && *nodeType == 2 {
-					localdata.UseWS = *useWS
-					go messaging.StartWsClient()
-				} else {
-					go pubsubHandler(ctx)
-					go connectToValidators(ctx, nodeType)
-				}
-			}
-			if newPins == true {
+
+			wg.Wait()
+
+			fmt.Println("Synced: ", 100)
+			lock.Lock()
+			localdata.SyncedPercentage = 100
+			lock.Unlock()
+
+			if newPins {
 				fmt.Println("New pins found")
 				messaging.SendCIDS("validator1")
+				newPins = false
 			}
-			newPins = false
+
 			time.Sleep(60 * time.Second)
 		}
 	}
 }
+
 func checkSynced(ctx context.Context) {
 	for {
 		select {
