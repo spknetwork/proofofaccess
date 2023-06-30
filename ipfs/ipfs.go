@@ -10,13 +10,14 @@ import (
 	"os"
 	"proofofaccess/localdata"
 	"strings"
+	"sync"
 )
 
 // Shell
 // Create a new IPFS shell
 // Get flag for IPFS port
 var Shell *ipfs.Shell
-
+var lock sync.Mutex
 var Pins = make(map[string]interface{})
 var NewPins = make(map[string]interface{})
 
@@ -204,9 +205,10 @@ func DownloadAndDecodeJSON(fileHash string, dest interface{}) error {
 	return nil
 }
 func SyncNode(allPins map[string]ipfs.PinInfo, name string) {
+	lock.Lock()
 	Pins = NewPins
+	lock.Unlock()
 	fmt.Println("Fetching pins...")
-	AllPins = allPins
 	fmt.Println("Number of pins: ", len(allPins))
 	if len(allPins) == 0 {
 		fmt.Println("No pins found")
@@ -218,47 +220,94 @@ func SyncNode(allPins map[string]ipfs.PinInfo, name string) {
 			NewPins[key] = key
 		}
 	}
-	fmt.Println("Number of recursive pins: ", len(NewPins))
-	// Calculate the length of the map and the number of keys not found in Pins
+
 	mapLength := len(NewPins)
 	keysNotFound := 0
-	fmt.Println("Syncing...")
+
 	// Iterate through the keys in NewPins
 	var peersize = 0
-	for key := range NewPins {
-		size, _ := FileSize(key)
-		fmt.Println("Size: ", size)
-		fmt.Println("Name: ", name)
-		fmt.Println("PeerSize: ", localdata.PeerSize[name])
-		peersize = peersize + size
-		// Check if the key exists in Pins
-		if _, exists := Pins[key]; !exists {
-			// If the key doesn't exist in Pins, add it to the pinsNotIncluded map
-			fmt.Println("Key not found: ", key)
-			var err error
-			localdata.SavedRefs[key], err = Refs(key)
-			if err != nil {
-				fmt.Println("Error: ", err)
-			}
-			println("SavedRefs: ", len(localdata.SavedRefs[key]))
 
-		} else {
-			fmt.Println("Key found: ", key)
+	// Create a slice to hold each CID's ref count
+	refCounts := make([]int, len(NewPins))
+
+	// Create a slice to hold each CID's total size
+	sizes := make([]int, len(NewPins))
+
+	// Create a slice to hold the completion status of each CID
+	completed := make([]bool, len(NewPins))
+
+	// Create a WaitGroup to wait for the function to finish
+	var wg sync.WaitGroup
+
+	// Function to print the progress of each CID
+	printProgress := func(i int, key string) {
+		var percentage float64
+		if completed[i] {
+			percentage = 100.0
+		} else if sizes[i] > 0 {
+			percentage = float64(refCounts[i]*256*1024) / float64(sizes[i]) * 100
 		}
-		fmt.Println("Key: ", key)
-		// Print the progress of the sync
-		fmt.Println("Keys: ", keysNotFound)
-		fmt.Println("Synced", name, " : ", float64(keysNotFound)/float64(mapLength)*100, "%")
+		fmt.Printf("Name: %s, CID: %s has %d references so far (%.2f%%)\n", name, key, refCounts[i], percentage)
+	}
+
+	index := 0
+	for key := range NewPins {
+		wg.Add(1)
+		go func(i int, key string) {
+			defer wg.Done()
+			size, _ := FileSize(key)
+			fmt.Println("Size: ", size)
+			fmt.Println("Name: ", name)
+			lock.Lock()
+			fmt.Println("PeerSize: ", localdata.PeerSize[name])
+			peersize = peersize + size
+			lock.Unlock()
+			// Check if the key exists in Pins
+			if _, exists := Pins[key]; !exists {
+				fmt.Println("Key not found: ", key)
+				// Get the size of the file
+				stat, err := Shell.ObjectStat(key)
+				if err != nil {
+					fmt.Printf("Error getting size: %v\n", err)
+					return
+				}
+				sizes[i] = stat.CumulativeSize
+
+				refs, err := Shell.Refs(key, true)
+				if err != nil {
+					fmt.Printf("Error: %v\n", err)
+					return
+				}
+				var refsSlice []string
+				for ref := range refs {
+					refsSlice = append(refsSlice, ref)
+					refCounts[i]++
+					printProgress(i, key)
+				}
+				lock.Lock()
+				localdata.SavedRefs[key] = refsSlice
+				lock.Unlock()
+				completed[i] = true
+			}
+		}(index, key)
+
+		index++
 		keysNotFound++
 		if keysNotFound == mapLength {
+			lock.Lock()
 			localdata.PeerSize[name] = peersize
 			fmt.Println("Synced: ", name)
 			localdata.NodesStatus[name] = "Synced"
+			lock.Unlock()
 			return
 		}
 	}
+
+	wg.Wait()
+	lock.Lock()
 	localdata.PeerSize[name] = peersize
 	localdata.NodesStatus[name] = "Failed"
+	lock.Unlock()
 	return
 }
 func FileSize(cid string) (int, error) {

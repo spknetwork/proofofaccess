@@ -3,6 +3,7 @@ package api
 import (
 	"context"
 	"errors"
+	"fmt"
 	"github.com/gorilla/websocket"
 	"proofofaccess/hive"
 	"proofofaccess/ipfs"
@@ -99,7 +100,9 @@ func createRandomHash(conn *websocket.Conn) (string, error) {
 }
 
 func createProofRequest(salt string, CID string, conn *websocket.Conn, name string) ([]byte, error) {
+	fmt.Println(name)
 	localdata.SetStatus(salt, CID, "Pending", name)
+	fmt.Println("createProofRequest2")
 	proofJson, err := validation.ProofRequestJson(salt, CID)
 	if err != nil {
 		sendWsResponse(wsError, "Failed to create proof request JSON", "0", conn)
@@ -125,6 +128,7 @@ func sendProofRequest(salt string, proofJson []byte, name string, conn *websocke
 			return err
 		}
 	}
+	fmt.Println("sendProofRequest")
 	localdata.SaveTime(salt)
 	return nil
 }

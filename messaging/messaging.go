@@ -138,12 +138,11 @@ func HandleMessage(message string) {
 func HandleRequestProof(request Request) {
 	CID := request.CID
 	hash := request.Hash
-	user := request.User
 	if ipfs.IsPinned(CID) == true {
 		validationHash := validation.CreatProofHash(hash, CID)
-		SendProof(validationHash, hash, user)
+		SendProof(validationHash, hash, localdata.NodeName)
 	} else {
-		SendProof("", hash, user)
+		SendProof("", hash, localdata.NodeName)
 	}
 
 }
@@ -153,15 +152,15 @@ func HandleRequestProof(request Request) {
 func HandleProofOfAccess(request Request) {
 	// Get the start time from the seed
 	start := localdata.GetTime(request.Seed)
-
+	fmt.Println("Start time:", start)
 	// Get the current time
 	elapsed := time.Since(start)
-
+	fmt.Println("Elapsed time:", elapsed)
 	// Set the elapsed time
 	localdata.SetElapsed(request.Seed, elapsed)
 
 	// Get the CID and Seed
-	data := database.Read([]byte(request.Seed))
+	data := database.Read([]byte("Stats" + request.Seed))
 	var message Request
 	err := json.Unmarshal([]byte(string(data)), &message)
 	if err != nil {

@@ -39,6 +39,7 @@ var UseWS = false
 var WsClients = make(map[string]*websocket.Conn)
 var WsValidators = make(map[string]*websocket.Conn)
 var PingTime = make(map[string]time.Time)
+var WsPort = "8000"
 
 // SaveTime
 // Saves the time to the database
@@ -73,7 +74,7 @@ func GetElapsed(hash string) time.Duration {
 // GetStatus
 // Gets the status from the database
 func GetStatus(seed string) Message {
-	data := database.Read([]byte(seed))
+	data := database.Read([]byte("Stats" + seed))
 	var message Message
 	err := json.Unmarshal([]byte(string(data)), &message)
 	if err != nil {
@@ -86,7 +87,11 @@ func GetStatus(seed string) Message {
 // Sets the status to the database
 func SetStatus(seed string, cid string, status string, name string) {
 	fmt.Println("SetStatus", seed, cid, status)
-	jsonString := `{"type": "ProofOfAccess", "CID":"` + cid + `", "seed":"` + seed + `", "status":"` + status + `", "name":"` + name + `"}`
+	time1 := GetTime(seed)
+	elapsed := GetElapsed(seed)
+	timeString := time1.Format(time.RFC3339)
+	elapsedString := elapsed.String()
+	jsonString := `{"type": "ProofOfAccess", "CID":"` + cid + `", "seed":"` + seed + `", "status":"` + status + `", "name":"` + name + `", "time":"` + timeString + `", "elapsed":"` + elapsedString + `"}`
 	jsonString = strings.TrimSpace(jsonString)
 	database.Update([]byte("Stats"+seed), []byte(jsonString))
 }

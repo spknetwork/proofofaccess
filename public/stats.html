@@ -17,10 +17,12 @@
 <h1>Database Stats</h1>
 <table id="statsTable">
     <tr>
+        <th>Name</th>
         <th>CID</th>
         <th>Seed</th>
         <th>Status</th>
-        <th>Name</th>
+        <th>Created</th>
+        <th>Elapsed</th>
     </tr>
 </table>
 
@@ -28,24 +30,28 @@
     const statsTable = document.getElementById('statsTable');
 
     // Replace with your server WebSocket URL
-    const wsUrl = "ws://localhost:8080/get-stats";
+    const wsUrl = "ws://localhost:8000/get-stats";
     const ws = new WebSocket(wsUrl);
 
     ws.onmessage = function(event) {
         let data = JSON.parse(event.data);
-        if (data.status === "OK") {
-            let stats = JSON.parse(data.body);
+        if (data.Status === "OK") {
+            let stats = JSON.parse(data.Message);
             stats.forEach(stat => {
                 let row = statsTable.insertRow(-1);
-                let cidCell = row.insertCell(0);
-                let seedCell = row.insertCell(1);
-                let statusCell = row.insertCell(2);
-                let nameCell = row.insertCell(3);
+                let nameCell = row.insertCell(0);
+                let cidCell = row.insertCell(1);
+                let seedCell = row.insertCell(2);
+                let statusCell = row.insertCell(3);
+                let timeCell = row.insertCell(4);
+                let elapsedCell = row.insertCell(5);
 
                 cidCell.innerHTML = stat.CID;
                 seedCell.innerHTML = stat.seed;
                 statusCell.innerHTML = stat.status;
                 nameCell.innerHTML = stat.name;
+                timeCell.innerHTML = stat.time;
+                elapsedCell.innerHTML = stat.elapsed;
             });
         }
     };
@@ -54,5 +60,6 @@
         console.error("WebSocket error observed:", event);
     };
 </script>
+
 </body>
 </html>

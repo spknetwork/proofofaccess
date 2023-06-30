@@ -5,6 +5,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/sirupsen/logrus"
 	"net/http"
+	"proofofaccess/localdata"
 	"time"
 )
 
@@ -53,7 +54,7 @@ func StartAPI(ctx context.Context) {
 	r.GET("/get-stats", getStatsHandler)
 	// Start the server
 	server := &http.Server{
-		Addr:    ":8000",
+		Addr:    ":" + localdata.WsPort,
 		Handler: r,
 	}
 

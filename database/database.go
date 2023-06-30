@@ -11,10 +11,12 @@ import (
 )
 
 type Message struct {
-	CID    string `json:"CID"`
-	Seed   string `json:"seed"`
-	Status string `json:"status"`
-	Name   string `json:"name"`
+	CID     string `json:"CID"`
+	Seed    string `json:"seed"`
+	Status  string `json:"status"`
+	Name    string `json:"name"`
+	Time    string `json:"time"`
+	Elapsed string `json:"elapsed"`
 }
 
 // DB

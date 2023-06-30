@@ -26,7 +26,7 @@ var (
 	nodeType  = flag.Int("node", 1, "Node type 1 = validation 2 = access")
 	username  = flag.String("username", "", "Node type 1 = validation 2 = access")
 	ipfsPort  = flag.String("IPFS_PORT", "5001", "IPFS port number")
-	wsPort    = flag.String("WS_PORT", "8080", "Websocket port number")
+	wsPort    = flag.String("WS_PORT", "8000", "Websocket port number")
 	useWS     = flag.Bool("useWS", false, "Use websocket")
 	CID, Hash string
 	log       = logrus.New()
@@ -54,6 +54,7 @@ func main() {
 func initialize(ctx context.Context) {
 	localdata.SetNodeName(*username)
 	localdata.NodeType = *nodeType
+	localdata.WsPort = *wsPort
 	ipfs.IpfsPeerID()
 
 	if *nodeType == 1 {
