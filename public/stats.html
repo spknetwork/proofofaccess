@@ -30,7 +30,7 @@
     const statsTable = document.getElementById('statsTable');
 
     // Replace with your server WebSocket URL
-    const wsUrl = "ws://localhost:8000/get-stats";
+    const wsUrl = "ws://spk.tv/get-stats";
     const ws = new WebSocket(wsUrl);
 
     ws.onmessage = function(event) {
