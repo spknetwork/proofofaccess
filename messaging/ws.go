@@ -75,9 +75,11 @@ func StartWsClient() {
 			return
 		default:
 			// Run default operations in non-blocking manner
+			time.Sleep(1 * time.Second) // Added sleep here
 		}
 	}
 }
+
 func wsPing(hash string, c *websocket.Conn) {
 	data := map[string]string{
 		"type": TypePingPongPing,
