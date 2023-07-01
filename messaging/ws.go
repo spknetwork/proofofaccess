@@ -106,7 +106,7 @@ func StartWsClient() {
 }
 
 func wsPing(hash string) {
-	localdata.Synced = true
+
 	data := map[string]string{
 		"type": TypePingPongPing,
 		"hash": hash,
