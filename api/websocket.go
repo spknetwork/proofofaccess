@@ -4,6 +4,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/gorilla/websocket"
 	"net/http"
+	"sync"
 )
 
 type ExampleResponse struct {
@@ -26,6 +27,8 @@ type message struct {
 	SALT   string `json:"salt"`
 	PEERID string `json:"peerid"`
 }
+
+var wsMutex = &sync.Mutex{}
 
 func upgradeToWebSocket(c *gin.Context) (*websocket.Conn, error) {
 	conn, err := upgrader.Upgrade(c.Writer, c.Request, nil)
@@ -58,15 +61,18 @@ func readWebSocketMessage(conn *websocket.Conn) (*message, error) {
 }
 
 func sendWsResponse(status string, message string, elapsed string, conn *websocket.Conn) {
-	err := conn.WriteJSON(gin.H{
-		"Status":  status,
-		"Message": message,
-		"Elapsed": elapsed,
+	wsMutex.Lock()
+	err := conn.WriteJSON(ExampleResponse{
+		Status:  status,
+		Message: message,
+		Elapsed: elapsed,
 	})
+	wsMutex.Unlock()
 	if err != nil {
-		return
+		log.Println("Error writing JSON to websocket:", err)
 	}
 }
+
 func sendJsonWS(conn *websocket.Conn, json gin.H) {
 	err := conn.WriteJSON(json)
 	if err != nil {

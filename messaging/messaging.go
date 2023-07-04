@@ -13,6 +13,7 @@ import (
 	"proofofaccess/validation"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -35,6 +36,7 @@ const (
 	TypePingPongPong  = "PingPongPong"
 )
 
+var wsMutex = &sync.Mutex{}
 var Ping = map[string]bool{}
 var ProofRequest = map[string]bool{}
 var ProofRequestStatus = map[string]bool{}
@@ -62,8 +64,10 @@ func SendProof(req Request, hash string, seed string, user string) {
 		return
 	}
 	if localdata.WsPeers[req.User] == req.User && localdata.NodeType == 1 {
+		wsMutex.Lock()
 		ws := localdata.WsClients[req.User]
 		ws.WriteMessage(websocket.TextMessage, jsonData)
+		wsMutex.Unlock()
 	} else if localdata.UseWS == true && localdata.NodeType == 2 {
 		localdata.WsValidators["Validator1"].WriteMessage(websocket.TextMessage, jsonData)
 	} else {
@@ -210,8 +214,10 @@ func SendPing(hash string, user string) {
 	}
 	localdata.PingTime[user] = time.Now()
 	if localdata.WsPeers[user] == user && localdata.NodeType == 1 {
+		wsMutex.Lock()
 		ws := localdata.WsClients[user]
 		ws.WriteMessage(websocket.TextMessage, jsonData)
+		wsMutex.Unlock()
 	} else if localdata.UseWS == true && localdata.NodeType == 2 {
 		localdata.WsValidators["Validator1"].WriteMessage(websocket.TextMessage, jsonData)
 	} else {
@@ -230,8 +236,10 @@ func PingPongPong(req Request, hash string, user string) {
 		return
 	}
 	if localdata.WsPeers[req.User] == req.User && localdata.NodeType == 1 {
+		wsMutex.Lock()
 		ws := localdata.WsClients[req.User]
 		ws.WriteMessage(websocket.TextMessage, jsonData)
+		wsMutex.Unlock()
 	} else if localdata.UseWS == true && localdata.NodeType == 2 {
 		localdata.WsValidators["Validator1"].WriteMessage(websocket.TextMessage, jsonData)
 	} else {
@@ -249,8 +257,10 @@ func RequestCIDS(req Request) {
 		return
 	}
 	if localdata.WsPeers[req.User] == req.User && localdata.NodeType == 1 {
+		wsMutex.Lock()
 		ws := localdata.WsClients[req.User]
 		ws.WriteMessage(websocket.TextMessage, jsonData)
+		wsMutex.Unlock()
 	} else if localdata.UseWS == true && localdata.NodeType == 2 {
 		localdata.WsValidators["Validator1"].WriteMessage(websocket.TextMessage, jsonData)
 	} else {
@@ -293,8 +303,10 @@ func SendCIDS(name string) {
 		}
 
 		if localdata.UseWS == true && localdata.NodeType == 2 {
+			wsMutex.Lock()
 			ws := localdata.WsValidators["Validator1"]
 			ws.WriteJSON(data)
+			wsMutex.Unlock()
 		} else {
 			pubsub.Publish(string(jsonData), name)
 		}
@@ -352,8 +364,10 @@ func SendSyncing(req Request) {
 		return
 	}
 	if localdata.WsPeers[req.User] == req.User && localdata.NodeType == 1 {
+		wsMutex.Lock()
 		ws := localdata.WsClients[req.User]
 		ws.WriteMessage(websocket.TextMessage, jsonData)
+		wsMutex.Unlock()
 	} else if localdata.UseWS == true && localdata.NodeType == 2 {
 		localdata.WsValidators["Validator1"].WriteMessage(websocket.TextMessage, jsonData)
 	} else {
@@ -373,8 +387,10 @@ func SendSynced(req Request) {
 	}
 	if localdata.WsPeers[req.User] == req.User && localdata.NodeType == 1 {
 		fmt.Println("Sending Synced to " + req.User)
+		wsMutex.Lock()
 		ws := localdata.WsClients[req.User]
 		ws.WriteMessage(websocket.TextMessage, jsonData)
+		wsMutex.Unlock()
 	} else if localdata.UseWS == true && localdata.NodeType == 2 {
 		localdata.WsValidators["Validator1"].WriteMessage(websocket.TextMessage, jsonData)
 	} else {
