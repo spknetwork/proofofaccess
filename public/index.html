@@ -111,12 +111,11 @@
     <button type="button" onclick="submitForm()">Submit</button>
 </form>
 <div class="container">
-    <div class="step" id="step1"><div class="step-number">1</div><div class="step-text">Step 1</div><div class="line"></div></div>
-    <div class="step" id="step2"><div class="step-number">2</div><div class="step-text">Step 2</div><div class="line"></div></div>
-    <div class="step" id="step3"><div class="step-number">3</div><div class="step-text">Step 3</div><div class="line"></div></div>
-    <div class="step" id="step4"><div class="step-number">4</div><div class="step-text">Step 4</div><div class="line"></div></div>
-    <div class="step5" id="step5"><div class="step-number">5</div><div class="step-text">Step 5</div></div>
+    <div class="step" id="step3"><div class="step-number">1</div><div class="step-text">Step 1</div><div class="line"></div></div>
+    <div class="step" id="step4"><div class="step-number">2</div><div class="step-text">Step 2</div><div class="line"></div></div>
+    <div class="step5" id="step5"><div class="step-number">3</div><div class="step-text">Step 3</div></div>
 </div>
+
 <div id="results"></div>
 
 <!-- Include Leaflet JS -->
@@ -147,19 +146,14 @@
             const data = JSON.parse(event.data);
 
             const statusMap = {
-                'FetchingHiveAccount': { stepIndex: 0, classes: ['working'], text: 'Fetching Hive Account' },
-                'FoundHiveAccount': { stepIndex: 0, classes: ['completed'], text: 'Hive Account Found' },
-                'Connecting': { stepIndex: 1, nextStepIndex: 1, classes: ['working'], text: 'Connecting to Peer' },
-                'PeerNotFound': { stepIndex: 1, classes: ['error'], text: 'Error: Peer Not Found' },
-                'Connected': { stepIndex: 1, nextStepIndex: 1, classes: ['completed'], text: 'Connecting to Peer' },
-                'Connection Error': { stepIndex: 1, classes: ['error'], text: 'Error: Connection Error' },
-                'RequestingProof': { stepIndex: 2, prevStepIndex: 1, prevClasses: ['completed'], nextStepIndex: 3, classes: ['working'], text: 'RequestingProof' },
-                'Waiting Proof': { stepIndex: 3, prevStepIndex: 2, prevClasses: ['completed'], classes: ['completed'], text: 'Waiting for Proof' },
-                'ProofReceived': { stepIndex: 3, nextStepIndex: 4, classes: ['completed'], nextClasses: ['working'], text: 'Proof Received' },
-                'Validating': { stepIndex: 4, classes: ['working'], text: 'Validating' },
-                'Valid': { stepIndex: 4, classes: ['completed'], text: 'Proof Validated', step5Classes: ['completed'], step5TextValue: 'Valid' },
-                'Invalid': { stepIndex: 4, classes: ['completed'], text: 'Validating', step5Classes: ['error'], step5TextValue: 'Proof Invalid' }
+                'RequestingProof': { stepIndex: 0, prevStepIndex: undefined, prevClasses: undefined, nextStepIndex: 1, classes: ['working'], text: 'RequestingProof' },
+                'Waiting Proof': { stepIndex: 1, prevStepIndex: 0, prevClasses: ['completed'], classes: ['completed'], text: 'Waiting for Proof' },
+                'ProofReceived': { stepIndex: 1, nextStepIndex: 2, classes: ['completed'], nextClasses: ['working'], text: 'Proof Received' },
+                'Validating': { stepIndex: 2, classes: ['working'], text: 'Validating' },
+                'Valid': { stepIndex: 2, classes: ['completed'], text: 'Proof Validated', step5Classes: ['completed'], step5TextValue: 'Valid' },
+                'Invalid': { stepIndex: 2, classes: ['completed'], text: 'Validating', step5Classes: ['error'], step5TextValue: 'Proof Invalid' }
             };
+
             if (statusMap[data.Status]) {
                 const { stepIndex, prevStepIndex, prevClasses, nextStepIndex, classes, nextClasses, step5Classes, text, step5TextValue } = statusMap[data.Status];
                 steps[stepIndex].classList.remove('error', 'completed', 'working');
@@ -195,9 +189,7 @@
         const initialStepTexts = [
             'Step 1',
             'Step 2',
-            'Step 3',
-            'Step 4',
-            'Step 5'
+            'Step 3'
         ];
 
         const stepTexts = document.querySelectorAll('.step-text');
@@ -205,6 +197,7 @@
             stepText.innerHTML = initialStepTexts[index];
         });
     }
+
     // Replace IP Node Map script with the updated version
     const map = L.map('map').setView([0, 0], 2);
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {

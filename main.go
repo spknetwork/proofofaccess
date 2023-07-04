@@ -25,7 +25,7 @@ import (
 
 var (
 	nodeType  = flag.Int("node", 1, "Node type 1 = validation 2 = access")
-	username  = flag.String("username", "", "Node type 1 = validation 2 = access")
+	username  = flag.String("username", "", "Username")
 	ipfsPort  = flag.String("IPFS_PORT", "5001", "IPFS port number")
 	wsPort    = flag.String("WS_PORT", "8000", "Websocket port number")
 	useWS     = flag.Bool("useWS", false, "Use websocket")
@@ -89,7 +89,7 @@ func connectToValidators(ctx context.Context, nodeType *int) {
 					fmt.Println("Connecting to validator: ", validatorName)
 					salt, _ := proofcrypto.CreateRandomHash()
 
-					messaging.PingPong(salt, validatorName)
+					messaging.SendPing(salt, validatorName)
 
 				}
 				time.Sleep(120 * time.Second)

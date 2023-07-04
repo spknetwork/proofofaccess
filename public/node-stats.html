@@ -33,7 +33,7 @@
     </style>
 
     <script type="text/javascript">
-        var socket = new WebSocket("ws://localhost:8000/getstats");
+        var socket = new WebSocket("ws://spk.tv/getstats");
 
         socket.onmessage = function(event) {
             var stats = JSON.parse(event.data);

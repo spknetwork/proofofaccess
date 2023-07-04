@@ -106,7 +106,6 @@ func StartWsClient() {
 }
 
 func wsPing(hash string) {
-
 	data := map[string]string{
 		"type": TypePingPongPing,
 		"hash": hash,

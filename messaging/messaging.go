@@ -4,22 +4,27 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/gorilla/websocket"
-	ipfsapi "github.com/ipfs/go-ipfs-api"
 	"log"
 	"proofofaccess/database"
 	"proofofaccess/ipfs"
 	"proofofaccess/localdata"
+	"proofofaccess/proofcrypto"
 	"proofofaccess/pubsub"
 	"proofofaccess/validation"
+	"strconv"
+	"strings"
 	"time"
 )
 
 type Request struct {
-	Type string `json:"type"`
-	Hash string `json:"hash"`
-	CID  string `json:"cid"`
-	Seed string `json:"seed"`
-	User string `json:"user"`
+	Type       string `json:"type"`
+	Hash       string `json:"hash"`
+	CID        string `json:"cid"`
+	Seed       string `json:"seed"`
+	User       string `json:"user"`
+	Pins       string `json:"pins"`
+	TotalParts string `json:"totalParts"`
+	Part       string `json:"part"`
 }
 
 const (
@@ -29,8 +34,6 @@ const (
 	TypePingPongPing  = "PingPongPing"
 	TypePingPongPong  = "PingPongPong"
 )
-
-var request Request
 
 var Ping = map[string]bool{}
 var ProofRequest = map[string]bool{}
@@ -46,7 +49,7 @@ type PinMap map[string]PinType
 
 // SendProof
 // This is the function that sends the proof of access to the validation node
-func SendProof(hash string, seed string, user string) {
+func SendProof(req Request, hash string, seed string, user string) {
 	data := map[string]string{
 		"type": TypeProofOfAccess,
 		"hash": hash,
@@ -58,8 +61,8 @@ func SendProof(hash string, seed string, user string) {
 		fmt.Println("Error encoding JSON:", err)
 		return
 	}
-	if localdata.WsPeers[request.User] == request.User && localdata.NodeType == 1 {
-		ws := localdata.WsClients[request.User]
+	if localdata.WsPeers[req.User] == req.User && localdata.NodeType == 1 {
+		ws := localdata.WsClients[req.User]
 		ws.WriteMessage(websocket.TextMessage, jsonData)
 	} else if localdata.UseWS == true && localdata.NodeType == 2 {
 		localdata.WsValidators["Validator1"].WriteMessage(websocket.TextMessage, jsonData)
@@ -72,7 +75,8 @@ func SendProof(hash string, seed string, user string) {
 // This is the function that handles the messages from the pubsub
 func HandleMessage(message string) {
 	// JSON decode message
-	err := json.Unmarshal([]byte(message), &request)
+	req := Request{}
+	err := json.Unmarshal([]byte(message), &req)
 	if err != nil {
 		fmt.Println("Error decoding JSON:", err)
 		return
@@ -80,54 +84,54 @@ func HandleMessage(message string) {
 	fmt.Println("Message received:", message)
 	//Handle proof of access response from storage node
 	if localdata.NodeType == 1 {
-		if request.Type == TypeProofOfAccess {
-			go HandleProofOfAccess(request)
+		if req.Type == TypeProofOfAccess {
+			go HandleProofOfAccess(req)
 		}
 
 	}
 
 	//Handle request for proof request from validation node
 	if localdata.NodeType == 2 {
-		if request.Type == TypeRequestProof {
-			go HandleRequestProof(request)
+		if req.Type == TypeRequestProof {
+			go HandleRequestProof(req)
 		}
-		if request.Type == TypePingPongPong {
-			validatorName := request.User
+		if req.Type == TypePingPongPong {
+			validatorName := req.User
 			localdata.Validators[validatorName] = true
 			fmt.Println("Validator", validatorName, "is online")
 			fmt.Println(validatorName, ": ", localdata.Validators[validatorName])
 		}
 	}
-	if request.Type == TypePingPongPong {
-		Ping[request.Hash] = true
+	if req.Type == TypePingPongPong {
+		Ping[req.Hash] = true
 		fmt.Println("PingPongPong received")
 	}
-	if request.Type == TypePingPongPing {
+	if req.Type == TypePingPongPing {
 		fmt.Println("PingPongPing received")
-		PingPongPong(request.Hash, request.User)
-		if localdata.NodeType == 1 && !Nodes[request.User] && localdata.NodesStatus[request.User] != "Synced" {
-			fmt.Println("syncing: " + request.User)
-			go RequestCIDS(request.User)
+		PingPongPong(req, req.Hash, req.User)
+		if localdata.NodeType == 1 && !Nodes[req.User] && localdata.NodesStatus[req.User] != "Synced" {
+			fmt.Println("syncing: " + req.User)
+			go RequestCIDS(req)
 		}
 
 	}
-	if request.Type == "RequestCIDS" {
+	if req.Type == "RequestCIDS" {
 		fmt.Println("RequestCIDS received")
-		go SendCIDS(request.User)
+		go SendCIDS(req.User)
 
 	}
-	if request.Type == "SendCIDS" && !Nodes[request.User] {
+	if req.Type == "SendCIDS" {
 		fmt.Println("SendCIDS received")
-		go SyncNode(request.User)
+		go SyncNode(req)
 	}
-	if request.Type == "Syncing" {
+	if req.Type == "Syncing" {
 		fmt.Println("Syncing received")
-		go ReceiveSyncing(request.User)
+		go ReceiveSyncing(req)
 	}
-	if request.Type == "Synced" {
-		fmt.Println("Synced with " + request.User)
+	if req.Type == "Synced" {
+		fmt.Println("Synced with " + req.User)
 		localdata.Synced = true
-		go ReceiveSynced(request.User)
+		go ReceiveSynced(req)
 	}
 	fmt.Println("Message handled")
 
@@ -135,32 +139,32 @@ func HandleMessage(message string) {
 
 // HandleRequestProof
 // This is the function that handles the request for proof from the validation node
-func HandleRequestProof(request Request) {
-	CID := request.CID
-	hash := request.Hash
+func HandleRequestProof(req Request) {
+	CID := req.CID
+	hash := req.Hash
 	if ipfs.IsPinned(CID) == true {
 		validationHash := validation.CreatProofHash(hash, CID)
-		SendProof(validationHash, hash, localdata.NodeName)
+		SendProof(req, validationHash, hash, localdata.NodeName)
 	} else {
-		SendProof("", hash, localdata.NodeName)
+		SendProof(req, hash, req.Seed, localdata.NodeName)
 	}
 
 }
 
 // HandleProofOfAccess
 // This is the function that handles the proof of access response from the storage node
-func HandleProofOfAccess(request Request) {
+func HandleProofOfAccess(req Request) {
 	// Get the start time from the seed
-	start := localdata.GetTime(request.Seed)
+	start := localdata.GetTime(req.Seed)
 	fmt.Println("Start time:", start)
 	// Get the current time
 	elapsed := time.Since(start)
 	fmt.Println("Elapsed time:", elapsed)
 	// Set the elapsed time
-	localdata.SetElapsed(request.Seed, elapsed)
+	localdata.SetElapsed(req.Seed, elapsed)
 
 	// Get the CID and Seed
-	data := database.Read([]byte("Stats" + request.Seed))
+	data := database.Read([]byte("Stats" + req.Seed))
 	var message Request
 	err := json.Unmarshal([]byte(string(data)), &message)
 	if err != nil {
@@ -171,31 +175,29 @@ func HandleProofOfAccess(request Request) {
 	ProofRequest[seed] = true
 	// Create the proof hash
 	var validationHash string
-	if request.Hash != "" {
+	if req.Hash != "" {
 		fmt.Println("Creating proof of access hash")
 		validationHash = validation.CreatProofHash(seed, CID)
 		// Check if the proof of access is valid
-		if validationHash == request.Hash && elapsed < 2500*time.Millisecond {
+		if validationHash == req.Hash && elapsed < 2500*time.Millisecond {
 			fmt.Println("Proof of access is valid")
-			fmt.Println(request.Seed)
-			localdata.SetStatus(request.Seed, CID, "Valid", request.User)
+			fmt.Println(req.Seed)
+			localdata.SetStatus(req.Seed, CID, "Valid", req.User)
 		} else {
-			fmt.Println("Request Hash", request.Hash)
+			fmt.Println("Request Hash", req.Hash)
 			fmt.Println("Validation Hash", validationHash)
 			fmt.Println("Elapsed time:", elapsed)
 			fmt.Println("Proof of access is invalid took too long")
-			localdata.SetStatus(request.Seed, CID, "Invalid", request.User)
+			localdata.SetStatus(req.Seed, CID, "Invalid", req.User)
 		}
 	} else {
 		fmt.Println("Proof is invalid")
-		localdata.SetStatus(request.Seed, CID, "Invalid", request.User)
+		localdata.SetStatus(req.Seed, CID, "Invalid", req.User)
 	}
 	ProofRequestStatus[seed] = true
 }
-func PingPong(hash string, user string) {
-	PingPongPing(hash, user)
-}
-func PingPongPing(hash string, user string) {
+
+func SendPing(hash string, user string) {
 	data := map[string]string{
 		"type": TypePingPongPing,
 		"hash": hash,
@@ -206,9 +208,9 @@ func PingPongPing(hash string, user string) {
 		fmt.Println("Error encoding JSON:", err)
 		return
 	}
-	localdata.PingTime[request.User] = time.Now()
-	if localdata.WsPeers[request.User] == request.User && localdata.NodeType == 1 {
-		ws := localdata.WsClients[request.User]
+	localdata.PingTime[user] = time.Now()
+	if localdata.WsPeers[user] == user && localdata.NodeType == 1 {
+		ws := localdata.WsClients[user]
 		ws.WriteMessage(websocket.TextMessage, jsonData)
 	} else if localdata.UseWS == true && localdata.NodeType == 2 {
 		localdata.WsValidators["Validator1"].WriteMessage(websocket.TextMessage, jsonData)
@@ -216,7 +218,7 @@ func PingPongPing(hash string, user string) {
 		pubsub.Publish(string(jsonData), user)
 	}
 }
-func PingPongPong(hash string, user string) {
+func PingPongPong(req Request, hash string, user string) {
 	data := map[string]string{
 		"type": TypePingPongPong,
 		"hash": hash,
@@ -227,8 +229,8 @@ func PingPongPong(hash string, user string) {
 		fmt.Println("Error encoding JSON:", err)
 		return
 	}
-	if localdata.WsPeers[request.User] == request.User && localdata.NodeType == 1 {
-		ws := localdata.WsClients[request.User]
+	if localdata.WsPeers[req.User] == req.User && localdata.NodeType == 1 {
+		ws := localdata.WsClients[req.User]
 		ws.WriteMessage(websocket.TextMessage, jsonData)
 	} else if localdata.UseWS == true && localdata.NodeType == 2 {
 		localdata.WsValidators["Validator1"].WriteMessage(websocket.TextMessage, jsonData)
@@ -236,7 +238,7 @@ func PingPongPong(hash string, user string) {
 		pubsub.Publish(string(jsonData), user)
 	}
 }
-func RequestCIDS(user string) {
+func RequestCIDS(req Request) {
 	data := map[string]string{
 		"type": "RequestCIDS",
 		"user": localdata.GetNodeName(),
@@ -246,55 +248,98 @@ func RequestCIDS(user string) {
 		fmt.Println("Error encoding JSON:", err)
 		return
 	}
-	if localdata.WsPeers[request.User] == request.User && localdata.NodeType == 1 {
-		ws := localdata.WsClients[request.User]
+	if localdata.WsPeers[req.User] == req.User && localdata.NodeType == 1 {
+		ws := localdata.WsClients[req.User]
 		ws.WriteMessage(websocket.TextMessage, jsonData)
 	} else if localdata.UseWS == true && localdata.NodeType == 2 {
 		localdata.WsValidators["Validator1"].WriteMessage(websocket.TextMessage, jsonData)
 	} else {
-		pubsub.Publish(string(jsonData), user)
+		pubsub.Publish(string(jsonData), req.User)
 	}
 
 }
-func SendCIDS(user string) {
+func SendCIDS(name string) {
 	allPins, _ := ipfs.Shell.Pins()
-	// Remove the cids in PinFileCids from ipfs.AllPins.
-	for _, cid := range PinFileCids {
-		delete(allPins, cid)
-	}
 
-	pinsJson, err := json.Marshal(allPins)
+	NewPins := make([]string, 0)
+	for key, pinInfo := range allPins {
+		if pinInfo.Type == "recursive" {
+			NewPins = append(NewPins, key)
+		}
+	}
+	pinsJson, err := json.Marshal(NewPins)
 	if err != nil {
 		fmt.Println(err)
 		return
 	}
-	cid, _ := ipfs.UploadTextToFile(string(pinsJson), "pins.json")
 
-	// Add the new cid to the PinFileCids.
-	PinFileCids = append(PinFileCids, cid)
+	// Split the pinsJson into smaller chunks
+	chunks := splitIntoChunks(string(pinsJson), 3000) // 1000 is the chunk size, adjust as needed
+	seed, _ := proofcrypto.CreateRandomHash()
+	for i, chunk := range chunks {
+		data := map[string]string{
+			"type":       "SendCIDS",
+			"user":       localdata.GetNodeName(),
+			"seed":       seed,
+			"pins":       chunk,
+			"part":       strconv.Itoa(i + 1),
+			"totalParts": strconv.Itoa(len(chunks)),
+		}
 
-	data := map[string]string{
-		"type": "SendCIDS",
-		"user": localdata.GetNodeName(),
-		"cid":  cid,
+		jsonData, err := json.Marshal(data)
+		if err != nil {
+			fmt.Println("Error encoding JSON:", err)
+			return
+		}
+
+		if localdata.UseWS == true && localdata.NodeType == 2 {
+			ws := localdata.WsValidators["Validator1"]
+			ws.WriteJSON(data)
+		} else {
+			pubsub.Publish(string(jsonData), name)
+		}
 	}
-
-	jsonData, err := json.Marshal(data)
-	if err != nil {
-		fmt.Println("Error encoding JSON:", err)
-		return
-	}
-	if localdata.WsPeers[request.User] == request.User && localdata.NodeType == 1 {
-		ws := localdata.WsClients[request.User]
-		ws.WriteMessage(websocket.TextMessage, jsonData)
-	} else if localdata.UseWS == true && localdata.NodeType == 2 {
-		localdata.WsValidators["Validator1"].WriteMessage(websocket.TextMessage, jsonData)
-	} else {
-		pubsub.Publish(string(jsonData), user)
-	}
-
 }
-func SendSyncing(user string) {
+
+// splitIntoChunks splits a string into chunks of the specified size
+func splitIntoChunks(s string, chunkSize int) []string {
+	var chunks []string
+	runes := []rune(s)
+
+	for i := 0; i < len(runes); {
+		end := i + chunkSize
+
+		if end > len(runes) {
+			end = len(runes)
+		}
+
+		// Check if the end index is in the middle of a CID
+		if end < len(runes) && runes[end] != ',' {
+			for end < len(runes) && runes[end] != ',' {
+				end++
+			}
+		}
+
+		// Remove leading and trailing commas, and enclose chunk in brackets
+		chunk := string(runes[i:end])
+		chunk = strings.Trim(chunk, ",")
+		chunk = strings.Trim(chunk, "[")
+		chunk = strings.Trim(chunk, "]")
+		chunk = "[" + chunk + "]"
+
+		chunks = append(chunks, chunk)
+
+		// Move the start index to the next CID
+		i = end
+		if i < len(runes) && runes[i] == ',' {
+			i++
+		}
+	}
+
+	return chunks
+}
+
+func SendSyncing(req Request) {
 	localdata.Synced = true
 	data := map[string]string{
 		"type": "Syncing",
@@ -306,16 +351,16 @@ func SendSyncing(user string) {
 		fmt.Println("Error encoding JSON:", err)
 		return
 	}
-	if localdata.WsPeers[request.User] == request.User && localdata.NodeType == 1 {
-		ws := localdata.WsClients[request.User]
+	if localdata.WsPeers[req.User] == req.User && localdata.NodeType == 1 {
+		ws := localdata.WsClients[req.User]
 		ws.WriteMessage(websocket.TextMessage, jsonData)
 	} else if localdata.UseWS == true && localdata.NodeType == 2 {
 		localdata.WsValidators["Validator1"].WriteMessage(websocket.TextMessage, jsonData)
 	} else {
-		pubsub.Publish(string(jsonData), user)
+		pubsub.Publish(string(jsonData), req.User)
 	}
 }
-func SendSynced(user string) {
+func SendSynced(req Request) {
 	data := map[string]string{
 		"type": "Synced",
 		"user": localdata.GetNodeName(),
@@ -326,54 +371,104 @@ func SendSynced(user string) {
 		fmt.Println("Error encoding JSON:", err)
 		return
 	}
-	if localdata.WsPeers[request.User] == request.User && localdata.NodeType == 1 {
-		ws := localdata.WsClients[request.User]
+	if localdata.WsPeers[req.User] == req.User && localdata.NodeType == 1 {
+		fmt.Println("Sending Synced to " + req.User)
+		ws := localdata.WsClients[req.User]
 		ws.WriteMessage(websocket.TextMessage, jsonData)
 	} else if localdata.UseWS == true && localdata.NodeType == 2 {
 		localdata.WsValidators["Validator1"].WriteMessage(websocket.TextMessage, jsonData)
 	} else {
-		pubsub.Publish(string(jsonData), user)
+		pubsub.Publish(string(jsonData), req.User)
 	}
 
 }
-func ReceiveSyncing(user string) {
-	localdata.ValidatorsStatus[user] = "Syncing"
-	fmt.Println("Syncing with " + user)
+func ReceiveSyncing(req Request) {
+	localdata.ValidatorsStatus[req.User] = "Syncing"
+	fmt.Println("Syncing with " + req.User)
 }
-func ReceiveSynced(user string) {
-	localdata.ValidatorNames = localdata.RemoveDuplicates(append(localdata.ValidatorNames, user))
-	localdata.ValidatorsStatus[user] = "Synced"
-	fmt.Println("Synced with " + user)
+func ReceiveSynced(req Request) {
+	localdata.ValidatorNames = localdata.RemoveDuplicates(append(localdata.ValidatorNames, req.User))
+	localdata.ValidatorsStatus[req.User] = "Synced"
+	fmt.Println("Synced with " + req.User)
 }
-func SyncNode(user string) {
-	Nodes[user] = true
-	peerName := user
+func SyncNode(req Request) {
+	fmt.Println("Syncing with " + req.User)
+	Nodes[req.User] = true
+	peerName := req.User
 	localdata.PeerNames = localdata.RemoveDuplicates(append(localdata.PeerNames, peerName))
-	localdata.NodesStatus[user] = "Syncing"
-	fmt.Println(request.CID)
-	var myData map[string]ipfsapi.PinInfo
-	err := ipfs.DownloadAndDecodeJSON(request.CID, &myData)
-	if err != nil {
-		log.Fatalf("Failed to download and decode JSON: %v", err)
+	localdata.NodesStatus[req.User] = "Syncing"
+	fmt.Println(req.Pins)
+	var myData map[string]interface{}
+
+	if localdata.WsPeers[req.User] != req.User && localdata.NodeType == 1 {
+		err := ipfs.DownloadAndDecodeJSON(req.CID, &myData)
+		if err != nil {
+			Nodes[req.User] = false
+			log.Println(err)
+			time.Sleep(5 * time.Second)
+			RequestCIDS(req)
+			return
+		}
 	}
 
-	go ipfs.SyncNode(myData, user)
+	// Handle the chunks of allPins data
+	part, _ := strconv.Atoi(req.Part)
+	totalParts, _ := strconv.Atoi(req.TotalParts)
+
+	var pins []string
+	err := json.Unmarshal([]byte(req.Pins), &pins)
+	if err != nil {
+		log.Println("Error unmarshalling pins:", err)
+		log.Println("Pins data:", req.Pins)
+		return
+	}
+
+	allPins := localdata.PeerCids[req.User]
+	for _, value := range pins {
+		allPins = append(allPins, value)
+	}
+	localdata.PeerCids[req.User] = allPins
+	localdata.PeerSyncSeed[req.Seed] = localdata.PeerSyncSeed[req.Seed] + 1
+	fmt.Println("Received", len(pins), "CIDs from", req.User, "(", part, "/", totalParts, ")")
+	// If this is the last chunk, sync the node
+	fmt.Println("Checking if all parts received")
+	fmt.Println(localdata.PeerSyncSeed[req.Seed])
+	// Convert allPins to JSON
+	allPinsJson, err := json.Marshal(allPins)
+	if err != nil {
+		log.Println("Error marshalling allPins:", err)
+		return
+	}
+
+	// Save allPins to the database
+	database.Save([]byte("allPins:"+req.User), allPinsJson)
+	if localdata.PeerSyncSeed[req.Seed] == totalParts {
+		allPinsMap := make(map[string]interface{})
+		for _, pin := range allPins {
+			allPinsMap[pin] = nil
+		}
+
+		go ipfs.SyncNode(allPinsMap, req.User)
+	} else {
+		return
+	}
+
 	go func() {
 		for {
 			time.Sleep(1 * time.Second)
-			fmt.Println("Checking if synced with " + user)
-			fmt.Println(localdata.NodesStatus[user])
-			if localdata.NodesStatus[user] == "Synced" {
-				println("test if", localdata.NodesStatus[user])
-				fmt.Println("Synced with " + user)
-				SendSynced(user)
-				Nodes[user] = false
+			fmt.Println("Checking if synced with " + req.User)
+			fmt.Println(localdata.NodesStatus[req.User])
+			if localdata.NodesStatus[req.User] == "Synced" {
+				println("test if", localdata.NodesStatus[req.User])
+				fmt.Println("Synced with " + req.User)
+				SendSynced(req)
+				Nodes[req.User] = false
 				break
-			} else if localdata.NodesStatus[user] == "Failed" {
-				RequestCIDS(user)
+			} else if localdata.NodesStatus[req.User] == "Failed" {
+				RequestCIDS(req)
 				break
 			}
 		}
 	}()
-	go SendSyncing(request.User)
+	SendSyncing(req)
 }

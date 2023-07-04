@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	ipfs "github.com/ipfs/go-ipfs-api"
+	"io"
 	"io/ioutil"
 	"net"
 	"os"
@@ -23,21 +24,47 @@ var NewPins = make(map[string]interface{})
 
 var AllPins = map[string]ipfs.PinInfo{}
 
+const BufferSize = 1024 // define a reasonable buffer size
 // Download
-// Add a file to IPFS
-func Download(fileHash string) (bytes.Buffer, error) {
-	// Download the file from IPFS
+// Download the file from IPFS
+func Download(fileHash string) (*bytes.Buffer, error) {
 	fmt.Println("Downloading file: ", fileHash)
+
+	// Get file size
+	stat, err := Shell.ObjectStat(fileHash)
+	if err != nil {
+		return nil, fmt.Errorf("error stating file: %v", err)
+	}
+
+	fileSize := stat.CumulativeSize
+	fmt.Printf("File size: %d bytes\n", fileSize)
+
 	fileReader, err := Shell.Cat(fileHash)
 	if err != nil {
-		return bytes.Buffer{}, fmt.Errorf("error downloading file: %v", err)
+		return nil, fmt.Errorf("error downloading file: %v", err)
 	}
 	defer fileReader.Close()
-	fileContents, err := ioutil.ReadAll(fileReader)
-	if err != nil {
-		return bytes.Buffer{}, fmt.Errorf("error reading file contents: %v", err)
+
+	var result bytes.Buffer
+	buf := make([]byte, BufferSize)
+	totalRead := 0
+
+	for {
+		n, err := fileReader.Read(buf)
+		if err != nil && err != io.EOF {
+			return nil, fmt.Errorf("error reading file contents: %v", err)
+		}
+		if n == 0 {
+			break
+		}
+
+		result.Write(buf[:n])
+		totalRead += n
+		fmt.Printf("Downloaded %d of %d bytes (%.2f%%)\n",
+			totalRead, fileSize, 100*float64(totalRead)/float64(fileSize))
 	}
-	return *bytes.NewBuffer(fileContents), nil
+
+	return &result, nil
 }
 
 // Refs
@@ -204,21 +231,11 @@ func DownloadAndDecodeJSON(fileHash string, dest interface{}) error {
 
 	return nil
 }
-func SyncNode(allPins map[string]ipfs.PinInfo, name string) {
-	lock.Lock()
-	Pins = NewPins
-	lock.Unlock()
-	fmt.Println("Fetching pins...")
-	fmt.Println("Number of pins: ", len(allPins))
-	if len(allPins) == 0 {
+func SyncNode(NewPins map[string]interface{}, name string) {
+	fmt.Println("Syncing node: ", name)
+	if len(NewPins) == 0 {
 		fmt.Println("No pins found")
 		return
-	}
-	NewPins = make(map[string]interface{})
-	for key, pinInfo := range allPins {
-		if pinInfo.Type == "recursive" {
-			NewPins[key] = key
-		}
 	}
 
 	mapLength := len(NewPins)
@@ -269,7 +286,7 @@ func SyncNode(allPins map[string]ipfs.PinInfo, name string) {
 					return
 				}
 				sizes[i] = stat.CumulativeSize
-
+				fmt.Println("Getting refs: ", key)
 				refs, err := Shell.Refs(key, true)
 				if err != nil {
 					fmt.Printf("Error: %v\n", err)
@@ -286,26 +303,23 @@ func SyncNode(allPins map[string]ipfs.PinInfo, name string) {
 				lock.Unlock()
 				completed[i] = true
 			}
+			keysNotFound++
+			fmt.Println("Keys not found: ", keysNotFound)
+			fmt.Println("Map length: ", mapLength)
+			if keysNotFound == mapLength {
+				fmt.Println("All keys found")
+				lock.Lock()
+				localdata.PeerSize[name] = peersize
+				fmt.Println("Synced: ", name)
+				fmt.Println("PeerSize: ", peersize)
+				localdata.NodesStatus[name] = "Synced"
+				lock.Unlock()
+				return
+			}
 		}(index, key)
-
 		index++
-		keysNotFound++
-		if keysNotFound == mapLength {
-			lock.Lock()
-			localdata.PeerSize[name] = peersize
-			fmt.Println("Synced: ", name)
-			fmt.Println("PeerSize: ", peersize)
-			localdata.NodesStatus[name] = "Synced"
-			lock.Unlock()
-			return
-		}
 	}
-
-	wg.Wait()
-	lock.Lock()
-	localdata.PeerSize[name] = peersize
-	localdata.NodesStatus[name] = "Failed"
-	lock.Unlock()
+	wg.Wait() // Wait for all goroutines to finish
 	return
 }
 func FileSize(cid string) (int, error) {

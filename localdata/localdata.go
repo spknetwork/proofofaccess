@@ -40,6 +40,8 @@ var WsClients = make(map[string]*websocket.Conn)
 var WsValidators = make(map[string]*websocket.Conn)
 var PingTime = make(map[string]time.Time)
 var WsPort = "8000"
+var PeerCids = map[string][]string{}
+var PeerSyncSeed = map[string]int{}
 
 // SaveTime
 // Saves the time to the database

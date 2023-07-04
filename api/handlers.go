@@ -108,7 +108,8 @@ func handleMessaging(c *gin.Context) {
 			break
 		}
 		// Add client to the clients map
-		if localdata.WsPeers[msg.User] != msg.User && localdata.WsClients[msg.User] != ws {
+		if localdata.WsPeers[msg.User] != msg.User || localdata.WsClients[msg.User] != ws {
+			fmt.Println("Adding client to the clients map")
 			localdata.WsClients[msg.User] = ws
 			localdata.WsPeers[msg.User] = msg.User
 		}
