@@ -259,10 +259,22 @@ func SyncNode(NewPins map[string]interface{}, name string) {
 	// Function to print the progress of each CID
 	printProgress := func(i int, key string) {
 		var percentage float64
+		var percentageInt int
 		if completed[i] {
+			lock.Lock()
+			localdata.CIDRefPercentage[key] = 100
+			localdata.CIDRefStatus[key] = true
+			lock.Unlock()
 			percentage = 100.0
 		} else if sizes[i] > 0 {
 			percentage = float64(refCounts[i]*256*1024) / float64(sizes[i]) * 100
+			percentageInt = int(percentage)
+			lock.Lock()
+			if percentageInt+1 > localdata.CIDRefPercentage[key] {
+				localdata.CIDRefPercentage[key] = percentageInt
+				localdata.CIDRefStatus[key] = false
+			}
+			lock.Unlock()
 		}
 		fmt.Printf("Name: %s, CID: %s has %d references so far (%.2f%%)\n", name, key, refCounts[i], percentage)
 	}
@@ -302,6 +314,8 @@ func SyncNode(NewPins map[string]interface{}, name string) {
 				localdata.SavedRefs[key] = refsSlice
 				lock.Unlock()
 				completed[i] = true
+				localdata.CIDRefPercentage[key] = 100
+				localdata.CIDRefStatus[key] = true
 			}
 			keysNotFound++
 			fmt.Println("Keys not found: ", keysNotFound)

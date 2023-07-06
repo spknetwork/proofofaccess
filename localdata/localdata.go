@@ -42,6 +42,8 @@ var PingTime = make(map[string]time.Time)
 var WsPort = "8000"
 var PeerCids = map[string][]string{}
 var PeerSyncSeed = map[string]int{}
+var CIDRefStatus = map[string]bool{}
+var CIDRefPercentage = map[string]int{}
 
 // SaveTime
 // Saves the time to the database

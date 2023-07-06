@@ -153,37 +153,15 @@ func handleStats(c *gin.Context) {
 	stats(conn)
 	return
 }
-func handleWrite(c *gin.Context) {
-	key := c.PostForm("key")
-	value := c.PostForm("value")
-	database.Save([]byte(key), []byte(value))
-	c.JSON(http.StatusOK, gin.H{
-		"message": "Data saved successfully",
-	})
-}
 
-func handleRead(c *gin.Context) {
+func getCIDHandler(c *gin.Context) {
 	key := c.Query("key")
-	value := database.Read([]byte(key))
+	percentage := localdata.CIDRefPercentage[key]
+	status := localdata.CIDRefStatus[key]
 	c.JSON(http.StatusOK, gin.H{
-		"value": string(value),
-	})
-}
-
-func handleUpdate(c *gin.Context) {
-	key := c.Query("key")
-	value := c.Query("value")
-	database.Update([]byte(key), []byte(value))
-	c.JSON(http.StatusOK, gin.H{
-		"message": "Data Updated successfully",
-	})
-}
-
-func handleDelete(c *gin.Context) {
-	key := c.Query("key")
-	database.Delete([]byte(key))
-	c.JSON(http.StatusOK, gin.H{
-		"message": "Data Deleted successfully",
+		"CID":        key,
+		"percentage": percentage,
+		"status":     status,
 	})
 }
 

@@ -43,15 +43,12 @@ func StartAPI(ctx context.Context) {
 	r.GET("/validate", handleValidate)
 	r.POST("/shutdown", handleShutdown)
 	r.GET("/getstats", handleStats)
-	r.POST("/write", handleWrite)
-	r.GET("/read", handleRead)
-	r.GET("/update", handleUpdate)
-	r.GET("/delete", handleDelete)
 	r.GET("/messaging", handleMessaging)
 	r.Static("/public", "./public")
 	// Handle the DNS lookup API request
 	r.GET("/get-ip", getIPHandler)
 	r.GET("/get-stats", getStatsHandler)
+	r.GET("/CID", getCIDHandler)
 	// Start the server
 	server := &http.Server{
 		Addr:    ":" + localdata.WsPort,
