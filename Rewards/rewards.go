@@ -62,8 +62,9 @@ func RunProofs() error {
 		fmt.Println("Running proofs for peer: " + peer)
 		for _, cid := range localdata.ThreeSpeakVideos {
 			localdata.Lock.Lock()
-			for _, peerHash := range localdata.PeerCids[peer] {
-				localdata.Lock.Unlock()
+			peers := localdata.PeerCids[peer]
+			localdata.Lock.Unlock()
+			for _, peerHash := range peers {
 				if peerHash == cid {
 					proof, err := runProofAPI(peer, cid)
 					if err != nil {
