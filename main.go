@@ -60,9 +60,14 @@ func initialize(ctx context.Context) {
 	localdata.NodeType = *nodeType
 	localdata.WsPort = *wsPort
 	ipfs.IpfsPeerID()
+	fmt.Println("runProofs: ", *runProofs)
 	if *getVids {
 		fmt.Println("Getting 3Speak videos")
 		Rewards.ThreeSpeak()
+	}
+	if *runProofs {
+		fmt.Println("Running proofs")
+		go runRewardProofs(ctx)
 	}
 	if *nodeType == 1 {
 		database.Init()
@@ -81,9 +86,6 @@ func initialize(ctx context.Context) {
 		go connectToValidators(ctx, nodeType)
 	}
 	go api.StartAPI(ctx)
-	if *runProofs {
-		go runRewardProofs(ctx)
-	}
 
 }
 func connectToValidators(ctx context.Context, nodeType *int) {
