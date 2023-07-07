@@ -62,7 +62,7 @@ func initialize(ctx context.Context) {
 	ipfs.IpfsPeerID()
 	if *getVids {
 		fmt.Println("Getting 3Speak videos")
-		go Rewards.ThreeSpeak()
+		Rewards.ThreeSpeak()
 	}
 	if *nodeType == 1 {
 		database.Init()
