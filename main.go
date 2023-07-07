@@ -8,6 +8,7 @@ import (
 	shell "github.com/ipfs/go-ipfs-api"
 	"os"
 	"os/signal"
+	"proofofaccess/Rewards"
 	"proofofaccess/api"
 	"proofofaccess/localdata"
 	"proofofaccess/proofcrypto"
@@ -29,6 +30,8 @@ var (
 	ipfsPort  = flag.String("IPFS_PORT", "5001", "IPFS port number")
 	wsPort    = flag.String("WS_PORT", "8000", "Websocket port number")
 	useWS     = flag.Bool("useWS", false, "Use websocket")
+	getVids   = flag.Bool("getVids", false, "Fetch 3Speak videos for rewarding")
+	runProofs = flag.Bool("runProofs", false, "Run proofs")
 	CID, Hash string
 	log       = logrus.New()
 	newPins   = false
@@ -57,7 +60,10 @@ func initialize(ctx context.Context) {
 	localdata.NodeType = *nodeType
 	localdata.WsPort = *wsPort
 	ipfs.IpfsPeerID()
-
+	if *getVids {
+		fmt.Println("Getting 3Speak videos")
+		go Rewards.ThreeSpeak()
+	}
 	if *nodeType == 1 {
 		database.Init()
 		go pubsubHandler(ctx)
@@ -75,6 +81,9 @@ func initialize(ctx context.Context) {
 		go connectToValidators(ctx, nodeType)
 	}
 	go api.StartAPI(ctx)
+	if *runProofs {
+		fmt.Println("Running proofs")
+	}
 
 }
 func connectToValidators(ctx context.Context, nodeType *int) {

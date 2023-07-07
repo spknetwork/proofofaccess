@@ -49,6 +49,7 @@ func StartAPI(ctx context.Context) {
 	r.GET("/get-ip", getIPHandler)
 	r.GET("/get-stats", getStatsHandler)
 	r.GET("/CID", getCIDHandler)
+	r.GET("/peer", getPeerHandler)
 	// Start the server
 	server := &http.Server{
 		Addr:    ":" + localdata.WsPort,

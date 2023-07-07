@@ -44,6 +44,7 @@ var PeerCids = map[string][]string{}
 var PeerSyncSeed = map[string]int{}
 var CIDRefStatus = map[string]bool{}
 var CIDRefPercentage = map[string]int{}
+var ThreeSpeakVideos = []string{}
 
 // SaveTime
 // Saves the time to the database

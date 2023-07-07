@@ -90,6 +90,7 @@ func handleValidate(c *gin.Context) {
 	sendWsResponse(status, status, formatElapsed(elapsed), conn)
 	log.Info("Exiting handleValidate")
 }
+
 func handleMessaging(c *gin.Context) {
 	ws, err := upgradeToWebSocket(c)
 	if err != nil {
@@ -123,6 +124,7 @@ func handleMessaging(c *gin.Context) {
 		go messaging.HandleMessage(string(jsonData))
 	}
 }
+
 func handleShutdown(c *gin.Context) {
 	if localdata.NodeType != 1 {
 
@@ -162,6 +164,14 @@ func getCIDHandler(c *gin.Context) {
 		"CID":        key,
 		"percentage": percentage,
 		"status":     status,
+	})
+}
+
+func getPeerHandler(c *gin.Context) {
+	key := c.Query("username")
+	cids := localdata.PeerCids[key]
+	c.JSON(http.StatusOK, gin.H{
+		"CIDs": cids,
 	})
 }
 
