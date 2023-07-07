@@ -11,12 +11,12 @@ import (
 )
 
 type Message struct {
-	CID     string `json:"CID"`
-	Seed    string `json:"seed"`
-	Status  string `json:"status"`
-	Name    string `json:"name"`
-	Time    string `json:"time"`
-	Elapsed string `json:"elapsed"`
+	CID     string    `json:"CID"`
+	Seed    string    `json:"seed"`
+	Status  string    `json:"status"`
+	Name    string    `json:"name"`
+	Time    time.Time `json:"time"`
+	Elapsed string    `json:"elapsed"`
 }
 
 // DB
@@ -220,15 +220,10 @@ func SetTime(key []byte, t time.Time) {
 	Save(key, []byte(t.Format(time.RFC3339Nano)))
 }
 
-// GetStats
-// Reads all the Stats from the database
-func GetStats(page int) []Message {
+func GetStats() []Message {
 	if err := checkDatabaseOpen(); err != nil {
 		log.Fatal(err)
 	}
-
-	const pageSize = 50 // define the number of results per page
-	skipEntries := (page - 1) * pageSize
 
 	var messages []Message
 
@@ -239,17 +234,8 @@ func GetStats(page int) []Message {
 		defer it.Close()
 
 		prefix := []byte("Stats")
-		count := 0
 
 		for it.Seek(prefix); it.ValidForPrefix(prefix); it.Next() {
-			if count < skipEntries { // skip entries that are not in the current page
-				count++
-				continue
-			}
-			if count >= skipEntries+pageSize { // stop iterating after reaching the page limit
-				break
-			}
-
 			item := it.Item()
 			k := item.Key()
 			v, err := item.ValueCopy(nil)
@@ -259,15 +245,29 @@ func GetStats(page int) []Message {
 
 			if strings.HasPrefix(string(k), "Stats") {
 				var message Message
-				err := json.Unmarshal(v, &message)
+				var raw map[string]interface{}
+				err := json.Unmarshal(v, &raw)
 				if err != nil {
 					log.Println("Error decoding JSON:", err)
 					continue
 				}
+
+				message.CID = raw["CID"].(string)
+				message.Seed = raw["seed"].(string)
+				message.Status = raw["status"].(string)
+				message.Name = raw["name"].(string)
+				message.Elapsed = raw["elapsed"].(string)
+
+				// Parse time string to time.Time
+				t, err := time.Parse(time.RFC3339Nano, raw["time"].(string))
+				if err != nil {
+					log.Println("Error parsing time:", err)
+					continue
+				}
+				message.Time = t
+
 				messages = append(messages, message)
 			}
-
-			count++
 		}
 
 		return nil

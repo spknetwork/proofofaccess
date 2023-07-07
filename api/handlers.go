@@ -11,6 +11,7 @@ import (
 	"proofofaccess/database"
 	"proofofaccess/localdata"
 	"proofofaccess/messaging"
+	"sort"
 	"time"
 )
 
@@ -29,13 +30,47 @@ func getStatsHandler(c *gin.Context) {
 	}
 	defer closeWebSocket(conn)
 	msg, err := readWebSocketMessage(conn)
-	// Fetch stats from the database
-	stats := database.GetStats(msg.Page)
 
-	// Convert stats to JSON string
-	statsJson, err := json.Marshal(stats)
+	page := msg.Page
 	if err != nil {
-		fmt.Println("Error encoding stats to JSON:", err)
+		log.Println("Error parsing page number:", err)
+		return
+	}
+
+	const pageSize = 50 // define the number of results per page
+
+	// Fetch stats from the database
+	stats := database.GetStats()
+
+	// Sort stats by date
+	sort.Slice(stats, func(i, j int) bool {
+		timeI, errI := stats[i].Time, err
+		timeJ, errJ := stats[j].Time, err
+
+		if errI != nil || errJ != nil {
+			log.Println("Error parsing time in Message struct")
+			return false
+		}
+
+		return timeI.After(timeJ)
+	})
+
+	// Apply pagination
+	startIndex := (page - 1) * pageSize
+	if startIndex >= len(stats) {
+		log.Println("Error: page number is out of range")
+		return
+	}
+	endIndex := startIndex + pageSize
+	if endIndex > len(stats) {
+		endIndex = len(stats)
+	}
+	pagedStats := stats[startIndex:endIndex]
+
+	// Convert pagedStats to JSON string
+	statsJson, err := json.Marshal(pagedStats)
+	if err != nil {
+		log.Println("Error encoding stats to JSON:", err)
 		return
 	}
 
