@@ -34,6 +34,19 @@
             font-size: 30px;
             display: none; /* Hidden by default */
         }
+        /* Pagination styles */
+        .pagination {
+            display: flex;
+            justify-content: center;
+            margin-top: 20px;
+        }
+        .pagination li {
+            margin: 0 5px;
+            cursor: pointer;
+        }
+        .pagination li.active {
+            font-weight: bold;
+        }
     </style>
 </head>
 <body class="dark-mode">
@@ -55,7 +68,7 @@
 </table>
 
 <!-- Pagination -->
-<button id="loadMore">Load more</button>
+<ul class="pagination" id="pagination"></ul>
 
 <script>
     document.addEventListener('DOMContentLoaded', (event) => {
@@ -73,8 +86,9 @@
 
     const statsTable = document.getElementById('statsTable');
     const loadingOverlay = document.getElementById('loadingOverlay');
-    const loadMoreButton = document.getElementById('loadMore');
+    const pagination = document.getElementById('pagination');
     let currentPage = 1; // Start with page 1
+    const totalPages = 10; // Total number of pages - replace this with the actual number of pages
 
     const wsUrl = "ws://spk.tv/get-stats";
     const ws = new WebSocket(wsUrl);
@@ -146,11 +160,27 @@
         loadingOverlay.style.display = 'none';
     }
 
-    loadMoreButton.addEventListener('click', function() {
-        // Increment the page number and fetch the next page of data
-        currentPage++;
-        ws.send(JSON.stringify({ page: currentPage }));
-    });
+    // Generate pagination controls
+    for (let i = 1; i <= totalPages; i++) {
+        const li = document.createElement('li');
+        li.textContent = i;
+        if (i === currentPage) {
+            li.classList.add('active');
+        }
+        li.addEventListener('click', function() {
+            // Fetch the clicked page of data
+            currentPage = i;
+            ws.send(JSON.stringify({ page: currentPage }));
+            // Update pagination controls
+            Array.from(pagination.children).forEach((child, index) => {
+                child.classList.remove('active');
+                if (index + 1 === currentPage) {
+                    child.classList.add('active');
+                }
+            });
+        });
+        pagination.appendChild(li);
+    }
 
 </script>
 
