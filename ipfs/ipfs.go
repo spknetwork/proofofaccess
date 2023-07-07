@@ -271,8 +271,10 @@ func SyncNode(NewPins map[string]interface{}, name string) {
 			percentageInt = int(percentage)
 			lock.Lock()
 			if percentageInt+1 > localdata.CIDRefPercentage[key] {
+				lock.Lock()
 				localdata.CIDRefPercentage[key] = percentageInt
 				localdata.CIDRefStatus[key] = false
+				lock.Unlock()
 			}
 			lock.Unlock()
 		}
