@@ -271,12 +271,12 @@ func SyncNode(NewPins map[string]interface{}, name string) {
 			percentageInt = int(percentage)
 			lock.Lock()
 			if percentageInt+1 > localdata.CIDRefPercentage[key] {
+				lock.Unlock()
 				lock.Lock()
 				localdata.CIDRefPercentage[key] = percentageInt
 				localdata.CIDRefStatus[key] = false
 				lock.Unlock()
 			}
-			lock.Unlock()
 		}
 		fmt.Printf("Name: %s, CID: %s has %d references so far (%.2f%%)\n", name, key, refCounts[i], percentage)
 	}
