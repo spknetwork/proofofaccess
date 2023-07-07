@@ -411,7 +411,9 @@ func ReceiveSynced(req Request) {
 }
 func SyncNode(req Request) {
 	fmt.Println("Syncing with " + req.User)
+	localdata.Lock.Lock()
 	Nodes[req.User] = true
+	localdata.Lock.Unlock()
 	peerName := req.User
 	localdata.Lock.Lock()
 	localdata.PeerNames = localdata.RemoveDuplicates(append(localdata.PeerNames, peerName))
