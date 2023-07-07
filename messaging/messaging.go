@@ -411,8 +411,10 @@ func SyncNode(req Request) {
 	fmt.Println("Syncing with " + req.User)
 	Nodes[req.User] = true
 	peerName := req.User
+	localdata.Lock.Lock()
 	localdata.PeerNames = localdata.RemoveDuplicates(append(localdata.PeerNames, peerName))
 	localdata.NodesStatus[req.User] = "Syncing"
+	localdata.Lock.Unlock()
 	fmt.Println(req.Pins)
 	var myData map[string]interface{}
 
