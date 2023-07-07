@@ -83,6 +83,9 @@ func initialize(ctx context.Context) {
 	go api.StartAPI(ctx)
 	if *runProofs {
 		fmt.Println("Running proofs")
+		for {
+			Rewards.RunProofs()
+		}
 	}
 
 }
