@@ -160,7 +160,10 @@ func waitForProofStatus(salt string, cid string, conn *websocket.Conn) (string, 
 		for {
 			select {
 			case <-proofTimeout.C:
-				if messaging.ProofRequestStatus[salt] {
+				localdata.Lock.Lock()
+				proofRequestStatus := messaging.ProofRequestStatus[salt]
+				localdata.Lock.Unlock()
+				if proofRequestStatus {
 					sendWsResponse(localdata.GetStatus(salt).Status, localdata.GetStatus(salt).Status, localdata.GetElapsed(salt).String(), conn)
 					close(proofDone)
 					return

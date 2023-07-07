@@ -198,7 +198,9 @@ func HandleProofOfAccess(req Request) {
 		fmt.Println("Proof is invalid")
 		localdata.SetStatus(req.Seed, CID, "Invalid", req.User)
 	}
+	localdata.Lock.Lock()
 	ProofRequestStatus[seed] = true
+	localdata.Lock.Unlock()
 }
 
 func SendPing(hash string, user string) {
