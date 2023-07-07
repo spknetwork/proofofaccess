@@ -222,10 +222,13 @@ func SetTime(key []byte, t time.Time) {
 
 // GetStats
 // Reads all the Stats from the database
-func GetStats() []Message {
+func GetStats(page int) []Message {
 	if err := checkDatabaseOpen(); err != nil {
 		log.Fatal(err)
 	}
+
+	const pageSize = 50 // define the number of results per page
+	skipEntries := (page - 1) * pageSize
 
 	var messages []Message
 
@@ -236,8 +239,17 @@ func GetStats() []Message {
 		defer it.Close()
 
 		prefix := []byte("Stats")
+		count := 0
 
 		for it.Seek(prefix); it.ValidForPrefix(prefix); it.Next() {
+			if count < skipEntries { // skip entries that are not in the current page
+				count++
+				continue
+			}
+			if count >= skipEntries+pageSize { // stop iterating after reaching the page limit
+				break
+			}
+
 			item := it.Item()
 			k := item.Key()
 			v, err := item.ValueCopy(nil)
@@ -254,6 +266,8 @@ func GetStats() []Message {
 				}
 				messages = append(messages, message)
 			}
+
+			count++
 		}
 
 		return nil

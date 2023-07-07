@@ -28,9 +28,9 @@ func getStatsHandler(c *gin.Context) {
 		return
 	}
 	defer closeWebSocket(conn)
-
+	msg, err := readWebSocketMessage(conn)
 	// Fetch stats from the database
-	stats := database.GetStats()
+	stats := database.GetStats(msg.Page)
 
 	// Convert stats to JSON string
 	statsJson, err := json.Marshal(stats)
