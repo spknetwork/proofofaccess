@@ -318,8 +318,10 @@ func SyncNode(NewPins map[string]interface{}, name string) {
 				localdata.SavedRefs[key] = refsSlice
 				localdata.Lock.Unlock()
 				completed[i] = true
+				localdata.Lock.Lock()
 				localdata.CIDRefPercentage[key] = 100
 				localdata.CIDRefStatus[key] = true
+				localdata.Lock.Unlock()
 			}
 			keysNotFound++
 			fmt.Println("Keys not found: ", keysNotFound)
