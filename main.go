@@ -82,10 +82,7 @@ func initialize(ctx context.Context) {
 	}
 	go api.StartAPI(ctx)
 	if *runProofs {
-		fmt.Println("Running proofs")
-		for {
-			Rewards.RunProofs()
-		}
+		go runRewardProofs(ctx)
 	}
 
 }
@@ -239,7 +236,17 @@ func fetchPins(ctx context.Context) {
 		}
 	}
 }
-
+func runRewardProofs(ctx context.Context) {
+	for {
+		fmt.Println("Running proofs...")
+		select {
+		case <-ctx.Done():
+			return
+		default:
+			Rewards.RunProofs()
+		}
+	}
+}
 func checkSynced(ctx context.Context) {
 	for {
 		select {
