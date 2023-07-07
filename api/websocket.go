@@ -68,7 +68,7 @@ func sendWsResponse(status string, message string, elapsed string, conn *websock
 		Message: message,
 		Elapsed: elapsed,
 	})
-	localdata.Lock.Lock()
+	localdata.Lock.Unlock()
 	if err != nil {
 		log.Println("Error writing JSON to websocket:", err)
 	}
