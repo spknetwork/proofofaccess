@@ -6,6 +6,7 @@ import (
 	"github.com/gorilla/websocket"
 	"proofofaccess/database"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -45,6 +46,7 @@ var PeerSyncSeed = map[string]int{}
 var CIDRefStatus = map[string]bool{}
 var CIDRefPercentage = map[string]int{}
 var ThreeSpeakVideos = []string{}
+var Lock sync.Mutex
 
 // SaveTime
 // Saves the time to the database

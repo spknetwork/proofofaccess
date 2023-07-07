@@ -158,10 +158,10 @@ func handleStats(c *gin.Context) {
 
 func getCIDHandler(c *gin.Context) {
 	key := c.Query("key")
-	wsMutex.Lock()
+	localdata.Lock.Lock()
 	percentage := localdata.CIDRefPercentage[key]
 	status := localdata.CIDRefStatus[key]
-	wsMutex.Unlock()
+	localdata.Lock.Unlock()
 	c.JSON(http.StatusOK, gin.H{
 		"CID":        key,
 		"percentage": percentage,
