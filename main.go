@@ -238,11 +238,11 @@ func fetchPins(ctx context.Context) {
 }
 func runRewardProofs(ctx context.Context) {
 	for {
-		fmt.Println("Running proofs...")
 		select {
 		case <-ctx.Done():
 			return
 		default:
+			fmt.Println("Running proofs...")
 			Rewards.RunProofs()
 		}
 	}
