@@ -277,7 +277,7 @@ func SyncNode(NewPins map[string]interface{}, name string) {
 			}
 			localdata.Lock.Unlock()
 		}
-		fmt.Printf("Name: %s, CID: %s has %d references so far (%.2f%%)\n", name, key, refCounts[i], percentage)
+		//fmt.Printf("Name: %s, CID: %s has %d references so far (%.2f%%)\n", name, key, refCounts[i], percentage)
 	}
 
 	index := 0
