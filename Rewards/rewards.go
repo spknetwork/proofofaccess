@@ -63,6 +63,7 @@ func RunProofs() error {
 		for _, cid := range localdata.ThreeSpeakVideos {
 			localdata.Lock.Lock()
 			for _, peerHash := range localdata.PeerCids[peer] {
+				localdata.Lock.Unlock()
 				if peerHash == cid {
 					proof, err := runProofAPI(peer, cid)
 					if err != nil {
@@ -78,7 +79,7 @@ func RunProofs() error {
 					}
 				}
 			}
-			localdata.Lock.Unlock()
+
 		}
 	}
 	//wait 5 seconds between peers

@@ -2,14 +2,9 @@ package hive
 
 import (
 	"bytes"
-	"crypto/sha256"
-	"encoding/binary"
-	"encoding/hex"
 	"encoding/json"
 	"fmt"
-	"github.com/btcsuite/btcutil"
 	"io/ioutil"
-	"log"
 	"net/http"
 	"time"
 )
@@ -90,96 +85,4 @@ type TransferOperation struct {
 	To     string `json:"to"`
 	Amount string `json:"amount"` // "0.001 HIVE" or "0.001 HBD"
 	Memo   string `json:"memo"`
-}
-
-func main() {
-	// Fetch the current block data
-	resp, err := http.Get("https://api.hive.blog/get_dynamic_global_properties")
-	if err != nil {
-		log.Fatal(err)
-	}
-	defer resp.Body.Close()
-	body, err := ioutil.ReadAll(resp.Body)
-	if err != nil {
-		log.Fatal(err)
-	}
-	var blockData BlockData
-	err = json.Unmarshal(body, &blockData)
-	if err != nil {
-		log.Fatal(err)
-	}
-	previousBlock, err := hex.DecodeString(blockData.Previous[0:8])
-	if err != nil {
-		log.Fatal(err)
-	}
-	refBlockNum := binary.BigEndian.Uint16(previousBlock[0:2])
-	refBlockPrefix := binary.LittleEndian.Uint32(previousBlock[2:6])
-	expiration := blockData.Timestamp.Add(60 * time.Second)
-
-	// Create the transfer operation
-	transferOp := TransferOperation{
-		From:   "nathansenn",
-		To:     "dbuzz",
-		Amount: "0.001 HIVE",
-		Memo:   "test",
-	}
-	transferOpBytes, err := json.Marshal(transferOp)
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	// Create the transaction
-	operations := make([][]byte, 0)
-	operations = append(operations, transferOpBytes)
-	extensions := make([][]byte, 0)
-
-	// Serialize the transaction
-	var buffer bytes.Buffer
-	binary.Write(&buffer, binary.LittleEndian, refBlockNum)
-	binary.Write(&buffer, binary.LittleEndian, refBlockPrefix)
-	binary.Write(&buffer, binary.LittleEndian, expiration.Unix())
-	binary.Write(&buffer, binary.LittleEndian, uint16(len(operations)))
-	buffer.Write(operations[0])
-	binary.Write(&buffer, binary.LittleEndian, uint16(len(extensions)))
-
-	// Create the digest
-	chainID, _ := hex.DecodeString("beeab0de00000000000000000000000000000000000000000000000000000000")
-	input := append(chainID, buffer.Bytes()...)
-	digest := sha256.Sum256(input)
-
-	// Sign the transaction
-	privKey := "5K6yGu6gugkEumRDbwN4K7GStbizPYym4gVH5ywTZqpCECNhc58"
-	wif, err := btcutil.DecodeWIF(privKey)
-	if err != nil {
-		log.Fatal(err)
-	}
-	privateKey := wif.PrivKey
-	sig, err := privateKey.Sign(digest[:])
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	// Broadcast the transaction
-	signedTransaction := map[string]interface{}{
-		"ref_block_num":    refBlockNum,
-		"ref_block_prefix": refBlockPrefix,
-		"expiration":       expiration.Format("2006-01-02T15:04:05"),
-		"operations":       [][]interface{}{{"transfer", transferOp}},
-		"extensions":       []string{},
-		"signatures":       []string{hex.EncodeToString(sig.Serialize())},
-	}
-	jsonData, err := json.Marshal(signedTransaction)
-	if err != nil {
-		log.Fatal(err)
-	}
-	resp, err = http.Post("https://api.hive.blog", "application/json", bytes.NewBuffer(jsonData))
-	if err != nil {
-		log.Fatal(err)
-	}
-	defer resp.Body.Close()
-	body, err = ioutil.ReadAll(resp.Body)
-	if err != nil {
-		log.Fatal(err)
-	}
-	fmt.Println(string(body))
 }
