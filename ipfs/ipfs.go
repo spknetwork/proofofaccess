@@ -286,9 +286,9 @@ func SyncNode(NewPins map[string]interface{}, name string) {
 		go func(i int, key string) {
 			defer wg.Done()
 			size, _ := FileSize(key)
-			lock.Lock()
+			localdata.Lock.Lock()
 			peersize = peersize + size
-			lock.Unlock()
+			localdata.Lock.Unlock()
 			// Check if the key exists in Pins
 			if _, exists := Pins[key]; !exists {
 				fmt.Println("Key not found: ", key)
@@ -311,9 +311,9 @@ func SyncNode(NewPins map[string]interface{}, name string) {
 					refCounts[i]++
 					printProgress(i, key)
 				}
-				lock.Lock()
+				localdata.Lock.Lock()
 				localdata.SavedRefs[key] = refsSlice
-				lock.Unlock()
+				localdata.Lock.Unlock()
 				completed[i] = true
 				localdata.CIDRefPercentage[key] = 100
 				localdata.CIDRefStatus[key] = true
@@ -323,12 +323,12 @@ func SyncNode(NewPins map[string]interface{}, name string) {
 			fmt.Println("Map length: ", mapLength)
 			if keysNotFound == mapLength {
 				fmt.Println("All keys found")
-				lock.Lock()
+				localdata.Lock.Lock()
 				localdata.PeerSize[name] = peersize
 				fmt.Println("Synced: ", name)
 				fmt.Println("PeerSize: ", peersize)
 				localdata.NodesStatus[name] = "Synced"
-				lock.Unlock()
+				localdata.Lock.Unlock()
 				return
 			}
 		}(index, key)

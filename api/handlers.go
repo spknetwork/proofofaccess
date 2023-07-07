@@ -111,10 +111,10 @@ func handleMessaging(c *gin.Context) {
 		// Add client to the clients map
 		if localdata.WsPeers[msg.User] != msg.User || localdata.WsClients[msg.User] != ws {
 			fmt.Println("Adding client to the clients map")
-			wsMutex.Lock()
+			localdata.Lock.Lock()
 			localdata.WsClients[msg.User] = ws
 			localdata.WsPeers[msg.User] = msg.User
-			wsMutex.Unlock()
+			localdata.Lock.Unlock()
 		}
 		jsonData, err := json.Marshal(msg)
 		if err != nil {

@@ -142,17 +142,16 @@ func pubsubHandler(ctx context.Context) {
 	}
 }
 func fetchPins(ctx context.Context) {
-	var lock sync.Mutex // Mutex lock
-	newPins := false    // Assuming this is a boolean based on your usage
+	newPins := false // Assuming this is a boolean based on your usage
 
 	for {
 		select {
 		case <-ctx.Done():
 			return
 		default:
-			lock.Lock()
+			localdata.Lock.Lock()
 			ipfs.Pins = ipfs.NewPins
-			lock.Unlock()
+			localdata.Lock.Unlock()
 
 			fmt.Println("Fetching pins...")
 			allPins, err := ipfs.Shell.Pins()
@@ -166,15 +165,15 @@ func fetchPins(ctx context.Context) {
 				continue
 			}
 
-			lock.Lock()
+			localdata.Lock.Lock()
 			ipfs.NewPins = make(map[string]interface{})
-			lock.Unlock()
+			localdata.Lock.Unlock()
 
 			for key, pinInfo := range allPins {
 				if pinInfo.Type == "recursive" {
-					lock.Lock()
+					localdata.Lock.Lock()
 					ipfs.NewPins[key] = key
-					lock.Unlock()
+					localdata.Lock.Unlock()
 				}
 			}
 
@@ -192,26 +191,26 @@ func fetchPins(ctx context.Context) {
 				go func(key string) {
 					defer wg.Done()
 					// Check if the key exists in Pins
-					lock.Lock()
+					localdata.Lock.Lock()
 					_, exists := ipfs.Pins[key]
-					lock.Unlock()
+					localdata.Lock.Unlock()
 
 					if !exists {
 						size, _ := ipfs.FileSize(key)
-						lock.Lock()
+						localdata.Lock.Lock()
 						localdata.PeerSize[localdata.NodeName] += size
 						newPins = true
-						lock.Unlock()
+						localdata.Lock.Unlock()
 
 						// If the key doesn't exist in Pins, add it to the pinsNotIncluded map
 						savedRefs, _ := ipfs.Refs(key)
-						lock.Lock()
+						localdata.Lock.Lock()
 						localdata.SavedRefs[key] = savedRefs
-						lock.Unlock()
-						lock.Lock()
+						localdata.Lock.Unlock()
+						localdata.Lock.Lock()
 						localdata.SyncedPercentage = float32(keysNotFound) / float32(mapLength) * 100
 						fmt.Println("Synced: ", localdata.SyncedPercentage, "%")
-						lock.Unlock()
+						localdata.Lock.Unlock()
 						keysNotFound++
 					}
 				}(key)
@@ -220,9 +219,9 @@ func fetchPins(ctx context.Context) {
 			wg.Wait()
 
 			fmt.Println("Synced: ", 100)
-			lock.Lock()
+			localdata.Lock.Lock()
 			localdata.SyncedPercentage = 100
-			lock.Unlock()
+			localdata.Lock.Unlock()
 
 			if newPins {
 				fmt.Println("New pins found")

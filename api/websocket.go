@@ -4,6 +4,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/gorilla/websocket"
 	"net/http"
+	"proofofaccess/localdata"
 	"sync"
 )
 
@@ -61,13 +62,13 @@ func readWebSocketMessage(conn *websocket.Conn) (*message, error) {
 }
 
 func sendWsResponse(status string, message string, elapsed string, conn *websocket.Conn) {
-	wsMutex.Lock()
+	localdata.Lock.Lock()
 	err := conn.WriteJSON(ExampleResponse{
 		Status:  status,
 		Message: message,
 		Elapsed: elapsed,
 	})
-	wsMutex.Unlock()
+	localdata.Lock.Lock()
 	if err != nil {
 		log.Println("Error writing JSON to websocket:", err)
 	}
