@@ -53,9 +53,6 @@
 <button id="themeSwitch">Toggle Theme</button>
 <h1>Database Stats</h1>
 
-<!-- Loading overlay -->
-<div class="loading-overlay" id="loadingOverlay">Loading...</div>
-
 <table id="statsTable">
     <tr>
         <th>Name</th>
@@ -85,80 +82,53 @@
     });
 
     const statsTable = document.getElementById('statsTable');
-    const loadingOverlay = document.getElementById('loadingOverlay');
     const pagination = document.getElementById('pagination');
     let currentPage = 1; // Start with page 1
     const totalPages = 10; // Total number of pages - replace this with the actual number of pages
 
-    const wsUrl = "ws://spk.tv/get-stats";
-    const ws = new WebSocket(wsUrl);
+    function fetchData(pageNumber) {
+        const wsUrl = "ws://spk.tv/get-stats";
+        const ws = new WebSocket(wsUrl);
 
-    ws.onopen = function() {
-        // Fetch the first page of data when the connection opens
-        ws.send(JSON.stringify({ page: currentPage }));
-    };
+        ws.onopen = function() {
+            // Fetch the requested page of data when the connection opens
+            ws.send(JSON.stringify({ page: pageNumber }));
+        };
 
-    ws.onmessage = function(event) {
-        let data = JSON.parse(event.data);
-        if (data.Status === "OK") {
-            let stats = JSON.parse(data.Message);
-            stats.forEach(stat => {
-                let row = statsTable.insertRow(-1);
-                let nameCell = row.insertCell(0);
-                let cidCell = row.insertCell(1);
-                let seedCell = row.insertCell(2);
-                let statusCell = row.insertCell(3);
-                let timeCell = row.insertCell(4);
-                let elapsedCell = row.insertCell(5);
+        ws.onmessage = function(event) {
+            let data = JSON.parse(event.data);
+            if (data.Status === "OK") {
+                let stats = JSON.parse(data.Message);
+                stats.forEach(stat => {
+                    let row = statsTable.insertRow(-1);
+                    let nameCell = row.insertCell(0);
+                    let cidCell = row.insertCell(1);
+                    let seedCell = row.insertCell(2);
+                    let statusCell = row.insertCell(3);
+                    let timeCell = row.insertCell(4);
+                    let elapsedCell = row.insertCell(5);
 
-                cidCell.innerHTML = stat.CID;
-                seedCell.innerHTML = stat.seed;
-                statusCell.innerHTML = stat.status;
-                nameCell.innerHTML = stat.name;
-                timeCell.innerHTML = stat.time;
-                elapsedCell.innerHTML = stat.elapsed;
-            });
-            // Show loading overlay before sort
-            loadingOverlay.style.display = 'flex';
-            sortTable(4);
-        }
-    };
-
-    ws.onerror = function(event) {
-        console.error("WebSocket error observed:", event);
-    };
-
-    function sortTable(columnIndex) {
-        var table, rows, switching, i, x, y, shouldSwitch;
-        table = document.getElementById("statsTable");
-        switching = true;
-
-        while (switching) {
-            switching = false;
-            rows = table.rows;
-
-            for (i = 1; i < (rows.length - 1); i++) {
-                shouldSwitch = false;
-                x = rows[i].getElementsByTagName("TD")[columnIndex];
-                y = rows[i + 1].getElementsByTagName("TD")[columnIndex];
-
-                if (columnIndex === 4) { // 'Created' column
-                    // convert string to Date and compare
-                    if (new Date(x.innerHTML) < new Date(y.innerHTML)) {
-                        shouldSwitch = true;
-                        break;
-                    }
-                }
+                    cidCell.innerHTML = stat.CID;
+                    seedCell.innerHTML = stat.seed;
+                    statusCell.innerHTML = stat.status;
+                    nameCell.innerHTML = stat.name;
+                    timeCell.innerHTML = stat.time;
+                    elapsedCell.innerHTML = stat.elapsed;
+                });
             }
-            if (shouldSwitch) {
-                rows[i].parentNode.insertBefore(rows[i + 1], rows[i]);
-                switching = true;
-            }
-        }
+        };
 
-        // Hide loading overlay when sorting is done
-        loadingOverlay.style.display = 'none';
+        ws.onerror = function(event) {
+            console.error("WebSocket error observed:", event);
+        };
+
+        ws.onclose = function(event) {
+            console.log("WebSocket connection closed:", event);
+        };
     }
+
+    // Fetch the first page of data when the page loads
+    fetchData(currentPage);
 
     // Generate pagination controls
     for (let i = 1; i <= totalPages; i++) {
@@ -168,9 +138,13 @@
             li.classList.add('active');
         }
         li.addEventListener('click', function() {
+            // Clear table for new data
+            while (statsTable.rows.length > 1) {
+                statsTable.deleteRow(1);
+            }
             // Fetch the clicked page of data
             currentPage = i;
-            ws.send(JSON.stringify({ page: currentPage }));
+            fetchData(currentPage);
             // Update pagination controls
             Array.from(pagination.children).forEach((child, index) => {
                 child.classList.remove('active');
