@@ -58,7 +58,7 @@ func StartAPI(ctx context.Context) {
 
 	go func() {
 		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			log.Fatalf("listen: %s\n", err)
+			log.Errorf("listen: %s\n", err)
 		}
 	}()
 

@@ -129,7 +129,7 @@ func handleValidate(c *gin.Context) {
 func handleMessaging(c *gin.Context) {
 	ws, err := upgradeToWebSocket(c)
 	if err != nil {
-		log.Fatal(err)
+		log.Panic(err)
 	}
 	defer ws.Close()
 
