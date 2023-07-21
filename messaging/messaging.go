@@ -63,13 +63,19 @@ func SendProof(req Request, hash string, seed string, user string) {
 		fmt.Println("Error encoding JSON:", err)
 		return
 	}
-	if localdata.WsPeers[req.User] == req.User && localdata.NodeType == 1 {
+	localdata.Lock.Lock()
+	wsPeers := localdata.WsPeers[req.User]
+	nodeType := localdata.NodeType
+	localdata.Lock.Unlock()
+	if wsPeers == req.User && nodeType == 1 {
 		localdata.Lock.Lock()
 		ws := localdata.WsClients[req.User]
-		ws.WriteMessage(websocket.TextMessage, jsonData)
 		localdata.Lock.Unlock()
+		ws.WriteMessage(websocket.TextMessage, jsonData)
 	} else if localdata.UseWS == true && localdata.NodeType == 2 {
+		localdata.Lock.Lock()
 		localdata.WsValidators["Validator1"].WriteMessage(websocket.TextMessage, jsonData)
+		localdata.Lock.Unlock()
 	} else {
 		pubsub.Publish(string(jsonData), user)
 	}
@@ -87,7 +93,10 @@ func HandleMessage(message string) {
 	}
 	fmt.Println("Message received:", message)
 	//Handle proof of access response from storage node
-	if localdata.NodeType == 1 {
+	localdata.Lock.Lock()
+	nodeType := localdata.NodeType
+	localdata.Lock.Unlock()
+	if nodeType == 1 {
 		if req.Type == TypeProofOfAccess {
 			go HandleProofOfAccess(req)
 		}
@@ -95,15 +104,16 @@ func HandleMessage(message string) {
 	}
 
 	//Handle request for proof request from validation node
-	if localdata.NodeType == 2 {
+	if nodeType == 2 {
 		if req.Type == TypeRequestProof {
 			go HandleRequestProof(req)
 		}
 		if req.Type == TypePingPongPong {
 			validatorName := req.User
+			localdata.Lock.Lock()
 			localdata.Validators[validatorName] = true
+			localdata.Lock.Unlock()
 			fmt.Println("Validator", validatorName, "is online")
-			fmt.Println(validatorName, ": ", localdata.Validators[validatorName])
 		}
 	}
 	if req.Type == TypePingPongPong {
@@ -113,7 +123,8 @@ func HandleMessage(message string) {
 	if req.Type == TypePingPongPing {
 		fmt.Println("PingPongPing received")
 		PingPongPong(req, req.Hash, req.User)
-		if localdata.NodeType == 1 && !Nodes[req.User] && localdata.NodesStatus[req.User] != "Synced" {
+		nodeStatus := localdata.NodesStatus[req.User]
+		if nodeType == 1 && !Nodes[req.User] && nodeStatus != "Synced" {
 			fmt.Println("syncing: " + req.User)
 			go RequestCIDS(req)
 		}
@@ -444,17 +455,18 @@ func SyncNode(req Request) {
 		log.Println("Pins data:", req.Pins)
 		return
 	}
-
+	localdata.Lock.Lock()
 	allPins := localdata.PeerCids[req.User]
+	localdata.Lock.Unlock()
 	for _, value := range pins {
 		allPins = append(allPins, value)
 	}
+	localdata.Lock.Lock()
 	localdata.PeerCids[req.User] = allPins
 	localdata.PeerSyncSeed[req.Seed] = localdata.PeerSyncSeed[req.Seed] + 1
+	localdata.Lock.Unlock()
 	fmt.Println("Received", len(pins), "CIDs from", req.User, "(", part, "/", totalParts, ")")
 	// If this is the last chunk, sync the node
-	fmt.Println("Checking if all parts received")
-	fmt.Println(localdata.PeerSyncSeed[req.Seed])
 	// Convert allPins to JSON
 	allPinsJson, err := json.Marshal(allPins)
 	if err != nil {
@@ -464,7 +476,10 @@ func SyncNode(req Request) {
 
 	// Save allPins to the database
 	database.Save([]byte("allPins:"+req.User), allPinsJson)
-	if localdata.PeerSyncSeed[req.Seed] == totalParts {
+	localdata.Lock.Lock()
+	syncSeed := localdata.PeerSyncSeed[req.Seed]
+	localdata.Lock.Unlock()
+	if syncSeed == totalParts {
 		allPinsMap := make(map[string]interface{})
 		for _, pin := range allPins {
 			allPinsMap[pin] = nil
@@ -479,14 +494,17 @@ func SyncNode(req Request) {
 		for {
 			time.Sleep(1 * time.Second)
 			fmt.Println("Checking if synced with " + req.User)
-			fmt.Println(localdata.NodesStatus[req.User])
-			if localdata.NodesStatus[req.User] == "Synced" {
-				println("test if", localdata.NodesStatus[req.User])
+			localdata.Lock.Lock()
+			nodeStatus := localdata.NodesStatus[req.User]
+			localdata.Lock.Unlock()
+			if nodeStatus == "Synced" {
 				fmt.Println("Synced with " + req.User)
 				SendSynced(req)
+				localdata.Lock.Lock()
 				Nodes[req.User] = false
+				localdata.Lock.Unlock()
 				break
-			} else if localdata.NodesStatus[req.User] == "Failed" {
+			} else if nodeStatus == "Failed" {
 				RequestCIDS(req)
 				break
 			}

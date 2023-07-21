@@ -68,6 +68,7 @@ func initialize(ctx context.Context) {
 		Rewards.ThreeSpeak()
 		fmt.Println("Done getting 3Speak videos")
 		if *pinVideos {
+			fmt.Println("Pinning and unpinning videos")
 			go Rewards.PinVideos(*storageLimit, ctx)
 		}
 		fmt.Println("Done pinning and unpinning videos")

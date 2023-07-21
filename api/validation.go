@@ -101,7 +101,9 @@ func createRandomHash(conn *websocket.Conn) (string, error) {
 
 func createProofRequest(salt string, CID string, conn *websocket.Conn, name string) ([]byte, error) {
 	fmt.Println(name)
+	localdata.Lock.Lock()
 	localdata.SetStatus(salt, CID, "Pending", name)
+	localdata.Lock.Unlock()
 	fmt.Println("createProofRequest2")
 	proofJson, err := validation.ProofRequestJson(salt, CID)
 	if err != nil {

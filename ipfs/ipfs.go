@@ -7,8 +7,10 @@ import (
 	ipfs "github.com/ipfs/go-ipfs-api"
 	"io"
 	"io/ioutil"
+	"log"
 	"net"
 	"os"
+	"proofofaccess/database"
 	"proofofaccess/localdata"
 	"strings"
 	"sync"
@@ -89,6 +91,11 @@ func IsPinned(cid string) bool {
 	// Check if the CID is pinned
 	_, ok := localdata.SavedRefs[cid]
 	return ok
+}
+func IsPinnedInDB(cid string) bool {
+	// Check if the CID is pinned in the database
+	val := database.Read([]byte(cid))
+	return val != nil
 }
 
 func IpfsPingNode(peerID string) error {
@@ -239,7 +246,7 @@ func SyncNode(NewPins map[string]interface{}, name string) {
 	}
 
 	mapLength := len(NewPins)
-	keysNotFound := 0
+	keyCount := 0
 
 	// Iterate through the keys in NewPins
 	var peersize = 0
@@ -293,7 +300,7 @@ func SyncNode(NewPins map[string]interface{}, name string) {
 			peersize = peersize + size
 			localdata.Lock.Unlock()
 			// Check if the key exists in Pins
-			if _, exists := Pins[key]; !exists {
+			if !IsPinnedInDB(key) {
 				fmt.Println("Key not found: ", key)
 				// Get the size of the file
 				stat, err := Shell.ObjectStat(key)
@@ -316,17 +323,25 @@ func SyncNode(NewPins map[string]interface{}, name string) {
 				}
 				localdata.Lock.Lock()
 				localdata.SavedRefs[key] = refsSlice
+				refsBytes, err := json.Marshal(refsSlice)
+				if err != nil {
+					log.Printf("Error: %v\n", err)
+					return
+				}
+				database.Save([]byte(key), refsBytes)
 				localdata.Lock.Unlock()
 				completed[i] = true
 				localdata.Lock.Lock()
 				localdata.CIDRefPercentage[key] = 100
 				localdata.CIDRefStatus[key] = true
 				localdata.Lock.Unlock()
+			} else {
+				fmt.Println("Key found: ", key)
 			}
-			keysNotFound++
-			fmt.Println("Keys not found: ", keysNotFound)
+			keyCount++
+			fmt.Println("Key: ", keyCount)
 			fmt.Println("Map length: ", mapLength)
-			if keysNotFound == mapLength {
+			if keyCount == mapLength {
 				fmt.Println("All keys found")
 				localdata.Lock.Lock()
 				localdata.PeerSize[name] = peersize
