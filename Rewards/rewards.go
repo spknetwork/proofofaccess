@@ -150,8 +150,8 @@ func PinVideos(gb int, ctx context.Context) error {
 
 	// Calculate total pinned storage
 	totalPinned := int64(0)
-	pins, err := sh.Pins()
 	fmt.Println("Getting pins")
+	pins, err := sh.Pins()
 	if err != nil {
 		fmt.Println("Error getting pins")
 		fmt.Println(err)

@@ -166,6 +166,7 @@ func fetchPins(ctx context.Context) {
 
 			fmt.Println("Fetching pins...")
 			allPins, err := ipfs.Shell.Pins()
+			fmt.Println("Fetched pins")
 			for _, cid := range messaging.PinFileCids {
 				delete(allPins, cid)
 			}
@@ -221,7 +222,7 @@ func fetchPins(ctx context.Context) {
 							log.Printf("Error: %v\n", err)
 							return
 						}
-						database.Save([]byte(key), refsBytes)
+						database.Save([]byte("refs"+key), refsBytes)
 						localdata.Lock.Unlock()
 						localdata.Lock.Lock()
 						localdata.SyncedPercentage = float32(keysNotFound) / float32(mapLength) * 100

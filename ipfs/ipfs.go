@@ -23,7 +23,6 @@ var Shell *ipfs.Shell
 var lock sync.Mutex
 var Pins = make(map[string]interface{})
 var NewPins = make(map[string]interface{})
-
 var AllPins = map[string]ipfs.PinInfo{}
 
 const BufferSize = 1024 // define a reasonable buffer size
@@ -86,7 +85,6 @@ func Refs(CID string) ([]string, error) {
 
 	return cidsList, nil
 }
-
 func IsPinned(cid string) bool {
 	// Check if the CID is pinned
 	_, ok := localdata.SavedRefs[cid]
@@ -94,10 +92,9 @@ func IsPinned(cid string) bool {
 }
 func IsPinnedInDB(cid string) bool {
 	// Check if the CID is pinned in the database
-	val := database.Read([]byte(cid))
+	val := database.Read([]byte("refs" + cid))
 	return val != nil
 }
-
 func IpfsPingNode(peerID string) error {
 	// Ping the specified node using its peer ID
 	peer, err := Shell.FindPeer(peerID)
@@ -108,7 +105,6 @@ func IpfsPingNode(peerID string) error {
 
 	return nil
 }
-
 func IpfsPeerID() string {
 	// Get the IPFS peer ID
 	peerID, err := Shell.ID()
@@ -328,7 +324,7 @@ func SyncNode(NewPins map[string]interface{}, name string) {
 					log.Printf("Error: %v\n", err)
 					return
 				}
-				database.Save([]byte(key), refsBytes)
+				database.Save([]byte("refs"+key), refsBytes)
 				localdata.Lock.Unlock()
 				completed[i] = true
 				localdata.Lock.Lock()
