@@ -2,26 +2,26 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"flag"
 	"fmt"
 	"github.com/gorilla/websocket"
 	shell "github.com/ipfs/go-ipfs-api"
+	"github.com/sirupsen/logrus"
 	"os"
 	"os/signal"
 	"proofofaccess/Rewards"
 	"proofofaccess/api"
+	"proofofaccess/database"
+	"proofofaccess/ipfs"
 	"proofofaccess/localdata"
+	"proofofaccess/messaging"
 	"proofofaccess/proofcrypto"
+	"proofofaccess/pubsub"
 	"strconv"
 	"sync"
 	"syscall"
 	"time"
-
-	"github.com/sirupsen/logrus"
-	"proofofaccess/database"
-	"proofofaccess/ipfs"
-	"proofofaccess/messaging"
-	"proofofaccess/pubsub"
 )
 
 var (
@@ -203,10 +203,9 @@ func fetchPins(ctx context.Context) {
 					defer wg.Done()
 					// Check if the key exists in Pins
 					localdata.Lock.Lock()
-					_, exists := ipfs.Pins[key]
 					localdata.Lock.Unlock()
 
-					if !exists {
+					if !ipfs.IsPinnedInDB(key) {
 						size, _ := ipfs.FileSize(key)
 						localdata.Lock.Lock()
 						localdata.PeerSize[localdata.NodeName] += size
@@ -217,6 +216,12 @@ func fetchPins(ctx context.Context) {
 						savedRefs, _ := ipfs.Refs(key)
 						localdata.Lock.Lock()
 						localdata.SavedRefs[key] = savedRefs
+						refsBytes, err := json.Marshal(savedRefs)
+						if err != nil {
+							log.Printf("Error: %v\n", err)
+							return
+						}
+						database.Save([]byte(key), refsBytes)
 						localdata.Lock.Unlock()
 						localdata.Lock.Lock()
 						localdata.SyncedPercentage = float32(keysNotFound) / float32(mapLength) * 100
