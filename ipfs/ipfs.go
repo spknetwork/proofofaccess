@@ -93,7 +93,13 @@ func IsPinned(cid string) bool {
 func IsPinnedInDB(cid string) bool {
 	// Check if the CID is pinned in the database
 	val := database.Read([]byte("refs" + cid))
-	return val != nil
+	if val != nil {
+		fmt.Println("CID is pinned in the database")
+		return true
+	} else {
+		fmt.Println("CID is not pinned in the database")
+		return false
+	}
 }
 func IpfsPingNode(peerID string) error {
 	// Ping the specified node using its peer ID
