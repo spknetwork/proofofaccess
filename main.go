@@ -76,8 +76,8 @@ func initialize(ctx context.Context) {
 	if *runProofs {
 		go runRewardProofs(ctx)
 	}
+	database.Init()
 	if *nodeType == 1 {
-		database.Init()
 		go pubsubHandler(ctx)
 		go checkSynced(ctx)
 	} else {

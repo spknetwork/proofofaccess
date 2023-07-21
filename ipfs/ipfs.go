@@ -302,6 +302,7 @@ func SyncNode(NewPins map[string]interface{}, name string) {
 			peersize = peersize + size
 			localdata.Lock.Unlock()
 			// Check if the key exists in Pins
+			fmt.Println("Checking if key exists: ", key)
 			if !IsPinnedInDB(key) {
 				fmt.Println("Key not found: ", key)
 				// Get the size of the file
@@ -330,6 +331,7 @@ func SyncNode(NewPins map[string]interface{}, name string) {
 					log.Printf("Error: %v\n", err)
 					return
 				}
+				fmt.Println("Saving refs: ", key)
 				database.Save([]byte("refs"+key), refsBytes)
 				localdata.Lock.Unlock()
 				completed[i] = true
