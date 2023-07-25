@@ -297,14 +297,14 @@ func SyncNode(NewPins map[string]interface{}, name string) {
 	for key := range NewPins {
 		wg.Add(1)
 		go func(i int, key string) {
-			fmt.Println("Starting goroutine for: ", key)
+			// fmt.Println("Starting goroutine for: ", key)
 			defer wg.Done()
 			size, _ := FileSize(key)
 			localdata.Lock.Lock()
 			peersize = peersize + size
 			localdata.Lock.Unlock()
 			// Check if the key exists in Pins
-			fmt.Println("Checking if key exists: ", key)
+			// fmt.Println("Checking if key exists: ", key)
 			isPinnedInDB := IsPinnedInDB(key)
 			if isPinnedInDB == false {
 				//fmt.Println("Key not found: ", key)
