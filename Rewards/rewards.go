@@ -63,6 +63,7 @@ func ThreeSpeak() {
 
 func RunProofs() error {
 	for {
+		fmt.Println("Running proofs")
 		for _, peer := range localdata.PeerNames {
 			fmt.Println("Running proofs for peer: " + peer)
 			for _, cid := range localdata.ThreeSpeakVideos {
@@ -71,6 +72,7 @@ func RunProofs() error {
 				localdata.Lock.Unlock()
 				for _, peerHash := range peers {
 					if peerHash == cid {
+						fmt.Println("Running proof for peer: " + peer + " and CID: " + cid)
 						go RunProof(peer, cid)
 					}
 				}
