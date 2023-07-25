@@ -92,8 +92,10 @@ func RunProof(peer string, cid string) error {
 		fmt.Println("Peer: " + peer)
 		fmt.Println("CID: " + cid)
 		localdata.Lock.Lock()
-		localdata.PeerProofs[peer] = localdata.PeerProofs[peer] + 1
-		fmt.Println("Proofs: " + string(localdata.PeerProofs[peer]))
+		peerProofs := localdata.PeerProofs[peer]
+		fmt.Println("Proofs1: " + string(peerProofs))
+		peerProofs = peerProofs + 1
+		fmt.Println("Proofs: " + string(peerProofs))
 		localdata.Lock.Unlock()
 	}
 	return nil
