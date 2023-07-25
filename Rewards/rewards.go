@@ -101,8 +101,10 @@ func RunProof(peer string, cid string) error {
 func RewardPeers() {
 	for {
 		for _, peer := range localdata.PeerNames {
+			fmt.Println("Checking proofs for peer: " + peer)
 			localdata.Lock.Lock()
 			proofs := localdata.PeerProofs[peer]
+			fmt.Println("Proofs: " + string(proofs))
 			localdata.Lock.Unlock()
 			if proofs >= 10 {
 				fmt.Println("Rewarding peer: " + peer)
