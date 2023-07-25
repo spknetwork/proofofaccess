@@ -61,8 +61,8 @@ func Download(fileHash string) (*bytes.Buffer, error) {
 
 		result.Write(buf[:n])
 		totalRead += n
-		fmt.Printf("Downloaded %d of %d bytes (%.2f%%)\n",
-			totalRead, fileSize, 100*float64(totalRead)/float64(fileSize))
+		//fmt.Printf("Downloaded %d of %d bytes (%.2f%%)\n",
+		//totalRead, fileSize, 100*float64(totalRead)/float64(fileSize))
 	}
 
 	return &result, nil

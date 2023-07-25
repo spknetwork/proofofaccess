@@ -62,22 +62,23 @@ func ThreeSpeak() {
 }
 
 func RunProofs() error {
-	for _, peer := range localdata.PeerNames {
-		fmt.Println("Running proofs for peer: " + peer)
-		for _, cid := range localdata.ThreeSpeakVideos {
-			localdata.Lock.Lock()
-			peers := localdata.PeerCids[peer]
-			localdata.Lock.Unlock()
-			for _, peerHash := range peers {
-				if peerHash == cid {
-					go RunProof(peer, cid)
+	for {
+		for _, peer := range localdata.PeerNames {
+			fmt.Println("Running proofs for peer: " + peer)
+			for _, cid := range localdata.ThreeSpeakVideos {
+				localdata.Lock.Lock()
+				peers := localdata.PeerCids[peer]
+				localdata.Lock.Unlock()
+				for _, peerHash := range peers {
+					if peerHash == cid {
+						go RunProof(peer, cid)
+					}
 				}
 			}
 		}
+		//wait 5 seconds between peers
+		time.Sleep(1 * time.Second)
 	}
-	//wait 5 seconds between peers
-	time.Sleep(1 * time.Second)
-	return nil
 }
 
 func RunProof(peer string, cid string) error {
@@ -98,16 +99,19 @@ func RunProof(peer string, cid string) error {
 	return nil
 }
 func RewardPeers() {
-	for _, peer := range localdata.PeerNames {
-		localdata.Lock.Lock()
-		proofs := localdata.PeerProofs[peer]
-		localdata.Lock.Unlock()
-		if proofs >= 10 {
-			fmt.Println("Rewarding peer: " + peer)
+	for {
+		for _, peer := range localdata.PeerNames {
 			localdata.Lock.Lock()
-			localdata.PeerProofs[peer] = 0
+			proofs := localdata.PeerProofs[peer]
 			localdata.Lock.Unlock()
+			if proofs >= 10 {
+				fmt.Println("Rewarding peer: " + peer)
+				localdata.Lock.Lock()
+				localdata.PeerProofs[peer] = 0
+				localdata.Lock.Unlock()
+			}
 		}
+		time.Sleep(1 * time.Second)
 	}
 }
 
