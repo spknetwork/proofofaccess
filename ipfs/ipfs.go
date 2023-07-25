@@ -91,6 +91,7 @@ func IsPinned(cid string) bool {
 	return ok
 }
 func IsPinnedInDB(cid string) bool {
+	fmt.Println("Checking if CID is pinned in the database")
 	// Check if the CID is pinned in the database
 	val := database.Read([]byte("refs" + cid))
 	if val != nil {
@@ -303,7 +304,8 @@ func SyncNode(NewPins map[string]interface{}, name string) {
 			localdata.Lock.Unlock()
 			// Check if the key exists in Pins
 			fmt.Println("Checking if key exists: ", key)
-			if !IsPinnedInDB(key) {
+			isPinnedInDB := IsPinnedInDB(key)
+			if isPinnedInDB == false {
 				fmt.Println("Key not found: ", key)
 				// Get the size of the file
 				stat, err := Shell.ObjectStat(key)
