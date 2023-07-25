@@ -78,6 +78,7 @@ func RunProofs() error {
 						if peerHash == cid {
 							fmt.Println("Running proof for peer: " + peer + " and CID: " + cid)
 							go RunProof(peer, cid)
+							time.Sleep(1 * time.Second)
 						}
 					}
 				}
@@ -122,7 +123,7 @@ func RewardPeers() {
 			}
 			localdata.Lock.Unlock()
 		}
-		time.Sleep(1 * time.Second)
+		time.Sleep(10 * time.Second)
 	}
 }
 
