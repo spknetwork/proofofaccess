@@ -338,13 +338,13 @@ func SyncNode(NewPins map[string]interface{}, name string) {
 				database.Save([]byte("refs"+key), refsBytes)
 				localdata.Lock.Unlock()
 				completed[i] = true
-				localdata.Lock.Lock()
-				localdata.CIDRefPercentage[key] = 100
-				localdata.CIDRefStatus[key] = true
-				localdata.Lock.Unlock()
 			} else {
 				fmt.Println("Key found: ", key)
 			}
+			localdata.Lock.Lock()
+			localdata.CIDRefPercentage[key] = 100
+			localdata.CIDRefStatus[key] = true
+			localdata.Lock.Unlock()
 			keyCount++
 			fmt.Println("Key: ", keyCount)
 			//fmt.Println("Map length: ", mapLength)
