@@ -101,9 +101,9 @@ func RunProof(peer string, cid string) error {
 		fmt.Println("CID: " + cid)
 		localdata.Lock.Lock()
 		peerProofs := localdata.PeerProofs[peer]
-		fmt.Println("Proofs1: ", string(peerProofs))
+		fmt.Println("Proofs1: ", peerProofs)
 		peerProofs = peerProofs + 1
-		fmt.Println("Proofs: ", string(peerProofs))
+		fmt.Println("Proofs: ", peerProofs)
 		localdata.PeerProofs[peer] = peerProofs // Update the map while the lock is held
 		localdata.Lock.Unlock()
 	}
@@ -116,7 +116,7 @@ func RewardPeers() {
 			fmt.Println("Checking proofs for peer: " + peer)
 			localdata.Lock.Lock()
 			proofs := localdata.PeerProofs[peer]
-			fmt.Println("Proofs: ", string(proofs))
+			fmt.Println("Proofs: ", proofs)
 			if proofs >= 10 {
 				fmt.Println("Rewarding peer: " + peer)
 				localdata.PeerProofs[peer] = 0 // Update the map while the lock is held

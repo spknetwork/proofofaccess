@@ -494,9 +494,9 @@ func SyncNode(req Request) {
 		for {
 			time.Sleep(1 * time.Second)
 			fmt.Println("Checking if synced with " + req.User)
+			localdata.Lock.Lock()
 			localdata.PeerProofs[req.User] = 0
 			fmt.Println("Peer proofs:", localdata.PeerProofs[req.User])
-			localdata.Lock.Lock()
 			nodeStatus := localdata.NodesStatus[req.User]
 			localdata.Lock.Unlock()
 			if nodeStatus == "Synced" {
