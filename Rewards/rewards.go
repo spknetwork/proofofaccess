@@ -100,6 +100,7 @@ func RunProof(peer string, cid string) error {
 }
 func RewardPeers() {
 	for {
+		fmt.Println("Rewarding peers")
 		for _, peer := range localdata.PeerNames {
 			fmt.Println("Checking proofs for peer: " + peer)
 			localdata.Lock.Lock()
