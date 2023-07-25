@@ -91,14 +91,14 @@ func IsPinned(cid string) bool {
 	return ok
 }
 func IsPinnedInDB(cid string) bool {
-	fmt.Println("Checking if CID is pinned in the database")
+	//fmt.Println("Checking if CID is pinned in the database")
 	// Check if the CID is pinned in the database
 	val := database.Read([]byte("refs" + cid))
 	if val != nil {
-		fmt.Println("CID is pinned in the database")
+		//fmt.Println("CID is pinned in the database")
 		return true
 	} else {
-		fmt.Println("CID is not pinned in the database")
+		//fmt.Println("CID is not pinned in the database")
 		return false
 	}
 }
@@ -315,7 +315,7 @@ func SyncNode(NewPins map[string]interface{}, name string) {
 					return
 				}
 				sizes[i] = stat.CumulativeSize
-				fmt.Println("Getting refs: ", key)
+				//fmt.Println("Getting refs: ", key)
 				refs, err := Shell.Refs(key, true)
 				if err != nil {
 					fmt.Printf("Error: %v\n", err)
@@ -334,22 +334,22 @@ func SyncNode(NewPins map[string]interface{}, name string) {
 					log.Printf("Error: %v\n", err)
 					return
 				}
-				fmt.Println("Saving refs: ", key)
+				//fmt.Println("Saving refs: ", key)
 				database.Save([]byte("refs"+key), refsBytes)
 				localdata.Lock.Unlock()
 				completed[i] = true
 			} else {
-				fmt.Println("Key found: ", key)
+				//fmt.Println("Key found: ", key)
 			}
 			localdata.Lock.Lock()
 			localdata.CIDRefPercentage[key] = 100
 			localdata.CIDRefStatus[key] = true
 			localdata.Lock.Unlock()
 			keyCount++
-			fmt.Println("Key: ", keyCount)
+			//fmt.Println("Key: ", keyCount)
 			//fmt.Println("Map length: ", mapLength)
 			if keyCount == mapLength {
-				fmt.Println("All keys found")
+				//fmt.Println("All keys found")
 				localdata.Lock.Lock()
 				localdata.PeerSize[name] = peersize
 				fmt.Println("Synced: ", name)
