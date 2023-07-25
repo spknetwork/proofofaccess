@@ -3,6 +3,7 @@ package validation
 import (
 	"encoding/json"
 	"fmt"
+	"proofofaccess/database"
 	"proofofaccess/ipfs"
 	"proofofaccess/localdata"
 	"proofofaccess/proofcrypto"
@@ -34,7 +35,12 @@ func AppendHashToFile(hash string, CID string) string {
 func CreatProofHash(hash string, CID string) string {
 	// Get all the file blocks CIDs from the Target Files CID
 	fmt.Println("CID: ", CID)
-	cids := localdata.SavedRefs[CID]
+	refsBytes := database.Read([]byte("refs" + CID))
+	var cids []string
+	if err := json.Unmarshal(refsBytes, &cids); err != nil {
+		fmt.Printf("Error while unmarshaling refs: %v\n", err)
+		return ""
+	}
 	// Get the length of the CIDs
 	length := len(cids)
 	fmt.Println("length", length)
