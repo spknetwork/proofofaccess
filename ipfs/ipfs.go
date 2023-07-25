@@ -355,6 +355,7 @@ func SyncNode(NewPins map[string]interface{}, name string) {
 				fmt.Println("Synced: ", name)
 				fmt.Println("PeerSize: ", peersize)
 				localdata.NodesStatus[name] = "Synced"
+				localdata.PeerProofs[name] = 0
 				localdata.Lock.Unlock()
 				return
 			}
