@@ -75,6 +75,7 @@ func initialize(ctx context.Context) {
 	}
 	if *runProofs {
 		go runRewardProofs(ctx)
+		go Rewards.RewardPeers()
 	}
 	database.Init()
 	if *nodeType == 1 {

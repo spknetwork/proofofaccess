@@ -47,6 +47,7 @@ var CIDRefStatus = map[string]bool{}
 var CIDRefPercentage = map[string]int{}
 var ThreeSpeakVideos = []string{}
 var Lock sync.Mutex
+var PeerProofs = map[string]int{}
 
 // SaveTime
 // Saves the time to the database

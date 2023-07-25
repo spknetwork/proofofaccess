@@ -70,26 +70,45 @@ func RunProofs() error {
 			localdata.Lock.Unlock()
 			for _, peerHash := range peers {
 				if peerHash == cid {
-					proof, err := runProofAPI(peer, cid)
-					if err != nil {
-						return fmt.Errorf("failed to run proof for peer %s and CID %s: %w", peer, cid, err)
-					}
-
-					// If proof is successful, add to localdata.PeerProofs
-					if proof.Success {
-						fmt.Println("Proof successful")
-						fmt.Println("Peer: " + peer)
-						fmt.Println("CID: " + cid)
-
-					}
+					go RunProof(peer, cid)
 				}
 			}
-
 		}
 	}
 	//wait 5 seconds between peers
 	time.Sleep(1 * time.Second)
 	return nil
+}
+
+func RunProof(peer string, cid string) error {
+	proof, err := runProofAPI(peer, cid)
+	if err != nil {
+		return fmt.Errorf("failed to run proof for peer %s and CID %s: %w", peer, cid, err)
+	}
+	// If proof is successful, add to localdata.PeerProofs
+	if proof.Success {
+		fmt.Println("Proof successful")
+		fmt.Println("Peer: " + peer)
+		fmt.Println("CID: " + cid)
+		localdata.Lock.Lock()
+		localdata.PeerProofs[peer] = localdata.PeerProofs[peer] + 1
+		fmt.Println("Proofs: " + string(localdata.PeerProofs[peer]))
+		localdata.Lock.Unlock()
+	}
+	return nil
+}
+func RewardPeers() {
+	for _, peer := range localdata.PeerNames {
+		localdata.Lock.Lock()
+		proofs := localdata.PeerProofs[peer]
+		localdata.Lock.Unlock()
+		if proofs >= 10 {
+			fmt.Println("Rewarding peer: " + peer)
+			localdata.Lock.Lock()
+			localdata.PeerProofs[peer] = 0
+			localdata.Lock.Unlock()
+		}
+	}
 }
 
 type Proof struct {
