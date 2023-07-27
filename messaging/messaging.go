@@ -68,14 +68,14 @@ func SendProof(req Request, hash string, seed string, user string) {
 	nodeType := localdata.NodeType
 	localdata.Lock.Unlock()
 	if wsPeers == req.User && nodeType == 1 {
-		localdata.Lock.Lock()
+		wsMutex.Lock()
 		ws := localdata.WsClients[req.User]
-		localdata.Lock.Unlock()
 		ws.WriteMessage(websocket.TextMessage, jsonData)
+		wsMutex.Unlock()
 	} else if localdata.UseWS == true && localdata.NodeType == 2 {
-		localdata.Lock.Lock()
+		wsMutex.Lock()
 		localdata.WsValidators["Validator1"].WriteMessage(websocket.TextMessage, jsonData)
-		localdata.Lock.Unlock()
+		wsMutex.Unlock()
 	} else {
 		pubsub.Publish(string(jsonData), user)
 	}
@@ -227,12 +227,14 @@ func SendPing(hash string, user string) {
 	}
 	localdata.PingTime[user] = time.Now()
 	if localdata.WsPeers[user] == user && localdata.NodeType == 1 {
-		localdata.Lock.Lock()
+		wsMutex.Lock()
 		ws := localdata.WsClients[user]
 		ws.WriteMessage(websocket.TextMessage, jsonData)
-		localdata.Lock.Unlock()
+		wsMutex.Unlock()
 	} else if localdata.UseWS == true && localdata.NodeType == 2 {
+		wsMutex.Lock()
 		localdata.WsValidators["Validator1"].WriteMessage(websocket.TextMessage, jsonData)
+		wsMutex.Unlock()
 	} else {
 		pubsub.Publish(string(jsonData), user)
 	}
@@ -249,12 +251,14 @@ func PingPongPong(req Request, hash string, user string) {
 		return
 	}
 	if localdata.WsPeers[req.User] == req.User && localdata.NodeType == 1 {
-		localdata.Lock.Lock()
+		wsMutex.Lock()
 		ws := localdata.WsClients[req.User]
 		ws.WriteMessage(websocket.TextMessage, jsonData)
-		localdata.Lock.Unlock()
+		wsMutex.Unlock()
 	} else if localdata.UseWS == true && localdata.NodeType == 2 {
+		wsMutex.Lock()
 		localdata.WsValidators["Validator1"].WriteMessage(websocket.TextMessage, jsonData)
+		wsMutex.Unlock()
 	} else {
 		pubsub.Publish(string(jsonData), user)
 	}
@@ -270,12 +274,14 @@ func RequestCIDS(req Request) {
 		return
 	}
 	if localdata.WsPeers[req.User] == req.User && localdata.NodeType == 1 {
-		localdata.Lock.Lock()
+		wsMutex.Lock()
 		ws := localdata.WsClients[req.User]
 		ws.WriteMessage(websocket.TextMessage, jsonData)
-		localdata.Lock.Unlock()
+		wsMutex.Unlock()
 	} else if localdata.UseWS == true && localdata.NodeType == 2 {
+		wsMutex.Lock()
 		localdata.WsValidators["Validator1"].WriteMessage(websocket.TextMessage, jsonData)
+		wsMutex.Unlock()
 	} else {
 		pubsub.Publish(string(jsonData), req.User)
 	}
@@ -377,12 +383,14 @@ func SendSyncing(req Request) {
 		return
 	}
 	if localdata.WsPeers[req.User] == req.User && localdata.NodeType == 1 {
-		localdata.Lock.Lock()
+		wsMutex.Lock()
 		ws := localdata.WsClients[req.User]
 		ws.WriteMessage(websocket.TextMessage, jsonData)
-		localdata.Lock.Unlock()
+		wsMutex.Unlock()
 	} else if localdata.UseWS == true && localdata.NodeType == 2 {
+		wsMutex.Lock()
 		localdata.WsValidators["Validator1"].WriteMessage(websocket.TextMessage, jsonData)
+		wsMutex.Unlock()
 	} else {
 		pubsub.Publish(string(jsonData), req.User)
 	}
@@ -400,12 +408,14 @@ func SendSynced(req Request) {
 	}
 	if localdata.WsPeers[req.User] == req.User && localdata.NodeType == 1 {
 		fmt.Println("Sending Synced to " + req.User)
-		localdata.Lock.Lock()
+		wsMutex.Lock()
 		ws := localdata.WsClients[req.User]
 		ws.WriteMessage(websocket.TextMessage, jsonData)
-		localdata.Lock.Unlock()
+		wsMutex.Unlock()
 	} else if localdata.UseWS == true && localdata.NodeType == 2 {
+		wsMutex.Lock()
 		localdata.WsValidators["Validator1"].WriteMessage(websocket.TextMessage, jsonData)
+		wsMutex.Unlock()
 	} else {
 		pubsub.Publish(string(jsonData), req.User)
 	}
