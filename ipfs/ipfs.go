@@ -29,17 +29,7 @@ const BufferSize = 1024 // define a reasonable buffer size
 // Download
 // Download the file from IPFS
 func Download(fileHash string) (*bytes.Buffer, error) {
-	//fmt.Println("Downloading file: ", fileHash)
-
-	// Get file size
-	stat, err := Shell.ObjectStat(fileHash)
-	if err != nil {
-		return nil, fmt.Errorf("error stating file: %v", err)
-	}
-
-	fileSize := stat.CumulativeSize
-	//fmt.Printf("File size: %d bytes\n", fileSize)
-
+	// Download the file from IPFS
 	fileReader, err := Shell.Cat(fileHash)
 	if err != nil {
 		return nil, fmt.Errorf("error downloading file: %v", err)
