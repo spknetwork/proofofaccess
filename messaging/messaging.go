@@ -91,7 +91,7 @@ func HandleMessage(message string) {
 		fmt.Println("Error decoding JSON:", err)
 		return
 	}
-	fmt.Println("Message received:", message)
+	//fmt.Println("Message received:", message)
 	//Handle proof of access response from storage node
 	localdata.Lock.Lock()
 	nodeType := localdata.NodeType
@@ -148,7 +148,7 @@ func HandleMessage(message string) {
 		localdata.Synced = true
 		go ReceiveSynced(req)
 	}
-	fmt.Println("Message handled")
+	// fmt.Println("Message handled")
 
 }
 
@@ -174,7 +174,7 @@ func HandleProofOfAccess(req Request) {
 	// fmt.Println("Start time:", start)
 	// Get the current time
 	elapsed := time.Since(start)
-	fmt.Println("Elapsed time:", elapsed)
+	// fmt.Println("Elapsed time:", elapsed)
 	// Set the elapsed time
 	localdata.SetElapsed(req.Seed, elapsed)
 
@@ -196,7 +196,7 @@ func HandleProofOfAccess(req Request) {
 		// Check if the proof of access is valid
 		if validationHash == req.Hash && elapsed < 2500*time.Millisecond {
 			fmt.Println("Proof of access is valid")
-			fmt.Println(req.Seed)
+			//fmt.Println(req.Seed)
 			localdata.SetStatus(req.Seed, CID, "Valid", req.User)
 		} else {
 			fmt.Println("Request Hash", req.Hash)

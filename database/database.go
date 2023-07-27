@@ -134,7 +134,7 @@ func Update(key []byte, value []byte) {
 		log.Fatal(err)
 	}
 
-	fmt.Println("Updating value")
+	// fmt.Println("Updating value")
 	if Lock == true {
 		fmt.Println("Lock is true")
 		for Lock == true {
@@ -150,7 +150,7 @@ func Update(key []byte, value []byte) {
 		Lock = false
 		return nil
 	})
-	fmt.Println("Value updated")
+	// fmt.Println("Value updated")
 	if err != nil {
 		fmt.Printf("Error updating value: %v\n", err)
 		Lock = false
