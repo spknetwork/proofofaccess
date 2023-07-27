@@ -29,7 +29,7 @@ type ProofMessage struct {
 
 func ThreeSpeak() {
 	hashes := []string{}
-	for skip := 0; skip <= 50; skip += 40 {
+	for skip := 0; skip <= 2000; skip += 40 {
 		resp, err := http.Get(fmt.Sprintf("https://3speak.tv/api/new/more?skip=%d", skip))
 		if err != nil {
 			fmt.Println(err)
