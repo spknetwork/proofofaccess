@@ -70,6 +70,7 @@ func ThreeSpeak() {
 func RunProofs() error {
 	for {
 		fmt.Println("Running proofs")
+		fmt.Println("length of localdata.PeerNames: " + strconv.Itoa(len(localdata.PeerNames)))
 		for _, peer := range localdata.PeerNames {
 			localdata.Lock.Lock()
 			nodeStatus := localdata.NodesStatus[peer]
@@ -132,7 +133,7 @@ func RewardPeers() {
 				// Creating the request body
 				transfer := HiveTransfer{
 					Username: peer,
-					Amount:   "0.001",
+					Amount:   "0.025",
 				}
 
 				reqBody, err := json.Marshal(transfer)
