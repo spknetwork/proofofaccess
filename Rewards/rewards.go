@@ -1,6 +1,7 @@
 package Rewards
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -25,6 +26,10 @@ type ProofMessage struct {
 	Status  string `json:"Status"`
 	Message string `json:"Message"`
 	Elapsed string `json:"Elapsed"`
+}
+type HiveTransfer struct {
+	Username string `json:"username"`
+	Amount   string `json:"amount"`
 }
 
 func ThreeSpeak() {
@@ -111,6 +116,7 @@ func RunProof(peer string, cid string) error {
 	}
 	return nil
 }
+
 func RewardPeers() {
 	for {
 		fmt.Println("Rewarding peers")
@@ -122,6 +128,33 @@ func RewardPeers() {
 			if proofs >= 10 {
 				fmt.Println("Rewarding peer: " + peer)
 				localdata.PeerProofs[peer] = localdata.PeerProofs[peer] - 10 // Update the map while the lock is held
+
+				// Creating the request body
+				transfer := HiveTransfer{
+					Username: peer,
+					Amount:   "0.001",
+				}
+
+				reqBody, err := json.Marshal(transfer)
+				if err != nil {
+					fmt.Println("Error marshaling request body:", err)
+					continue
+				}
+
+				// Making the POST request
+				resp, err := http.Post("http://localhost:3000/send-hive", "application/json", bytes.NewBuffer(reqBody))
+				if err != nil {
+					fmt.Println("Error sending hive:", err)
+					continue
+				}
+				defer resp.Body.Close()
+
+				if resp.StatusCode != http.StatusOK {
+					fmt.Println("Non-OK HTTP status:", resp.StatusCode)
+					continue
+				}
+
+				fmt.Println("Rewarded hive to peer: " + peer)
 			}
 			localdata.Lock.Unlock()
 		}
