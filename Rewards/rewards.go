@@ -113,12 +113,12 @@ func RunProof(peer string, cid string) error {
 }
 func RewardPeers() {
 	for {
-		//fmt.Println("Rewarding peers")
+		fmt.Println("Rewarding peers")
 		for _, peer := range localdata.PeerNames {
-			//fmt.Println("Checking proofs for peer: " + peer)
+			fmt.Println("Checking proofs for peer: " + peer)
 			localdata.Lock.Lock()
 			proofs := localdata.PeerProofs[peer]
-			//fmt.Println("Proofs: ", proofs)
+			fmt.Println("Proofs: ", proofs)
 			if proofs >= 10 {
 				fmt.Println("Rewarding peer: " + peer)
 				localdata.PeerProofs[peer] = 0 // Update the map while the lock is held
