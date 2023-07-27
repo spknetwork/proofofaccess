@@ -71,13 +71,13 @@ func RunProofs() error {
 			localdata.Lock.Unlock()
 			if nodeStatus == "Synced" {
 				fmt.Println("Running proofs for peer: " + peer)
+				fmt.Println("Length of ThreeSpeakVideos: " + strconv.Itoa(len(localdata.ThreeSpeakVideos)))
+				fmt.Println("Length of PeerCids: " + strconv.Itoa(len(localdata.PeerCids[peer])))
 				for _, cid := range localdata.ThreeSpeakVideos {
 					localdata.Lock.Lock()
 					peers := localdata.PeerCids[peer]
 					localdata.Lock.Unlock()
 					for _, peerHash := range peers {
-						fmt.Println("Peer hash: " + peerHash)
-						fmt.Println("CID: " + cid)
 						if peerHash == cid {
 							fmt.Println("Running proof for peer: " + peer + " and CID: " + cid)
 							go RunProof(peer, cid)
