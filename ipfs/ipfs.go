@@ -339,6 +339,7 @@ func SyncNode(NewPins map[string]interface{}, name string) {
 				localdata.Lock.Unlock()
 				completed[i] = true
 			} else {
+
 				//fmt.Println("Key found: ", key)
 			}
 			localdata.Lock.Lock()

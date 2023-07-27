@@ -10,6 +10,7 @@ import (
 	"net/url"
 	"proofofaccess/ipfs"
 	"proofofaccess/localdata"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -75,6 +76,8 @@ func RunProofs() error {
 					peers := localdata.PeerCids[peer]
 					localdata.Lock.Unlock()
 					for _, peerHash := range peers {
+						fmt.Println("Peer hash: " + peerHash)
+						fmt.Println("CID: " + cid)
 						if peerHash == cid {
 							fmt.Println("Running proof for peer: " + peer + " and CID: " + cid)
 							go RunProof(peer, cid)
@@ -96,14 +99,13 @@ func RunProof(peer string, cid string) error {
 	}
 	// If proof is successful, add to localdata.PeerProofs
 	if proof.Success {
-		fmt.Println("Proof successful")
-		fmt.Println("Peer: " + peer)
-		fmt.Println("CID: " + cid)
+		//fmt.Println("Proof successful")
+		//fmt.Println("Peer: " + peer)
+		//fmt.Println("CID: " + cid)
 		localdata.Lock.Lock()
 		peerProofs := localdata.PeerProofs[peer]
-		fmt.Println("Proofs1: ", peerProofs)
 		peerProofs = peerProofs + 1
-		fmt.Println("Proofs: ", peerProofs)
+		//fmt.Println("Proofs: ", peerProofs)
 		localdata.PeerProofs[peer] = peerProofs // Update the map while the lock is held
 		localdata.Lock.Unlock()
 	}
@@ -111,12 +113,12 @@ func RunProof(peer string, cid string) error {
 }
 func RewardPeers() {
 	for {
-		fmt.Println("Rewarding peers")
+		//fmt.Println("Rewarding peers")
 		for _, peer := range localdata.PeerNames {
-			fmt.Println("Checking proofs for peer: " + peer)
+			//fmt.Println("Checking proofs for peer: " + peer)
 			localdata.Lock.Lock()
 			proofs := localdata.PeerProofs[peer]
-			fmt.Println("Proofs: ", proofs)
+			//fmt.Println("Proofs: ", proofs)
 			if proofs >= 10 {
 				fmt.Println("Rewarding peer: " + peer)
 				localdata.PeerProofs[peer] = 0 // Update the map while the lock is held
@@ -196,10 +198,11 @@ func PinVideos(gb int, ctx context.Context) error {
 	// Define the limit for the pinned storage
 	const GB = 1024 * 1024 * 1024
 	limit := int64(gb * GB)
-
+	fmt.Println("Limit: ", strconv.FormatInt(limit, 10))
 	// Generate list of CIDs with size
 	cidList := make([]CIDSize, len(localdata.ThreeSpeakVideos))
 	fmt.Println("Making CID list")
+	fmt.Println("Length of localdata.ThreeSpeakVideos: ")
 	fmt.Println(len(localdata.ThreeSpeakVideos))
 
 	for i, cid := range localdata.ThreeSpeakVideos {
@@ -211,8 +214,9 @@ func PinVideos(gb int, ctx context.Context) error {
 				fmt.Printf("Empty CID at index %d, skipping\n", i)
 				continue
 			}
-
+			fmt.Println("CID: " + cid)
 			stat, err := sh.ObjectStat(cid)
+			fmt.Println("Got object stats ", stat)
 			if err != nil {
 				fmt.Printf("Failed to get object stats for CID %s: %v, skipping\n", cid, err)
 				continue
@@ -223,6 +227,7 @@ func PinVideos(gb int, ctx context.Context) error {
 				Size: int64(stat.CumulativeSize),
 			}
 			totalPinned += int64(stat.CumulativeSize)
+			fmt.Println("Total pinned: " + strconv.FormatInt(totalPinned, 10))
 		}
 	}
 
