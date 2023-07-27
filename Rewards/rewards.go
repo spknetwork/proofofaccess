@@ -121,7 +121,7 @@ func RewardPeers() {
 			fmt.Println("Proofs: ", proofs)
 			if proofs >= 10 {
 				fmt.Println("Rewarding peer: " + peer)
-				localdata.PeerProofs[peer] = -10 // Update the map while the lock is held
+				localdata.PeerProofs[peer] = localdata.PeerProofs[peer] - 10 // Update the map while the lock is held
 			}
 			localdata.Lock.Unlock()
 		}
