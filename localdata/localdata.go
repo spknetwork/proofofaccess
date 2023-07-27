@@ -94,7 +94,7 @@ func GetStatus(seed string) Message {
 // SetStatus
 // Sets the status to the database
 func SetStatus(seed string, cid string, status string, name string) {
-	fmt.Println("SetStatus", seed, cid, status)
+	// fmt.Println("SetStatus", seed, cid, status)
 	time1 := GetTime(seed)
 	elapsed := GetElapsed(seed)
 	timeString := time1.Format(time.RFC3339)
