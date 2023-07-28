@@ -187,7 +187,9 @@ func HandleProofOfAccess(req Request) {
 	}
 	seed := message.Seed
 	CID := localdata.GetStatus(seed).CID
+	localdata.Lock.Lock()
 	ProofRequest[seed] = true
+	localdata.Lock.Unlock()
 	// Create the proof hash
 	var validationHash string
 	if req.Hash != "" {

@@ -144,7 +144,10 @@ func waitForProofStatus(salt string, cid string, conn *websocket.Conn) (string, 
 
 	go func() {
 		for {
-			if messaging.ProofRequest[salt] {
+			localdata.Lock.Lock()
+			proofRequest := messaging.ProofRequest[salt]
+			localdata.Lock.Unlock()
+			if proofRequest {
 				sendWsResponse(wsProofReceived, "ProofReceived", "0", conn)
 				sendWsResponse(wsValidating, "Validating", "0", conn)
 				return
