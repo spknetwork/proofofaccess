@@ -93,8 +93,6 @@ func RunProofs() error {
 						}
 					}
 				}
-				//wait 10 seconds between peers
-				time.Sleep(10 * time.Second)
 			}
 		}
 	}
