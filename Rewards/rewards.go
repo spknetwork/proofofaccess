@@ -133,7 +133,7 @@ func RewardPeers() {
 				// Creating the request body
 				transfer := HiveTransfer{
 					Username: peer,
-					Amount:   "0.05",
+					Amount:   "0.050",
 				}
 
 				reqBody, err := json.Marshal(transfer)
