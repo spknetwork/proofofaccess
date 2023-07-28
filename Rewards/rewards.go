@@ -33,7 +33,7 @@ type HiveTransfer struct {
 }
 
 func ThreeSpeak() {
-	hashes := []string{}
+	hashSet := make(map[string]struct{})
 	for skip := 0; skip <= 2000; skip += 40 {
 		resp, err := http.Get(fmt.Sprintf("https://3speak.tv/api/new/more?skip=%d", skip))
 		if err != nil {
@@ -58,28 +58,30 @@ func ThreeSpeak() {
 		for _, rec := range apiResponse.Recommended {
 			hash := strings.TrimPrefix(strings.TrimSuffix(rec.VideoV2, "/manifest.m3u8"), "ipfs://")
 			if hash != `` {
-				hashes = append(hashes, hash)
+				hashSet[hash] = struct{}{}
 			}
 		}
 	}
 
-	localdata.ThreeSpeakVideos = hashes
-	return
+	localdata.ThreeSpeakVideos = make([]string, 0, len(hashSet))
+	for hash := range hashSet {
+		localdata.ThreeSpeakVideos = append(localdata.ThreeSpeakVideos, hash)
+	}
 }
 
 func RunProofs() error {
 	for {
 		fmt.Println("Running proofs")
 		fmt.Println("length of localdata.PeerNames: " + strconv.Itoa(len(localdata.PeerNames)))
-		for _, peer := range localdata.PeerNames {
-			localdata.Lock.Lock()
-			nodeStatus := localdata.NodesStatus[peer]
-			localdata.Lock.Unlock()
-			if nodeStatus == "Synced" {
-				fmt.Println("Running proofs for peer: " + peer)
-				fmt.Println("Length of ThreeSpeakVideos: " + strconv.Itoa(len(localdata.ThreeSpeakVideos)))
-				fmt.Println("Length of PeerCids: " + strconv.Itoa(len(localdata.PeerCids[peer])))
-				for _, cid := range localdata.ThreeSpeakVideos {
+		fmt.Println("Length of ThreeSpeakVideos: " + strconv.Itoa(len(localdata.ThreeSpeakVideos)))
+		for _, cid := range localdata.ThreeSpeakVideos {
+			for _, peer := range localdata.PeerNames {
+				localdata.Lock.Lock()
+				nodeStatus := localdata.NodesStatus[peer]
+				localdata.Lock.Unlock()
+				if nodeStatus == "Synced" {
+					fmt.Println("Running proofs for peer: " + peer)
+					fmt.Println("Length of PeerCids: " + strconv.Itoa(len(localdata.PeerCids[peer])))
 					localdata.Lock.Lock()
 					peers := localdata.PeerCids[peer]
 					localdata.Lock.Unlock()
@@ -91,10 +93,10 @@ func RunProofs() error {
 						}
 					}
 				}
+				//wait 10 seconds between peers
+				time.Sleep(10 * time.Second)
 			}
 		}
-		//wait 10 seconds between peers
-		time.Sleep(10 * time.Second)
 	}
 }
 
