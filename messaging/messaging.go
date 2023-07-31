@@ -124,7 +124,8 @@ func HandleMessage(message string) {
 		fmt.Println("PingPongPing received")
 		PingPongPong(req, req.Hash, req.User)
 		nodeStatus := localdata.NodesStatus[req.User]
-		if nodeType == 1 && !Nodes[req.User] && nodeStatus != "Synced" {
+		nodes := Nodes[req.User]
+		if nodeType == 1 && !nodes && nodeStatus != "Synced" {
 			fmt.Println("syncing: " + req.User)
 			go RequestCIDS(req)
 		}
@@ -448,7 +449,9 @@ func SyncNode(req Request) {
 	if localdata.WsPeers[req.User] != req.User && localdata.NodeType == 1 {
 		err := ipfs.DownloadAndDecodeJSON(req.CID, &myData)
 		if err != nil {
+			localdata.Lock.Lock()
 			Nodes[req.User] = false
+			localdata.Lock.Unlock()
 			log.Println(err)
 			time.Sleep(5 * time.Second)
 			RequestCIDS(req)
