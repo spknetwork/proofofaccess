@@ -24,8 +24,9 @@ type WSMessage struct {
 }
 
 func getStatsHandler(c *gin.Context) {
-	conn, err := upgradeToWebSocket(c)
-	if err != nil {
+	conn := upgradeToWebSocket(c)
+	if conn == nil {
+		log.Error("Failed to upgrade to WebSocket")
 		return
 	}
 	defer closeWebSocket(conn)
@@ -78,10 +79,12 @@ func getStatsHandler(c *gin.Context) {
 }
 
 func getNetworkHandler(c *gin.Context) {
-	conn, err := upgradeToWebSocket(c)
-	if err != nil {
+	conn := upgradeToWebSocket(c)
+	if conn == nil {
+		log.Error("Failed to upgrade to WebSocket")
 		return
 	}
+	fmt.Println("Upgraded to websocket")
 	defer closeWebSocket(conn)
 	msg, err := readWebSocketMessage(conn)
 
@@ -133,10 +136,13 @@ func getNetworkHandler(c *gin.Context) {
 
 func handleValidate(c *gin.Context) {
 	log.Info("Entering handleValidate")
-	conn, err := upgradeToWebSocket(c)
-	if err != nil {
+	conn := upgradeToWebSocket(c)
+	if conn == nil {
+		log.Error("Failed to upgrade to WebSocket")
 		return
 	}
+	fmt.Println("Upgraded to websocket")
+
 	defer closeWebSocket(conn)
 
 	msg, err := readWebSocketMessage(conn)
@@ -183,7 +189,11 @@ func handleValidate(c *gin.Context) {
 func handleMessaging(c *gin.Context) {
 	fmt.Println("Entering handleMessaging")
 	fmt.Println("Upgrading to websocket")
-	ws, _ := upgradeToWebSocket(c)
+	ws := upgradeToWebSocket(c)
+	if ws == nil {
+		log.Error("Failed to upgrade to WebSocket")
+		return
+	}
 	fmt.Println("Upgraded to websocket")
 
 	defer ws.Close()
@@ -236,8 +246,9 @@ func handleShutdown(c *gin.Context) {
 }
 
 func handleStats(c *gin.Context) {
-	conn, err := upgradeToWebSocket(c)
-	if err != nil {
+	conn := upgradeToWebSocket(c)
+	if conn == nil {
+		log.Error("Failed to upgrade to WebSocket")
 		return
 	}
 	defer closeWebSocket(conn)

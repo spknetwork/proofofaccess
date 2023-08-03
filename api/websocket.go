@@ -33,17 +33,17 @@ type message struct {
 
 var wsMutex = &sync.Mutex{}
 
-func upgradeToWebSocket(c *gin.Context) (*websocket.Conn, error) {
+func upgradeToWebSocket(c *gin.Context) *websocket.Conn {
 	conn, err := upgrader.Upgrade(c.Writer, c.Request, nil)
 	fmt.Println("upgradeToWebSocket")
 	if err != nil {
 		log.Error(err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to upgrade connection"})
-		return nil, err
+		return nil
 	}
 	fmt.Println("upgradeToWebSocket2")
 
-	return conn, nil
+	return conn
 }
 
 func closeWebSocket(conn *websocket.Conn) {
