@@ -42,7 +42,7 @@ func stats(c *websocket.Conn) {
 			"Type":             fmt.Sprintf(NodeType),
 			"Peers":            strings.Join(localdata.PeerNames, ","),
 			"Validators":       strings.Join(localdata.ValidatorNames, ","),
-			"NetworkStorage":   fmt.Sprintf("%d MB", NetworkStorage),
+			"NetworkStorage":   fmt.Sprintf("%d GB", NetworkStorage),
 			"SyncedPercentage": fmt.Sprintf("%f", math.Round(float64(localdata.SyncedPercentage))),
 		},
 	}
