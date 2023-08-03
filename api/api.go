@@ -39,6 +39,7 @@ func StartAPI(ctx context.Context) {
 	r.StaticFile("/", "./public/index.html")
 	r.StaticFile("/node-stats", "./public/node-stats.html")
 	r.StaticFile("/stats", "./public/stats.html")
+	r.StaticFile("/networkHistory", "./public/networkHistory.html")
 	// Handle the API request
 	r.GET("/validate", handleValidate)
 	r.POST("/shutdown", handleShutdown)
@@ -48,7 +49,7 @@ func StartAPI(ctx context.Context) {
 	// Handle the DNS lookup API request
 	r.GET("/get-ip", getIPHandler)
 	r.GET("/get-stats", getStatsHandler)
-	r.GET("/networkHistory", getNetworkHandler)
+	r.GET("/network-history", getNetworkHandler)
 	r.GET("/CID", getCIDHandler)
 	r.GET("/peer", getPeerHandler)
 	// Start the server

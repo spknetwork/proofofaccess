@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Stats Viewer</title>
+    <style>
+        body.dark-mode {
+            background-color: #333;
+            color: #f2f2f2;
+        }
+        body.light-mode {
+            background-color: #fff;
+            color: #000;
+        }
+        table {
+            width: 100%;
+        }
+        th, td {
+            padding: 15px;
+            text-align: left;
+            border-bottom: 1px solid #ddd;
+        }
+        .loading-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.6);
+            z-index: 1000;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            color: white;
+            font-size: 30px;
+            display: none; /* Hidden by default */
+        }
+        /* Pagination styles */
+        .pagination {
+            display: flex;
+            justify-content: center;
+            margin-top: 20px;
+        }
+        .pagination li {
+            margin: 0 5px;
+            cursor: pointer;
+            padding: 20px;
+        }
+        .pagination li.active {
+            font-weight: bold;
+        }
+    </style>
+
+</head>
+<body class="dark-mode">
+<button id="themeSwitch">Toggle Theme</button>
+<h1>Database Stats</h1>
+
+<table id="statsTable">
+    <tr>
+        <th>Peers</th>
+        <th>NetworkSize</th>
+        <th>Date</th>
+    </tr>
+</table>
+
+<!-- Pagination -->
+<ul class="pagination" id="pagination"></ul>
+
+<script>
+    document.addEventListener('DOMContentLoaded', (event) => {
+        const themeSwitch = document.getElementById('themeSwitch');
+        themeSwitch.addEventListener('click', function(){
+            if (document.body.classList.contains('dark-mode')) {
+                document.body.classList.remove('dark-mode');
+                document.body.classList.add('light-mode');
+            } else {
+                document.body.classList.remove('light-mode');
+                document.body.classList.add('dark-mode');
+            }
+        });
+    });
+
+    const statsTable = document.getElementById('statsTable');
+    const pagination = document.getElementById('pagination');
+    let currentPage = 1; // Start with page 1
+    const totalPages = 10; // Total number of pages - replace this with the actual number of pages
+
+    function fetchData(pageNumber) {
+        const wsUrl = "ws://spk.tv/network-history";
+        const ws = new WebSocket(wsUrl);
+
+        ws.onopen = function() {
+            // Fetch the requested page of data when the connection opens
+            ws.send(JSON.stringify({ page: pageNumber }));
+        };
+
+        ws.onmessage = function(event) {
+            let data = JSON.parse(event.data);
+            if (data.Status === "OK") {
+                let stats = JSON.parse(data.Message);
+                stats.forEach(stat => {
+                    let row = statsTable.insertRow(-1);
+                    let peersCell = row.insertCell(0);
+                    let networksizeCell = row.insertCell(1);
+                    let dateCell = row.insertCell(2);
+
+                    peersCell.innerHTML = stat.Peers;
+                    networksizeCell.innerHTML = stat.Networksize;
+                    dateCell.innerHTML = stat.Date;
+                });
+            }
+        };
+
+        ws.onerror = function(event) {
+            console.error("WebSocket error observed:", event);
+        };
+
+        ws.onclose = function(event) {
+            console.log("WebSocket connection closed:", event);
+        };
+    }
+
+    // Fetch the first page of data when the page loads
+    fetchData(currentPage);
+
+    // Generate pagination controls
+    for (let i = 1; i <= totalPages; i++) {
+        const li = document.createElement('li');
+        li.textContent = i;
+        if (i === currentPage) {
+            li.classList.add('active');
+        }
+        li.addEventListener('click', function() {
+            // Clear table for new data
+            while (statsTable.rows.length > 1) {
+                statsTable.deleteRow(1);
+            }
+            // Fetch the clicked page of data
+            currentPage = i;
+            fetchData(currentPage);
+            // Update pagination controls
+            Array.from(pagination.children).forEach((child, index) => {
+                child.classList.remove('active');
+                if (index + 1 === currentPage) {
+                    child.classList.add('active');
+                }
+            });
+        });
+        pagination.appendChild(li);
+    }
+
+</script>
+
+</body>
+</html>

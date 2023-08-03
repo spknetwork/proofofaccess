@@ -181,6 +181,7 @@ func handleValidate(c *gin.Context) {
 }
 
 func handleMessaging(c *gin.Context) {
+	log.Info("Entering handleMessaging")
 	ws, err := upgradeToWebSocket(c)
 	if err != nil {
 		log.Panic(err)
