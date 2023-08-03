@@ -18,6 +18,11 @@ type Message struct {
 	Time    time.Time `json:"time"`
 	Elapsed string    `json:"elapsed"`
 }
+type NetworkRecord struct {
+	Peers          int       `json:"Peers"`
+	NetworkStorage int       `json:"NetworkStorage"`
+	Date           time.Time `json:"date"`
+}
 
 // DB
 // Open the database
@@ -265,6 +270,61 @@ func GetStats() []Message {
 					continue
 				}
 				message.Time = t
+
+				messages = append(messages, message)
+			}
+		}
+
+		return nil
+	})
+	if err != nil {
+		log.Printf("Error reading all stats: %v\n", err)
+	}
+
+	return messages
+}
+func GetNetwork() []NetworkRecord {
+	if err := checkDatabaseOpen(); err != nil {
+		log.Fatal(err)
+	}
+
+	var messages []NetworkRecord
+
+	err := DB.View(func(txn *badger.Txn) error {
+		opts := badger.DefaultIteratorOptions
+		opts.PrefetchSize = 10
+		it := txn.NewIterator(opts)
+		defer it.Close()
+
+		prefix := []byte("Network")
+
+		for it.Seek(prefix); it.ValidForPrefix(prefix); it.Next() {
+			item := it.Item()
+			k := item.Key()
+			v, err := item.ValueCopy(nil)
+			if err != nil {
+				return err
+			}
+
+			if strings.HasPrefix(string(k), "Network") {
+				var message NetworkRecord
+				var raw map[string]interface{}
+				err := json.Unmarshal(v, &raw)
+				if err != nil {
+					log.Println("Error decoding JSON:", err)
+					continue
+				}
+
+				message.Peers = raw["Peers"].(int)
+				message.NetworkStorage = raw["NetworkStorage"].(int)
+
+				// Parse time string to time.Time
+				t, err := time.Parse(time.RFC3339Nano, raw["Date"].(string))
+				if err != nil {
+					log.Println("Error parsing time:", err)
+					continue
+				}
+				message.Date = t
 
 				messages = append(messages, message)
 			}

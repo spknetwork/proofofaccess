@@ -75,7 +75,9 @@ func RunProofs() error {
 		fmt.Println("length of localdata.PeerNames: " + strconv.Itoa(len(localdata.PeerNames)))
 		fmt.Println("Length of ThreeSpeakVideos: " + strconv.Itoa(len(localdata.ThreeSpeakVideos)))
 		for _, cid := range localdata.ThreeSpeakVideos {
+			fmt.Println("Running proofs for CID: " + cid)
 			for _, peer := range localdata.PeerNames {
+				fmt.Println("Running proofs for peer: " + peer)
 				localdata.Lock.Lock()
 				nodeStatus := localdata.NodesStatus[peer]
 				localdata.Lock.Unlock()

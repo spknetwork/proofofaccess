@@ -24,8 +24,8 @@ func stats(c *websocket.Conn) {
 
 	fmt.Println("Network Storage: ", NetworkStorage)
 	// Print the Network Storage in GB
-	NetworkStorage = NetworkStorage / 1024 / 1024
-	fmt.Println("Size: ", NetworkStorage, "MB")
+	NetworkStorage = NetworkStorage / 1024 / 1024 / 1024
+	fmt.Println("Size: ", NetworkStorage, "GB")
 	fmt.Println("NodeType: ", localdata.NodeType)
 	NodeType := ""
 	if localdata.NodeType == 1 {

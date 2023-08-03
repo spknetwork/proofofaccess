@@ -112,6 +112,9 @@ func connectToValidators(ctx context.Context, nodeType *int) {
 
 				}
 				time.Sleep(120 * time.Second)
+				fmt.Println("Getting 3Speak videos")
+				Rewards.ThreeSpeak()
+				localdata.RecordNetwork()
 			}
 		}
 	}

@@ -49,6 +49,12 @@ var ThreeSpeakVideos = []string{}
 var Lock sync.Mutex
 var PeerProofs = map[string]int{}
 
+type NetworkRecord struct {
+	Peers          int    `json:"Peers"`
+	NetworkStorage int    `json:"NetworkStorage"`
+	Date           string `json:"date"`
+}
+
 // SaveTime
 // Saves the time to the database
 func SaveTime(salt string) {
@@ -129,4 +135,31 @@ func RemoveDuplicates(peerNames []string) []string {
 	}
 
 	return result
+}
+
+func RecordNetwork() {
+	// Get the current time
+	currentTime := time.Now().Format(time.RFC3339)
+	NetworkStorage := 0
+	for _, peerName := range PeerNames {
+		fmt.Println("Peer: ", peerName)
+		fmt.Println("Size: ", PeerSize[peerName])
+		NetworkStorage = NetworkStorage + PeerSize[peerName]
+	}
+	NetworkStorage = NetworkStorage / 1024 / 1024 / 1024
+	peers := len(PeerNames)
+
+	record := NetworkRecord{
+		Peers:          peers,
+		NetworkStorage: NetworkStorage,
+		Date:           currentTime,
+	}
+
+	jsonRecord, err := json.Marshal(record)
+	if err != nil {
+		fmt.Println("Error encoding JSON")
+		return
+	}
+
+	database.Save([]byte("Network"+currentTime), jsonRecord)
 }

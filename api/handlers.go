@@ -77,6 +77,60 @@ func getStatsHandler(c *gin.Context) {
 	sendWsResponse("OK", string(statsJson), "0", conn)
 }
 
+func getNetworkHandler(c *gin.Context) {
+	conn, err := upgradeToWebSocket(c)
+	if err != nil {
+		return
+	}
+	defer closeWebSocket(conn)
+	msg, err := readWebSocketMessage(conn)
+
+	page := msg.Page
+	if err != nil {
+		log.Println("Error parsing page number:", err)
+		return
+	}
+
+	const pageSize = 50 // define the number of results per page
+
+	// Fetch stats from the database
+	stats := database.GetNetwork()
+
+	// Sort stats by date
+	sort.Slice(stats, func(i, j int) bool {
+		timeI, errI := stats[i].Date, err
+		timeJ, errJ := stats[j].Date, err
+
+		if errI != nil || errJ != nil {
+			log.Println("Error parsing time in Message struct")
+			return false
+		}
+
+		return timeI.After(timeJ)
+	})
+
+	// Apply pagination
+	startIndex := (page - 1) * pageSize
+	if startIndex >= len(stats) {
+		log.Println("Error: page number is out of range")
+		return
+	}
+	endIndex := startIndex + pageSize
+	if endIndex > len(stats) {
+		endIndex = len(stats)
+	}
+	pagedStats := stats[startIndex:endIndex]
+
+	// Convert pagedStats to JSON string
+	statsJson, err := json.Marshal(pagedStats)
+	if err != nil {
+		log.Println("Error encoding stats to JSON:", err)
+		return
+	}
+
+	sendWsResponse("OK", string(statsJson), "0", conn)
+}
+
 func handleValidate(c *gin.Context) {
 	log.Info("Entering handleValidate")
 	conn, err := upgradeToWebSocket(c)

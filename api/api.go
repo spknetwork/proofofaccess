@@ -48,6 +48,7 @@ func StartAPI(ctx context.Context) {
 	// Handle the DNS lookup API request
 	r.GET("/get-ip", getIPHandler)
 	r.GET("/get-stats", getStatsHandler)
+	r.GET("/networkHistory", getNetworkHandler)
 	r.GET("/CID", getCIDHandler)
 	r.GET("/peer", getPeerHandler)
 	// Start the server
