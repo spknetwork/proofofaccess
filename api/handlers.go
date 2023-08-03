@@ -182,10 +182,9 @@ func handleValidate(c *gin.Context) {
 
 func handleMessaging(c *gin.Context) {
 	fmt.Println("Entering handleMessaging")
-	ws, err := upgradeToWebSocket(c)
-	if err != nil {
-		log.Panic(err)
-	}
+	ws, _ := upgradeToWebSocket(c)
+	fmt.Println("Upgraded to websocket")
+
 	defer ws.Close()
 
 	for {
