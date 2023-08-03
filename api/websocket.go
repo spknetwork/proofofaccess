@@ -1,6 +1,7 @@
 package api
 
 import (
+	"fmt"
 	"github.com/gin-gonic/gin"
 	"github.com/gorilla/websocket"
 	"net/http"
@@ -34,11 +35,13 @@ var wsMutex = &sync.Mutex{}
 
 func upgradeToWebSocket(c *gin.Context) (*websocket.Conn, error) {
 	conn, err := upgrader.Upgrade(c.Writer, c.Request, nil)
+	fmt.Println("upgradeToWebSocket")
 	if err != nil {
 		log.Error(err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to upgrade connection"})
 		return nil, err
 	}
+	fmt.Println("upgradeToWebSocket2")
 
 	return conn, nil
 }
