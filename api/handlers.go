@@ -182,6 +182,7 @@ func handleValidate(c *gin.Context) {
 
 func handleMessaging(c *gin.Context) {
 	fmt.Println("Entering handleMessaging")
+	fmt.Println("Upgrading to websocket")
 	ws, _ := upgradeToWebSocket(c)
 	fmt.Println("Upgraded to websocket")
 
