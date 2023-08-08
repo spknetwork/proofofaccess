@@ -48,6 +48,7 @@ var CIDRefPercentage = map[string]int{}
 var ThreeSpeakVideos = []string{}
 var Lock sync.Mutex
 var PeerProofs = map[string]int{}
+var PeerLastActive = map[string]time.Time{}
 
 type NetworkRecord struct {
 	Peers          int    `json:"Peers"`

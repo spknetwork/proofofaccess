@@ -256,6 +256,7 @@ func PingPongPong(req Request, hash string, user string) {
 	if localdata.WsPeers[req.User] == req.User && localdata.NodeType == 1 {
 		wsMutex.Lock()
 		ws := localdata.WsClients[req.User]
+		localdata.PeerLastActive[req.User] = time.Now()
 		ws.WriteMessage(websocket.TextMessage, jsonData)
 		wsMutex.Unlock()
 	} else if localdata.UseWS == true && localdata.NodeType == 2 {

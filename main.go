@@ -330,6 +330,7 @@ func update(ctx context.Context) {
 			return
 		default:
 			localdata.RecordNetwork()
+			Rewards.ThreeSpeak()
 			time.Sleep(600 * time.Second)
 		}
 	}

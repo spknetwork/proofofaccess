@@ -21,7 +21,11 @@ func stats(c *websocket.Conn) {
 			NetworkStorage = NetworkStorage + localdata.PeerSize[peerName]
 		}
 	}
+	peerSizes := make(map[string]string) // Create a new map to hold each peer's size
 
+	for peerName, size := range localdata.PeerSize {
+		peerSizes[peerName] = fmt.Sprintf("%d", size)
+	}
 	fmt.Println("Network Storage: ", NetworkStorage)
 	// Print the Network Storage in GB
 	NetworkStorage = NetworkStorage / 1024 / 1024 / 1024
@@ -45,6 +49,8 @@ func stats(c *websocket.Conn) {
 			"NetworkStorage":   fmt.Sprintf("%d GB", NetworkStorage),
 			"SyncedPercentage": fmt.Sprintf("%f", math.Round(float64(localdata.SyncedPercentage))),
 		},
+		"PeerSizes":      peerSizes,
+		"PeerLastActive": localdata.PeerLastActive,
 	}
 	localdata.Lock.Unlock()
 	jsonData, err := json.Marshal(data)

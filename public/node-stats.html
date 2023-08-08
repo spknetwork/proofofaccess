@@ -39,7 +39,6 @@
             var stats = JSON.parse(event.data);
 
             var syncStatus = stats.Status.Sync;
-            var peers = stats.Status.Peers;
             var peersCount = stats.Status.PeersCount;
             var nodeName = stats.Status.Node;
             var nodeType = stats.Status.Type;
@@ -47,7 +46,15 @@
             var validatorsCount = stats.Status.ValidatorCount;
             var networkStorage = stats.Status.NetworkStorage;
             var syncedPercentage = stats.Status.SyncedPercentage;
+            var peerSizes = stats.PeerSizes;
+            var peerLastActive = stats.PeerLastActive; // get PeerLastActive
 
+            var peerList = "";
+            for (var peer in peerSizes) {
+                var size = peerSizes[peer];
+                var lastActive = peerLastActive[peer] || "N/A"; // get the last active date for each peer, default to "N/A" if not available
+                peerList += `${peer}: ${size} GB (Last Active: ${lastActive})<br>`;
+            }
             document.getElementById("sync-status").innerHTML = syncStatus === "true" ? 'Synced' : 'Not Synced';
             document.getElementById("sync-status").style.color = syncStatus === "true" ? 'green' : 'red';
             document.getElementById("node-name").innerHTML = nodeName;
@@ -56,8 +63,7 @@
             document.getElementById("synced-bar").style.width = syncedPercentage + '%';
             document.getElementById("synced-bar-text").innerHTML = syncedPercentage + '%';
             document.getElementById("peers-count").innerHTML = peersCount;
-            document.getElementById("peers").innerHTML = peers;
-
+            document.getElementById("peers").innerHTML = peerList;
             console.log(`nodeType: ${nodeType}`);  // Debug log
 
             if (nodeType.toLowerCase() === "storage") {
@@ -92,7 +98,8 @@
     <h2>Node Type: <span id="node-type"></span></h2>
 </div>
 <div class="stats-card">
-    <h2><span id="peers-title">Peers:</span><span id="peers"></span></h2>
+    <h2>Peers, Sizes, and Last Active:</h2>
+    <span id="peers"></span>
 </div>
 <div class="stats-card">
     <h2><span id="storage-title">Network Storage:</span> <span id="NetworkStorage"></span></h2>
