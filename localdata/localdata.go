@@ -156,6 +156,7 @@ func RecordNetwork() {
 	}
 
 	jsonRecord, err := json.Marshal(record)
+	fmt.Println("JSON Record: ", string(jsonRecord))
 	if err != nil {
 		fmt.Println("Error encoding JSON")
 		return

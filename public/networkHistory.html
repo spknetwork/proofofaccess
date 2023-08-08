@@ -105,8 +105,8 @@
                     let dateCell = row.insertCell(2);
 
                     peersCell.innerHTML = stat.Peers;
-                    networksizeCell.innerHTML = stat.Networksize;
-                    dateCell.innerHTML = stat.Date;
+                    networksizeCell.innerHTML = stat.NetworkStorage; // Fixed here
+                    dateCell.innerHTML = stat.date; // Fixed here
                 });
             }
         };
@@ -148,6 +148,7 @@
         });
         pagination.appendChild(li);
     }
+
 
 </script>
 

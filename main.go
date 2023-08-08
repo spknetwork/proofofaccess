@@ -81,6 +81,7 @@ func initialize(ctx context.Context) {
 	if *nodeType == 1 {
 		go pubsubHandler(ctx)
 		go checkSynced(ctx)
+		go update(ctx)
 	} else {
 		go fetchPins(ctx)
 	}
@@ -112,9 +113,6 @@ func connectToValidators(ctx context.Context, nodeType *int) {
 
 				}
 				time.Sleep(120 * time.Second)
-				fmt.Println("Getting 3Speak videos")
-				Rewards.ThreeSpeak()
-				localdata.RecordNetwork()
 			}
 		}
 	}
@@ -324,4 +322,15 @@ func isConnectionOpen(conn *websocket.Conn) bool {
 	}
 
 	return true
+}
+func update(ctx context.Context) {
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		default:
+			localdata.RecordNetwork()
+			time.Sleep(600 * time.Second)
+		}
+	}
 }

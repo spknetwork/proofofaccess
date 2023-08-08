@@ -19,8 +19,8 @@ type Message struct {
 	Elapsed string    `json:"elapsed"`
 }
 type NetworkRecord struct {
-	Peers          int       `json:"Peers"`
-	NetworkStorage int       `json:"NetworkStorage"`
+	Peers          float64   `json:"Peers"`
+	NetworkStorage float64   `json:"NetworkStorage"`
 	Date           time.Time `json:"date"`
 }
 
@@ -287,7 +287,7 @@ func GetNetwork() []NetworkRecord {
 	if err := checkDatabaseOpen(); err != nil {
 		log.Fatal(err)
 	}
-
+	fmt.Println("Getting network records")
 	var messages []NetworkRecord
 
 	err := DB.View(func(txn *badger.Txn) error {
@@ -315,11 +315,33 @@ func GetNetwork() []NetworkRecord {
 					continue
 				}
 
-				message.Peers = raw["Peers"].(int)
-				message.NetworkStorage = raw["NetworkStorage"].(int)
+				if peerValue, ok := raw["Peers"].(float64); ok {
+					message.Peers = peerValue
+				} else {
+					log.Println("Unexpected type or missing value for Peers")
+					continue
+				}
 
-				// Parse time string to time.Time
-				t, err := time.Parse(time.RFC3339Nano, raw["Date"].(string))
+				if nsValue, ok := raw["NetworkStorage"].(float64); ok {
+					message.NetworkStorage = nsValue
+				} else {
+					log.Println("Unexpected type or missing value for NetworkStorage")
+					continue
+				}
+
+				dateValue, exists := raw["date"]
+				if !exists || dateValue == nil {
+					log.Println("Date key not present or has nil value")
+					continue
+				}
+
+				dateString, ok := dateValue.(string)
+				if !ok {
+					log.Println("Date value is not a string")
+					continue
+				}
+
+				t, err := time.Parse(time.RFC3339Nano, dateString)
 				if err != nil {
 					log.Println("Error parsing time:", err)
 					continue
@@ -335,6 +357,7 @@ func GetNetwork() []NetworkRecord {
 	if err != nil {
 		log.Printf("Error reading all stats: %v\n", err)
 	}
-
+	fmt.Println("Returning network records")
+	fmt.Println(messages)
 	return messages
 }
