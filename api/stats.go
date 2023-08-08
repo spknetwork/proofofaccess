@@ -24,7 +24,7 @@ func stats(c *websocket.Conn) {
 	peerSizes := make(map[string]string) // Create a new map to hold each peer's size
 
 	for peerName, size := range localdata.PeerSize {
-		peerSizes[peerName] = fmt.Sprintf("%d", size)
+		peerSizes[peerName] = fmt.Sprintf("%d", size/1024/1024/1024)
 	}
 	fmt.Println("Network Storage: ", NetworkStorage)
 	// Print the Network Storage in GB
