@@ -183,7 +183,7 @@ func Read(key []byte) []byte {
 
 	if err != nil {
 		if err == badger.ErrKeyNotFound {
-			fmt.Printf("Key not found: %v\n", err)
+			//fmt.Printf("Key not found: %v\n", err)
 			Lock = false
 			return nil
 		}
