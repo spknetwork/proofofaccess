@@ -287,14 +287,15 @@ func SyncNode(NewPins map[string]interface{}, name string) {
 	for key := range NewPins {
 		wg.Add(1)
 		go func(i int, key string) {
-			// fmt.Println("Starting goroutine for: ", key)
+			fmt.Println("Starting goroutine for: ", key)
 			defer wg.Done()
 			size, _ := FileSize(key)
 			localdata.Lock.Lock()
 			peersize = peersize + size
 			localdata.Lock.Unlock()
 			// Check if the key exists in Pins
-			// fmt.Println("Checking if key exists: ", key)
+			fmt.Println("Checking if key exists: ", key)
+			fmt.Println("name: ", name)
 			isPinnedInDB := IsPinnedInDB(key)
 			if isPinnedInDB == false {
 				if localdata.NodesStatus[name] != "Synced" {
@@ -330,7 +331,7 @@ func SyncNode(NewPins map[string]interface{}, name string) {
 					log.Printf("Error: %v\n", err)
 					return
 				}
-				//fmt.Println("Saving refs: ", key)
+				fmt.Println("Saving refs: ", key)
 				database.Save([]byte("refs"+key), refsBytes)
 				localdata.Lock.Unlock()
 				completed[i] = true

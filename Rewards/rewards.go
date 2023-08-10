@@ -71,23 +71,23 @@ func ThreeSpeak() {
 
 func RunProofs() error {
 	for {
-		fmt.Println("Running proofs")
-		fmt.Println("length of localdata.PeerNames: " + strconv.Itoa(len(localdata.PeerNames)))
-		fmt.Println("Length of ThreeSpeakVideos: " + strconv.Itoa(len(localdata.ThreeSpeakVideos)))
+		//fmt.Println("Running proofs")
+		//fmt.Println("length of localdata.PeerNames: " + strconv.Itoa(len(localdata.PeerNames)))
+		//fmt.Println("Length of ThreeSpeakVideos: " + strconv.Itoa(len(localdata.ThreeSpeakVideos)))
 		for _, cid := range localdata.ThreeSpeakVideos {
-			fmt.Println("Running proofs for CID: " + cid)
+			//fmt.Println("Running proofs for CID: " + cid)
 			for _, peer := range localdata.PeerNames {
-				fmt.Println("Running proofs for peer: " + peer)
+				//fmt.Println("Running proofs for peer: " + peer)
 				isPinnedInDB := ipfs.IsPinnedInDB(cid)
 				if isPinnedInDB == true {
-					fmt.Println("Running proofs for peer: " + peer)
-					fmt.Println("Length of PeerCids: " + strconv.Itoa(len(localdata.PeerCids[peer])))
+					//fmt.Println("Running proofs for peer: " + peer)
+					//fmt.Println("Length of PeerCids: " + strconv.Itoa(len(localdata.PeerCids[peer])))
 					localdata.Lock.Lock()
 					peers := localdata.PeerCids[peer]
 					localdata.Lock.Unlock()
 					for _, peerHash := range peers {
 						if peerHash == cid {
-							fmt.Println("Running proof for peer: " + peer + " and CID: " + cid)
+							//fmt.Println("Running proof for peer: " + peer + " and CID: " + cid)
 							go RunProof(peer, cid)
 							time.Sleep(4 * time.Second)
 						}
@@ -120,14 +120,14 @@ func RunProof(peer string, cid string) error {
 
 func RewardPeers() {
 	for {
-		fmt.Println("Rewarding peers")
+		//fmt.Println("Rewarding peers")
 		for _, peer := range localdata.PeerNames {
-			fmt.Println("Checking proofs for peer: " + peer)
+			//fmt.Println("Checking proofs for peer: " + peer)
 			localdata.Lock.Lock()
 			proofs := localdata.PeerProofs[peer]
-			fmt.Println("Proofs: ", proofs)
+			//fmt.Println("Proofs: ", proofs)
 			if proofs >= 10 {
-				fmt.Println("Rewarding peer: " + peer)
+				//fmt.Println("Rewarding peer: " + peer)
 				localdata.PeerProofs[peer] = localdata.PeerProofs[peer] - 10 // Update the map while the lock is held
 
 				// Creating the request body
