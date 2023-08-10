@@ -73,10 +73,7 @@ func initialize(ctx context.Context) {
 		}
 		fmt.Println("Done pinning and unpinning videos")
 	}
-	if *runProofs {
-		go runRewardProofs(ctx)
-		go Rewards.RewardPeers()
-	}
+
 	database.Init()
 	if *nodeType == 1 {
 		go pubsubHandler(ctx)
@@ -95,6 +92,11 @@ func initialize(ctx context.Context) {
 		go connectToValidators(ctx, nodeType)
 	}
 	go api.StartAPI(ctx)
+
+	if *runProofs {
+		go runRewardProofs(ctx)
+		go Rewards.RewardPeers()
+	}
 
 }
 func connectToValidators(ctx context.Context, nodeType *int) {
