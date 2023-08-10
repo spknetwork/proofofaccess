@@ -87,7 +87,7 @@ func RunProofs() error {
 					localdata.Lock.Unlock()
 					for _, peerHash := range peers {
 						if peerHash == cid {
-							//fmt.Println("Running proof for peer: " + peer + " and CID: " + cid)
+							fmt.Println("Running proof for peer: " + peer + " and CID: " + cid)
 							go RunProof(peer, cid)
 							time.Sleep(4 * time.Second)
 						}
