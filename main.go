@@ -207,11 +207,12 @@ func fetchPins(ctx context.Context) {
 					// Check if the key exists in Pins
 					localdata.Lock.Lock()
 					localdata.Lock.Unlock()
-
+					size, _ := ipfs.FileSize(key)
+					localdata.Lock.Lock()
+					localdata.PeerSize[localdata.NodeName] += size
+					localdata.Lock.Unlock()
 					if !ipfs.IsPinnedInDB(key) {
-						size, _ := ipfs.FileSize(key)
 						localdata.Lock.Lock()
-						localdata.PeerSize[localdata.NodeName] += size
 						newPins = true
 						localdata.Lock.Unlock()
 

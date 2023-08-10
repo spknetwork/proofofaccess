@@ -53,7 +53,8 @@
             for (var peer in peerSizes) {
                 var size = peerSizes[peer];
                 var lastActive = peerLastActive[peer] || "N/A"; // get the last active date for each peer, default to "N/A" if not available
-                peerList += `${peer}: ${size} GB (Last Active: ${lastActive})<br>`;
+                var peerProof = peerProofs[peer] || "N/A"; // get the proof for each peer, default to "N/A" if not available
+                peerList += `${peer}: ${size} GB (Last Active: ${lastActive}) (Proof: ${peerProof}/10)<br>`;
             }
             document.getElementById("sync-status").innerHTML = syncStatus === "true" ? 'Synced' : 'Not Synced';
             document.getElementById("sync-status").style.color = syncStatus === "true" ? 'green' : 'red';

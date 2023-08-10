@@ -34,7 +34,7 @@ var ErrDatabaseClosed = errors.New("database is closed")
 
 func Init() {
 	var err error
-	opts := badger.DefaultOptions("data/badger")
+	opts := badger.DefaultOptions("./data/badger")
 
 	// First attempt to open the database without truncation
 	DB, err = badger.Open(opts)
