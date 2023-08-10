@@ -78,10 +78,8 @@ func RunProofs() error {
 			fmt.Println("Running proofs for CID: " + cid)
 			for _, peer := range localdata.PeerNames {
 				fmt.Println("Running proofs for peer: " + peer)
-				localdata.Lock.Lock()
-				nodeStatus := localdata.NodesStatus[peer]
-				localdata.Lock.Unlock()
-				if nodeStatus == "Synced" {
+				isPinnedInDB := ipfs.IsPinnedInDB(cid)
+				if isPinnedInDB == false {
 					fmt.Println("Running proofs for peer: " + peer)
 					fmt.Println("Length of PeerCids: " + strconv.Itoa(len(localdata.PeerCids[peer])))
 					localdata.Lock.Lock()
