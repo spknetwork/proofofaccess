@@ -138,7 +138,9 @@ func HandleMessage(message string) {
 	}
 	if req.Type == "SendCIDS" {
 		fmt.Println("SendCIDS received")
-		go SyncNode(req)
+		if !Nodes[req.User] == false {
+			go SyncNode(req)
+		}
 	}
 	if req.Type == "Syncing" {
 		fmt.Println("Syncing received")
@@ -509,7 +511,7 @@ func SyncNode(req Request) {
 	go func() {
 		for {
 			time.Sleep(1 * time.Second)
-			fmt.Println("Checking if synced with " + req.User)
+			//fmt.Println("Checking if synced with " + req.User)
 			localdata.Lock.Lock()
 			nodeStatus := localdata.NodesStatus[req.User]
 			localdata.Lock.Unlock()

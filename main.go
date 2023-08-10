@@ -164,6 +164,7 @@ func fetchPins(ctx context.Context) {
 		default:
 			localdata.Lock.Lock()
 			ipfs.Pins = ipfs.NewPins
+			var PeerSize = 0
 			localdata.Lock.Unlock()
 
 			fmt.Println("Fetching pins...")
@@ -209,7 +210,8 @@ func fetchPins(ctx context.Context) {
 					localdata.Lock.Unlock()
 					size, _ := ipfs.FileSize(key)
 					localdata.Lock.Lock()
-					localdata.PeerSize[localdata.NodeName] += size
+					PeerSize += size
+					fmt.Println("Peer size: ", localdata.PeerSize[localdata.NodeName])
 					localdata.Lock.Unlock()
 					if !ipfs.IsPinnedInDB(key) {
 						localdata.Lock.Lock()
@@ -240,6 +242,7 @@ func fetchPins(ctx context.Context) {
 
 			fmt.Println("Synced: ", 100)
 			localdata.Lock.Lock()
+			localdata.PeerSize[localdata.NodeName] = PeerSize
 			localdata.SyncedPercentage = 100
 			localdata.Lock.Unlock()
 
