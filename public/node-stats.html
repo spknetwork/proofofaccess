@@ -49,7 +49,7 @@
             var peerSizes = stats.PeerSizes;
             var peerLastActive = stats.PeerLastActive; // get PeerLastActive
             var peerProofs = stats.PeerProofs; // get PeerProofs
-            var peers = stats.Peers;
+            var peers = stats.Status.Peers;
 
             var peerList = "";
             for (var peer in peers) {
