@@ -51,7 +51,7 @@
             var peerProofs = stats.PeerProofs; // get PeerProofs
             var peerList = "";
             for (var peer in peerSizes) {
-                var size = peerSizes[peer];
+                var size = peerSizes[peer] || "N/A"; // get the size for each peer, default to "N/A" if not available
                 var lastActive = peerLastActive[peer] || "N/A"; // get the last active date for each peer, default to "N/A" if not available
                 var peerProof = peerProofs[peer] || "N/A"; // get the proof for each peer, default to "N/A" if not available
                 peerList += `${peer}: ${size} GB (Last Active: ${lastActive}) (Proof: ${peerProof}/10)<br>`;
