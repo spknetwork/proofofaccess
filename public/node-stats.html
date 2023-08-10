@@ -50,9 +50,10 @@
             var peerLastActive = stats.PeerLastActive; // get PeerLastActive
             var peerProofs = stats.PeerProofs; // get PeerProofs
             var peers = stats.Status.Peers;
-
+            console.log(`peers: ${peers}`);  // Debug log
             var peerList = "";
             for (var peer in peers) {
+                console.log(`peer: ${peer}`);  // Debug log
                 var size = peerSizes[peer] || "N/A";
                 var lastActive = peerLastActive[peer] || "N/A"; // get the last active date for each peer, default to "N/A" if not available
                 var peerProof = peerProofs[peer] || "N/A"; // get the proof for each peer, default to "N/A" if not available
