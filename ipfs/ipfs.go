@@ -297,6 +297,11 @@ func SyncNode(NewPins map[string]interface{}, name string) {
 			// fmt.Println("Checking if key exists: ", key)
 			isPinnedInDB := IsPinnedInDB(key)
 			if isPinnedInDB == false {
+				if localdata.NodesStatus[name] != "Synced" {
+					localdata.Lock.Lock()
+					localdata.PeerSize[name] = peersize
+					localdata.Lock.Unlock()
+				}
 				fmt.Println("Key not found: ", key)
 				// Get the size of the file
 				stat, err := Shell.ObjectStat(key)
