@@ -297,7 +297,7 @@ func SyncNode(NewPins map[string]interface{}, name string) {
 			// fmt.Println("Checking if key exists: ", key)
 			isPinnedInDB := IsPinnedInDB(key)
 			if isPinnedInDB == false {
-				//fmt.Println("Key not found: ", key)
+				fmt.Println("Key not found: ", key)
 				// Get the size of the file
 				stat, err := Shell.ObjectStat(key)
 				if err != nil {
@@ -330,15 +330,15 @@ func SyncNode(NewPins map[string]interface{}, name string) {
 				completed[i] = true
 			} else {
 
-				//fmt.Println("Key found: ", key)
+				fmt.Println("Key found: ", key)
 			}
 			localdata.Lock.Lock()
 			localdata.CIDRefPercentage[key] = 100
 			localdata.CIDRefStatus[key] = true
 			localdata.Lock.Unlock()
 			keyCount++
-			//fmt.Println("Key: ", keyCount)
-			//fmt.Println("Map length: ", mapLength)
+			fmt.Println("Key: ", keyCount)
+			fmt.Println("Map length: ", mapLength)
 			if keyCount == mapLength {
 				//fmt.Println("All keys found")
 				localdata.Lock.Lock()
