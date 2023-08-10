@@ -138,7 +138,7 @@ func HandleMessage(message string) {
 	}
 	if req.Type == "SendCIDS" {
 		fmt.Println("SendCIDS received")
-		if !Nodes[req.User] == false {
+		if !Nodes[req.User] {
 			go SyncNode(req)
 		}
 	}
