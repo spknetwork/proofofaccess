@@ -26,15 +26,16 @@ import (
 )
 
 var (
-	nodeType     = flag.Int("node", 1, "Node type 1 = validation 2 = access")
-	storageLimit = flag.Int("storageLimit", 1, "storageLimit in GB")
-	username     = flag.String("username", "", "Username")
-	ipfsPort     = flag.String("IPFS_PORT", "5001", "IPFS port number")
-	wsPort       = flag.String("WS_PORT", "8000", "Websocket port number")
-	useWS        = flag.Bool("useWS", false, "Use websocket")
-	getVids      = flag.Bool("getVids", false, "Fetch 3Speak videos for rewarding")
-	runProofs    = flag.Bool("runProofs", false, "Run proofs")
-	pinVideos    = flag.Bool("pinVideos", false, "Pin videos")
+	nodeType       = flag.Int("node", 1, "Node type 1 = validation 2 = access")
+	storageLimit   = flag.Int("storageLimit", 1, "storageLimit in GB")
+	username       = flag.String("username", "", "Username")
+	ipfsPort       = flag.String("IPFS_PORT", "5001", "IPFS port number")
+	wsPort         = flag.String("WS_PORT", "8000", "Websocket port number")
+	useWS          = flag.Bool("useWS", false, "Use websocket")
+	getVids        = flag.Bool("getVids", false, "Fetch 3Speak videos for rewarding")
+	runProofs      = flag.Bool("runProofs", false, "Run proofs")
+	pinVideos      = flag.Bool("pinVideos", false, "Pin videos")
+	getHiveRewards = flag.Bool("getHive", false, "Get Hive rewards")
 
 	CID, Hash string
 	log       = logrus.New()
@@ -64,7 +65,9 @@ func initialize(ctx context.Context) {
 	localdata.NodeType = *nodeType
 	localdata.WsPort = *wsPort
 	ipfs.IpfsPeerID()
-	localdata.HiveRewarded = hive.GetHiveSent()
+	if *getHiveRewards {
+		localdata.HiveRewarded = hive.GetHiveSent()
+	}
 	if *getVids {
 		fmt.Println("Getting 3Speak videos")
 		Rewards.ThreeSpeak()

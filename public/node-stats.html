@@ -53,10 +53,15 @@
             var PeerHiveRewards = stats.PeerHiveRewards; // get PeerHiveRewards
             var peerList = "";
             for (var peer in peerSizes) {
-                var size = peerSizes[peer] || "N/A"; // get the size for each peer, default to "N/A" if not available
-                var lastActive = peerLastActive[peer] || "N/A"; // get the last active date for each peer, default to "N/A" if not available
-                var peerProof = peerProofs[peer] || "N/A"; // get the proof for each peer, default to "N/A" if not available
-                var peerHiveRewards = PeerHiveRewards[peer] || "N/A"; // get the Hive Rewards for each peer, default to "N/A" if not available
+                var size = peerSizes[peer] || "N/A";
+                var lastActive = peerLastActive[peer] || "N/A";
+                var peerProof = peerProofs[peer] || "N/A";
+                var rawPeerHiveRewards = PeerHiveRewards[peer];
+
+                var peerHiveRewards = "N/A";
+                if (rawPeerHiveRewards !== undefined && !isNaN(rawPeerHiveRewards)) {
+                    peerHiveRewards = parseFloat(rawPeerHiveRewards).toFixed(3);
+                }
                 peerList += `${peer}: ${size} GB (Last Active: ${lastActive}) (Proof: ${peerProof}/10) (Status: ${peerStatus[peer]})(Hive Rewards: ${peerHiveRewards})<br />`;
             }
             document.getElementById("sync-status").innerHTML = syncStatus === "true" ? 'Synced' : 'Not Synced';
@@ -80,8 +85,6 @@
                 document.getElementById("peers").innerHTML = validators;
                 document.getElementById("storage-title").innerHTML = "Node Storage";
             }
-
-
         };
     </script>
 
