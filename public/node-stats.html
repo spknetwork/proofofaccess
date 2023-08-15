@@ -50,12 +50,14 @@
             var peerLastActive = stats.PeerLastActive; // get PeerLastActive
             var peerProofs = stats.PeerProofs; // get PeerProofs
             var peerStatus = stats.PeerSynced; // get PeerStatus
+            var PeerHiveRewards = stats.PeerHiveRewards; // get PeerHiveRewards
             var peerList = "";
             for (var peer in peerSizes) {
                 var size = peerSizes[peer] || "N/A"; // get the size for each peer, default to "N/A" if not available
                 var lastActive = peerLastActive[peer] || "N/A"; // get the last active date for each peer, default to "N/A" if not available
                 var peerProof = peerProofs[peer] || "N/A"; // get the proof for each peer, default to "N/A" if not available
-                peerList += `${peer}: ${size} GB (Last Active: ${lastActive}) (Proof: ${peerProof}/10) (Status: ${peerStatus[peer]})<br/>`;
+                var peerHiveRewards = PeerHiveRewards[peer] || "N/A"; // get the Hive Rewards for each peer, default to "N/A" if not available
+                peerList += `${peer}: ${size} GB (Last Active: ${lastActive}) (Proof: ${peerProof}/10) (Status: ${peerStatus[peer]})(Hive Rewards: ${peerHiveRewards})<br />`;
             }
             document.getElementById("sync-status").innerHTML = syncStatus === "true" ? 'Synced' : 'Not Synced';
             document.getElementById("sync-status").style.color = syncStatus === "true" ? 'green' : 'red';

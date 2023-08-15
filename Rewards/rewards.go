@@ -154,7 +154,7 @@ func RewardPeers() {
 					fmt.Println("Non-OK HTTP status:", resp.StatusCode)
 					continue
 				}
-
+				localdata.HiveRewarded[peer] = localdata.HiveRewarded[peer] + 0.050
 				fmt.Println("Rewarded hive to peer: " + peer)
 			}
 			localdata.Lock.Unlock()

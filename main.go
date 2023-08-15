@@ -13,6 +13,7 @@ import (
 	"proofofaccess/Rewards"
 	"proofofaccess/api"
 	"proofofaccess/database"
+	"proofofaccess/hive"
 	"proofofaccess/ipfs"
 	"proofofaccess/localdata"
 	"proofofaccess/messaging"
@@ -63,6 +64,7 @@ func initialize(ctx context.Context) {
 	localdata.NodeType = *nodeType
 	localdata.WsPort = *wsPort
 	ipfs.IpfsPeerID()
+	localdata.HiveRewarded = hive.GetHiveSent()
 	if *getVids {
 		fmt.Println("Getting 3Speak videos")
 		Rewards.ThreeSpeak()

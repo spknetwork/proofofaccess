@@ -50,10 +50,11 @@ func stats(c *websocket.Conn) {
 			"NetworkStorage":   fmt.Sprintf("%d GB", NetworkStorage),
 			"SyncedPercentage": fmt.Sprintf("%f", math.Round(float64(localdata.SyncedPercentage))),
 		},
-		"PeerSizes":      peerSizes,
-		"PeerLastActive": localdata.PeerLastActive,
-		"PeerProofs":     localdata.PeerProofs,
-		"PeerSynced":     peerSynced,
+		"PeerSizes":       peerSizes,
+		"PeerLastActive":  localdata.PeerLastActive,
+		"PeerProofs":      localdata.PeerProofs,
+		"PeerSynced":      peerSynced,
+		"PeerHiveRewards": localdata.HiveRewarded,
 	}
 	localdata.Lock.Unlock()
 	jsonData, err := json.Marshal(data)

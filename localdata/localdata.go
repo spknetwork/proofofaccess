@@ -49,6 +49,7 @@ var ThreeSpeakVideos = []string{}
 var Lock sync.Mutex
 var PeerProofs = map[string]int{}
 var PeerLastActive = map[string]time.Time{}
+var HiveRewarded = map[string]float64{}
 
 type NetworkRecord struct {
 	Peers          int    `json:"Peers"`
