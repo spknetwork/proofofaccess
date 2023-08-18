@@ -252,7 +252,7 @@ func handleStats(c *gin.Context) {
 		return
 	}
 	defer closeWebSocket(conn)
-	log.Info("Entering handleStats")
+	//log.Info("Entering handleStats")
 	stats(conn)
 	return
 }

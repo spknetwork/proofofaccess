@@ -37,7 +37,7 @@ func StartWsClient() {
 					continue
 				}
 				go HandleMessage(string(message))
-				fmt.Println("Client recv: ", string(message))
+				//fmt.Println("Client recv: ", string(message))
 			} else {
 				log.Println("Connection is not established.")
 				time.Sleep(1 * time.Second) // Sleep for a second before next reconnection attempt

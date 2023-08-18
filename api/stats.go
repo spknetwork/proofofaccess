@@ -27,11 +27,11 @@ func stats(c *websocket.Conn) {
 		peerSizes[peerName] = fmt.Sprintf("%d", localdata.PeerSize[peerName]/1024/1024/1024)
 		peerSynced[peerName] = fmt.Sprintf("%v", localdata.NodesStatus[peerName])
 	}
-	fmt.Println("Network Storage: ", NetworkStorage)
+	// fmt.Println("Network Storage: ", NetworkStorage)
 	// Print the Network Storage in GB
 	NetworkStorage = NetworkStorage / 1024 / 1024 / 1024
-	fmt.Println("Size: ", NetworkStorage, "GB")
-	fmt.Println("NodeType: ", localdata.NodeType)
+	// fmt.Println("Size: ", NetworkStorage, "GB")
+	// fmt.Println("NodeType: ", localdata.NodeType)
 	NodeType := ""
 	if localdata.NodeType == 1 {
 		NodeType = "Validator"
@@ -55,6 +55,7 @@ func stats(c *websocket.Conn) {
 		"PeerProofs":      localdata.PeerProofs,
 		"PeerSynced":      peerSynced,
 		"PeerHiveRewards": localdata.HiveRewarded,
+		"PeerCids":        len(localdata.PeerCids),
 	}
 	localdata.Lock.Unlock()
 	jsonData, err := json.Marshal(data)

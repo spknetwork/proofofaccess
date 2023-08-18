@@ -76,7 +76,6 @@ func initialize(ctx context.Context) {
 			fmt.Println("Pinning and unpinning videos")
 			go Rewards.PinVideos(*storageLimit, ctx)
 		}
-		fmt.Println("Done pinning and unpinning videos")
 	}
 
 	database.Init()
@@ -218,7 +217,7 @@ func fetchPins(ctx context.Context) {
 					size, _ := ipfs.FileSize(key)
 					localdata.Lock.Lock()
 					PeerSize += size
-					fmt.Println("Peer size: ", localdata.PeerSize[localdata.NodeName])
+					//fmt.Println("Peer size: ", localdata.PeerSize[localdata.NodeName])
 					localdata.Lock.Unlock()
 					if !ipfs.IsPinnedInDB(key) {
 						localdata.Lock.Lock()

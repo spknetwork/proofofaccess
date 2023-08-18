@@ -11,7 +11,6 @@ import (
 	"net/url"
 	"proofofaccess/ipfs"
 	"proofofaccess/localdata"
-	"strconv"
 	"strings"
 	"time"
 )
@@ -21,7 +20,6 @@ type APIResponse struct {
 		VideoV2 string `json:"video_v2"`
 	} `json:"recommended"`
 }
-
 type ProofMessage struct {
 	Status  string `json:"Status"`
 	Message string `json:"Message"`
@@ -216,93 +214,87 @@ type CIDSize struct {
 }
 
 func PinVideos(gb int, ctx context.Context) error {
-	// Connect to the local IPFS node
+	fmt.Println("Pinning videos")
 	sh := ipfs.Shell
-
-	// Calculate total pinned storage
-	totalPinned := int64(0)
-	fmt.Println("Getting pins")
-	pins, err := sh.Pins()
-	if err != nil {
-		fmt.Println("Error getting pins")
-		fmt.Println(err)
-	}
-	fmt.Println("Got pins")
-
-	// Define the limit for the pinned storage
 	const GB = 1024 * 1024 * 1024
 	limit := int64(gb * GB)
-	fmt.Println("Limit: ", strconv.FormatInt(limit, 10))
-	// Generate list of CIDs with size
-	cidList := make([]CIDSize, len(localdata.ThreeSpeakVideos))
-	fmt.Println("Making CID list")
-	fmt.Println("Length of localdata.ThreeSpeakVideos: ")
-	fmt.Println(len(localdata.ThreeSpeakVideos))
+	totalPinned := int64(0)
 
-	for i, cid := range localdata.ThreeSpeakVideos {
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		default:
-			if cid == "" {
-				fmt.Printf("Empty CID at index %d, skipping\n", i)
-				continue
-			}
-			fmt.Println("CID: " + cid)
-			stat, err := sh.ObjectStat(cid)
-			fmt.Println("Got object stats ", stat)
-			if err != nil {
-				fmt.Printf("Failed to get object stats for CID %s: %v, skipping\n", cid, err)
-				continue
-			}
-
-			cidList[i] = CIDSize{
-				CID:  cid,
-				Size: int64(stat.CumulativeSize),
-			}
-			totalPinned += int64(stat.CumulativeSize)
-			fmt.Println("Total pinned: " + strconv.FormatInt(totalPinned, 10))
-		}
+	// Convert ThreeSpeakVideos to a map for quicker lookups
+	videoMap := make(map[string]bool)
+	for _, cid := range localdata.ThreeSpeakVideos {
+		videoMap[cid] = true
 	}
 
-	fmt.Println("Got CID list")
+	// Check all the currently pinned CIDs
+	fmt.Println("Checking currently pinned CIDs")
+	allPinsData, _ := sh.Pins()
 
-	// Pin new videos until limit is reached
-	for _, video := range cidList {
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		default:
-			if totalPinned+video.Size > limit {
-				fmt.Println("Total pinned storage exceeds limit")
-				break
-			}
-			fmt.Println("Pinning CID: " + video.CID)
-			if err := sh.Pin(video.CID); err != nil {
-				fmt.Println("failed to pin CID %s: %w", video.CID, err)
-			}
-			fmt.Println("Pinned CID: " + video.CID)
-			totalPinned += video.Size
-		}
+	// Map the allPins to only CIDs
+	allPins := make(map[string]bool)
+	for cid := range allPinsData {
+		allPins[cid] = true
 	}
 
-	// Remove older videos if total pinned storage exceeds limit
-	for cid := range pins {
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		default:
+	for cid, pinInfo := range allPinsData {
+		// Filter only the direct pins
+		if pinInfo.Type == "recursive" {
+			if videoMap[cid] {
+				fmt.Println("CID is in the video list", cid)
+				// If the CID is in the video list, get its size and add to totalPinned
+				stat, err := sh.ObjectStat(cid)
+				if err != nil {
+					fmt.Printf("Error getting stats for CID %s: %s\n", cid, err)
+					continue
+				}
+				size := int64(stat.CumulativeSize)
+				totalPinned += size
+				fmt.Println("Total pinned: ", totalPinned)
+			} else {
+				// If the CID is not in the video list, unpin it
+				fmt.Println("Unpinning CID: ", cid)
+				if err := sh.Unpin(cid); err != nil {
+					fmt.Printf("Error unpinning CID %s: %s\n", cid, err)
+					continue
+				}
+				fmt.Println("Unpinned CID: ", cid)
+			}
+		}
+	}
+	fmt.Println("Total pinned: ", totalPinned)
+
+	// Pin videos from ThreeSpeak until the limit is reached
+	for _, cid := range localdata.ThreeSpeakVideos {
+		if totalPinned >= limit {
+			fmt.Println("Total pinned is greater than limit")
+			break
+		}
+		fmt.Println("Getting stats for CID: ", cid)
+		// If CID isn't already in allPins, then it's not pinned
+		if _, pinned := allPins[cid]; !pinned {
 			stat, err := sh.ObjectStat(cid)
 			if err != nil {
-				fmt.Println("failed to get object stats for CID %s: %w", cid, err)
+				fmt.Printf("Error getting stats for CID %s: %s\n", cid, err)
+				continue
 			}
-			if totalPinned <= limit {
-				break
+
+			size := int64(stat.CumulativeSize)
+			fmt.Println("Size: ", size)
+			fmt.Println("Total pinned: ", totalPinned)
+			fmt.Println("Limit: ", limit)
+			if totalPinned+size-1000000 <= limit {
+				fmt.Println("Pinning CID: ", cid)
+				if err := sh.Pin(cid); err != nil {
+					fmt.Printf("Failed to pin CID %s: %s\n", cid, err)
+					continue
+				}
+				totalPinned += size
+				// Once pinned, add it to the allPins
+				allPins[cid] = true
+				fmt.Println("Pinned CID: ", cid)
 			}
-			if err := sh.Unpin(cid); err != nil {
-				fmt.Println("failed to unpin CID %s: %w", cid, err)
-			}
-			totalPinned -= int64(stat.CumulativeSize) // Use actual size of the unpinned video
+		} else {
+			fmt.Println("CID is already pinned")
 		}
 	}
 

@@ -66,7 +66,7 @@ func CreatProofHash(hash string, CID string) string {
 	}
 	// Create the proof hash
 	proofHash = proofcrypto.HashFile(proofHash)
-	//fmt.Println("Proof Hash: ", proofHash)
+	fmt.Println("Proof Hash: ", proofHash)
 	return proofHash
 }
 

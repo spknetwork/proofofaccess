@@ -35,19 +35,19 @@ var wsMutex = &sync.Mutex{}
 
 func upgradeToWebSocket(c *gin.Context) *websocket.Conn {
 	conn, err := upgrader.Upgrade(c.Writer, c.Request, nil)
-	fmt.Println("upgradeToWebSocket")
+	//fmt.Println("upgradeToWebSocket")
 	if err != nil {
 		log.Error(err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to upgrade connection"})
 		return nil
 	}
-	fmt.Println("upgradeToWebSocket2")
+	//fmt.Println("upgradeToWebSocket2")
 
 	return conn
 }
 
 func closeWebSocket(conn *websocket.Conn) {
-	log.Info("Closing WebSocket connection")
+	// log.Info("Closing WebSocket connection")
 	err := conn.Close()
 	if err != nil {
 		return
@@ -67,6 +67,7 @@ func readWebSocketMessage(conn *websocket.Conn) (*message, error) {
 
 func sendWsResponse(status string, message string, elapsed string, conn *websocket.Conn) {
 	localdata.Lock.Lock()
+	fmt.Println("sendWsResponse", status, message, elapsed)
 	err := conn.WriteJSON(ExampleResponse{
 		Status:  status,
 		Message: message,

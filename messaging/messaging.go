@@ -68,14 +68,15 @@ func SendProof(req Request, hash string, seed string, user string) {
 	nodeType := localdata.NodeType
 	localdata.Lock.Unlock()
 	if wsPeers == req.User && nodeType == 1 {
-		wsMutex.Lock()
+		localdata.Lock.Lock()
 		ws := localdata.WsClients[req.User]
+		localdata.Lock.Unlock()
 		ws.WriteMessage(websocket.TextMessage, jsonData)
 		wsMutex.Unlock()
 	} else if localdata.UseWS == true && localdata.NodeType == 2 {
-		wsMutex.Lock()
+		localdata.Lock.Lock()
 		localdata.WsValidators["Validator1"].WriteMessage(websocket.TextMessage, jsonData)
-		wsMutex.Unlock()
+		localdata.Lock.Unlock()
 	} else {
 		pubsub.Publish(string(jsonData), user)
 	}
@@ -163,6 +164,7 @@ func HandleRequestProof(req Request) {
 		validationHash := validation.CreatProofHash(hash, CID)
 		SendProof(req, validationHash, hash, localdata.NodeName)
 	} else {
+		fmt.Println("Sending proof of access to validation node")
 		SendProof(req, hash, req.Seed, localdata.NodeName)
 	}
 

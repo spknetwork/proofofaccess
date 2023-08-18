@@ -301,7 +301,6 @@ func SyncNode(NewPins map[string]interface{}, name string) {
 				if localdata.NodesStatus[name] != "Synced" {
 					localdata.Lock.Lock()
 					localdata.PeerSize[name] = peersize
-					fmt.Println("Peer size: ", peersize)
 					localdata.Lock.Unlock()
 				}
 				fmt.Println("Key not found: ", key)
@@ -339,7 +338,6 @@ func SyncNode(NewPins map[string]interface{}, name string) {
 				if localdata.NodesStatus[name] != "Synced" {
 					localdata.Lock.Lock()
 					localdata.PeerSize[name] = peersize
-					fmt.Println("Peer size: ", peersize)
 					localdata.Lock.Unlock()
 				}
 				fmt.Println("Key found: ", key)
