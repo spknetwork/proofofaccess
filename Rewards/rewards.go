@@ -72,10 +72,16 @@ func RunProofs() error {
 		//fmt.Println("Running proofs")
 		//fmt.Println("length of localdata.PeerNames: " + strconv.Itoa(len(localdata.PeerNames)))
 		//fmt.Println("Length of ThreeSpeakVideos: " + strconv.Itoa(len(localdata.ThreeSpeakVideos)))
-		for _, cid := range localdata.ThreeSpeakVideos {
+		localdata.Lock.Lock()
+		threeSpeak := localdata.ThreeSpeakVideos
+		localdata.Lock.Unlock()
+		for _, cid := range threeSpeak {
 			fmt.Println("Running proofs for CID: " + cid)
-			for _, peer := range localdata.PeerNames {
-				//fmt.Println("Running proofs for peer: " + peer)
+			localdata.Lock.Lock()
+			peerNames := localdata.PeerNames
+			localdata.Lock.Unlock()
+			for _, peer := range peerNames {
+				fmt.Println("Running proof for peer: " + peer)
 				isPinnedInDB := ipfs.IsPinnedInDB(cid)
 				if isPinnedInDB == true {
 					//fmt.Println("Running proofs for peer: " + peer)

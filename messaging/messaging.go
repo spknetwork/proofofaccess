@@ -161,10 +161,10 @@ func HandleRequestProof(req Request) {
 	CID := req.CID
 	hash := req.Hash
 	if ipfs.IsPinned(CID) == true {
+		fmt.Println("Sending proof of access to validation node")
 		validationHash := validation.CreatProofHash(hash, CID)
 		SendProof(req, validationHash, hash, localdata.NodeName)
 	} else {
-		fmt.Println("Sending proof of access to validation node")
 		SendProof(req, hash, req.Seed, localdata.NodeName)
 	}
 
@@ -474,12 +474,31 @@ func SyncNode(req Request) {
 		log.Println("Pins data:", req.Pins)
 		return
 	}
+	// Lock to safely read from shared data
 	localdata.Lock.Lock()
 	allPins := localdata.PeerCids[req.User]
 	localdata.Lock.Unlock()
-	for _, value := range pins {
-		allPins = append(allPins, value)
+
+	// Create a map to use as a set for unique values
+	uniquePins := make(map[string]struct{})
+
+	// Populate the map with the existing pins
+	for _, pin := range allPins {
+		uniquePins[pin] = struct{}{}
 	}
+
+	// Add new pins to the map, automatically removing duplicates
+	for _, pin := range pins {
+		uniquePins[pin] = struct{}{}
+	}
+
+	// Convert the map keys back into a slice
+	allPins = make([]string, 0, len(uniquePins))
+	for pin := range uniquePins {
+		allPins = append(allPins, pin)
+	}
+
+	// Lock to safely write to shared data
 	localdata.Lock.Lock()
 	localdata.PeerCids[req.User] = allPins
 	localdata.PeerSyncSeed[req.Seed] = localdata.PeerSyncSeed[req.Seed] + 1
