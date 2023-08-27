@@ -325,6 +325,7 @@ func SyncNode(NewPins map[string]interface{}, name string) {
 				}
 				localdata.Lock.Lock()
 				localdata.SavedRefs[key] = refsSlice
+				localdata.Lock.Unlock()
 				refsBytes, err := json.Marshal(refsSlice)
 				if err != nil {
 					log.Printf("Error: %v\n", err)
@@ -332,10 +333,12 @@ func SyncNode(NewPins map[string]interface{}, name string) {
 				}
 				fmt.Println("Saving refs: ", key)
 				database.Save([]byte("refs"+key), refsBytes)
-				localdata.Lock.Unlock()
 				completed[i] = true
 			} else {
-				if localdata.NodesStatus[name] != "Synced" {
+				localdata.Lock.Lock()
+				nodesStatus := localdata.NodesStatus[name]
+				localdata.Lock.Unlock()
+				if nodesStatus != "Synced" {
 					localdata.Lock.Lock()
 					localdata.PeerSize[name] = peersize
 					localdata.Lock.Unlock()
