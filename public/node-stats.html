@@ -98,7 +98,7 @@
                 <th>Cids Pinned</th>
             </tr>
             </thead>
-            <tbody>
+            <tbody id="peer-tbody">
             <!-- Populated by JavaScript -->
             </tbody>
         </table>
@@ -160,8 +160,7 @@
         document.getElementById("synced-bar").style.width = syncedPercentage + '%';
         document.getElementById("synced-bar-text").innerHTML = syncedPercentage + '%';
         document.getElementById("peers-count").innerHTML = peersCount;
-        document.getElementById("peers").innerHTML = peerList;
-
+        document.getElementById("peer-tbody").innerHTML = peerList;
         if (nodeType.toLowerCase() === "storage") {
             document.getElementById("peersCount-title").innerHTML = "Validator Count:";
             document.getElementById("peers-count").innerHTML = validatorsCount;
