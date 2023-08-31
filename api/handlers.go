@@ -24,7 +24,6 @@ type WSMessage struct {
 }
 
 func getStatsHandler(c *gin.Context) {
-	key := c.Query("username")
 	conn := upgradeToWebSocket(c)
 	if conn == nil {
 		log.Error("Failed to upgrade to WebSocket")
@@ -34,6 +33,7 @@ func getStatsHandler(c *gin.Context) {
 	msg, err := readWebSocketMessage(conn)
 
 	page := msg.Page
+	key := msg.User
 	if err != nil {
 		log.Println("Error parsing page number:", err)
 		return

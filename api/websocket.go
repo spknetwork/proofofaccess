@@ -29,6 +29,7 @@ type message struct {
 	SALT   string `json:"salt"`
 	PEERID string `json:"peerid"`
 	Page   int    `json:"page"`
+	User   string `json:"username"`
 }
 
 var wsMutex = &sync.Mutex{}
