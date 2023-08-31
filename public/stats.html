@@ -81,20 +81,25 @@
                 document.body.classList.add('dark-mode');
             }
         });
+
+        const urlParams = new URLSearchParams(window.location.search);
+        const username = urlParams.get('username');
+
+        // Fetch the first page of data when the page loads
+        fetchData(currentPage, username);
     });
 
     const statsTable = document.getElementById('statsTable');
     const pagination = document.getElementById('pagination');
-    let currentPage = 1; // Start with page 1
-    const totalPages = 10; // Total number of pages - replace this with the actual number of pages
+    let currentPage = 1;
+    const totalPages = 10;
 
-    function fetchData(pageNumber) {
+    function fetchData(pageNumber, username) {
         const wsUrl = "ws://spk.tv/get-stats";
         const ws = new WebSocket(wsUrl);
 
         ws.onopen = function() {
-            // Fetch the requested page of data when the connection opens
-            ws.send(JSON.stringify({ page: pageNumber }));
+            ws.send(JSON.stringify({ page: pageNumber, username: username }));
         };
 
         ws.onmessage = function(event) {
@@ -110,10 +115,10 @@
                     let timeCell = row.insertCell(4);
                     let elapsedCell = row.insertCell(5);
 
+                    nameCell.innerHTML = stat.name;
                     cidCell.innerHTML = stat.CID;
                     seedCell.innerHTML = stat.seed;
                     statusCell.innerHTML = stat.status;
-                    nameCell.innerHTML = stat.name;
                     timeCell.innerHTML = stat.time;
                     elapsedCell.innerHTML = stat.elapsed;
                 });
@@ -129,10 +134,6 @@
         };
     }
 
-    // Fetch the first page of data when the page loads
-    fetchData(currentPage);
-
-    // Generate pagination controls
     for (let i = 1; i <= totalPages; i++) {
         const li = document.createElement('li');
         li.textContent = i;
@@ -140,14 +141,11 @@
             li.classList.add('active');
         }
         li.addEventListener('click', function() {
-            // Clear table for new data
             while (statsTable.rows.length > 1) {
                 statsTable.deleteRow(1);
             }
-            // Fetch the clicked page of data
             currentPage = i;
             fetchData(currentPage);
-            // Update pagination controls
             Array.from(pagination.children).forEach((child, index) => {
                 child.classList.remove('active');
                 if (index + 1 === currentPage) {
@@ -157,7 +155,6 @@
         });
         pagination.appendChild(li);
     }
-
 </script>
 
 </body>
