@@ -50,6 +50,19 @@
             vertical-align: middle;
             line-height: 20px;
         }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 1rem;
+        }
+        th, td {
+            padding: 0.5rem;
+            text-align: left;
+            border-bottom: 1px solid #eee;
+        }
+        th {
+            background-color: #f4f4f4;
+        }
     </style>
 </head>
 <body>
@@ -73,70 +86,90 @@
     </div>
     <div class="stats-card">
         <h2>Peers, Sizes, and Last Active:</h2>
-        <span id="peers"></span>
+        <table id="peers">
+            <thead>
+            <tr>
+                <th>Peer</th>
+                <th>Size (GB)</th>
+                <th>Last Active</th>
+                <th>Proof</th>
+                <th>Status</th>
+                <th>Hive Rewards</th>
+                <th>Cids Pinned</th>
+            </tr>
+            </thead>
+            <tbody>
+            <!-- Populated by JavaScript -->
+            </tbody>
+        </table>
     </div>
     <div class="stats-card">
         <h2><span id="storage-title">Network Storage:</span> <span id="NetworkStorage"></span></h2>
     </div>
 </div>
 
-    <script type="text/javascript">
-        var socket = new WebSocket("ws://spk.tv/getstats");
+<script type="text/javascript">
+    var socket = new WebSocket("ws://spk.tv/getstats");
 
-        socket.onmessage = function(event) {
-            var stats = JSON.parse(event.data);
+    socket.onmessage = function(event) {
+        var stats = JSON.parse(event.data);
 
-            var syncStatus = stats.Status.Sync;
-            var peersCount = stats.Status.PeersCount;
-            var nodeName = stats.Status.Node;
-            var nodeType = stats.Status.Type;
-            var validators = stats.Status.Validators;
-            var validatorsCount = stats.Status.ValidatorCount;
-            var networkStorage = stats.Status.NetworkStorage;
-            var syncedPercentage = stats.Status.SyncedPercentage;
-            var peerSizes = stats.PeerSizes;
-            var peerLastActive = stats.PeerLastActive; // get PeerLastActive
-            var peerProofs = stats.PeerProofs; // get PeerProofs
-            var peerStatus = stats.PeerSynced; // get PeerStatus
-            var PeerHiveRewards = stats.PeerHiveRewards; // get PeerHiveRewards
-            var PeerCids = stats.PeerCids; // get PeerCids
-            var peerList = "";
-            for (var peer in peerSizes) {
-                var size = peerSizes[peer] || "N/A";
-                var lastActive = peerLastActive[peer] || "N/A";
-                var peerProof = peerProofs[peer] || "N/A";
-                var rawPeerHiveRewards = PeerHiveRewards[peer];
-                var rawPeerCids = PeerCids[peer];
+        var syncStatus = stats.Status.Sync;
+        var peersCount = stats.Status.PeersCount;
+        var nodeName = stats.Status.Node;
+        var nodeType = stats.Status.Type;
+        var validators = stats.Status.Validators;
+        var validatorsCount = stats.Status.ValidatorCount;
+        var networkStorage = stats.Status.NetworkStorage;
+        var syncedPercentage = stats.Status.SyncedPercentage;
+        var peerSizes = stats.PeerSizes;
+        var peerLastActive = stats.PeerLastActive;
+        var peerProofs = stats.PeerProofs;
+        var peerStatus = stats.PeerSynced;
+        var PeerHiveRewards = stats.PeerHiveRewards;
+        var PeerCids = stats.PeerCids;
+        var peerList = "";
 
-                var peerHiveRewards = "N/A";
-                if (rawPeerHiveRewards !== undefined && !isNaN(rawPeerHiveRewards)) {
-                    peerHiveRewards = parseFloat(rawPeerHiveRewards).toFixed(3);
-                }
-                peerList += `${peer}: ${size} GB (Last Active: ${lastActive}) (Proof: ${peerProof}/10) (Status: ${peerStatus[peer]})(Hive Rewards: ${peerHiveRewards}) (CidsPinned: ${rawPeerCids})<br>`;
+        for (var peer in peerSizes) {
+            var size = peerSizes[peer] || "N/A";
+            var lastActive = peerLastActive[peer] || "N/A";
+            var peerProof = peerProofs[peer] || "N/A";
+            var rawPeerHiveRewards = PeerHiveRewards[peer];
+            var rawPeerCids = PeerCids[peer];
+            var peerHiveRewards = "N/A";
+            if (rawPeerHiveRewards !== undefined && !isNaN(rawPeerHiveRewards)) {
+                peerHiveRewards = parseFloat(rawPeerHiveRewards).toFixed(3);
             }
-            document.getElementById("sync-status").innerHTML = syncStatus === "true" ? 'Synced' : 'Not Synced';
-            document.getElementById("sync-status").style.color = syncStatus === "true" ? 'green' : 'red';
-            document.getElementById("node-name").innerHTML = nodeName;
-            document.getElementById("node-type").innerHTML = nodeType;
-            document.getElementById("NetworkStorage").innerHTML = networkStorage;
-            document.getElementById("synced-bar").style.width = syncedPercentage + '%';
-            document.getElementById("synced-bar-text").innerHTML = syncedPercentage + '%';
-            document.getElementById("peers-count").innerHTML = peersCount;
-            document.getElementById("peers").innerHTML = peerList;
-            console.log(`nodeType: ${nodeType}`);  // Debug log
 
-            if (nodeType.toLowerCase() === "storage") {
-                console.log("Changing storage title...");  // Debug log
-                document.getElementById("peersCount-title").innerHTML = "Validator Count:";
-                document.getElementById("peers-title").innerHTML = "Validators:";
-                document.getElementById("storage-title").innerHTML = "Node Storage:";
-                document.getElementById("peers-count").innerHTML = validatorsCount;
-                console.log(`validators: ${validatorsCount}`);  // Debug log
-                document.getElementById("peers").innerHTML = validators;
-                document.getElementById("storage-title").innerHTML = "Node Storage";
-            }
-        };
-    </script>
+            peerList += `<tr>
+                <td>${peer}</td>
+                <td>${size}</td>
+                <td>${lastActive}</td>
+                <td>${peerProof}/10</td>
+                <td>${peerStatus[peer]}</td>
+                <td>${peerHiveRewards}</td>
+                <td>${rawPeerCids}</td>
+            </tr>`;
+        }
+
+        document.getElementById("sync-status").innerHTML = syncStatus === "true" ? 'Synced' : 'Not Synced';
+        document.getElementById("sync-status").style.color = syncStatus === "true" ? 'green' : 'red';
+        document.getElementById("node-name").innerHTML = nodeName;
+        document.getElementById("node-type").innerHTML = nodeType;
+        document.getElementById("NetworkStorage").innerHTML = networkStorage;
+        document.getElementById("synced-bar").style.width = syncedPercentage + '%';
+        document.getElementById("synced-bar-text").innerHTML = syncedPercentage + '%';
+        document.getElementById("peers-count").innerHTML = peersCount;
+        document.getElementById("peers").innerHTML = peerList;
+
+        if (nodeType.toLowerCase() === "storage") {
+            document.getElementById("peersCount-title").innerHTML = "Validator Count:";
+            document.getElementById("peers-count").innerHTML = validatorsCount;
+            document.getElementById("peers").innerHTML = validators;
+            document.getElementById("storage-title").innerHTML = "Node Storage";
+        }
+    };
+</script>
 
 </body>
 </html>
