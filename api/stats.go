@@ -9,7 +9,7 @@ import (
 	"strings"
 )
 
-func stats(c *websocket.Conn) {
+func stats(c *websocket.Conn, key string) {
 	NetworkStorage := 0
 	localdata.Lock.Lock()
 	if localdata.NodeType == 2 {

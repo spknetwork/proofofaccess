@@ -225,7 +225,7 @@ func SetTime(key []byte, t time.Time) {
 	Save(key, []byte(t.Format(time.RFC3339Nano)))
 }
 
-func GetStats() []Message {
+func GetStats(user string) []Message {
 	if err := checkDatabaseOpen(); err != nil {
 		log.Fatal(err)
 	}
@@ -256,22 +256,41 @@ func GetStats() []Message {
 					log.Println("Error decoding JSON:", err)
 					continue
 				}
+				if user == "" {
+					message.CID = raw["CID"].(string)
+					message.Seed = raw["seed"].(string)
+					message.Status = raw["status"].(string)
+					message.Name = raw["name"].(string)
+					message.Elapsed = raw["elapsed"].(string)
 
-				message.CID = raw["CID"].(string)
-				message.Seed = raw["seed"].(string)
-				message.Status = raw["status"].(string)
-				message.Name = raw["name"].(string)
-				message.Elapsed = raw["elapsed"].(string)
+					// Parse time string to time.Time
+					t, err := time.Parse(time.RFC3339Nano, raw["time"].(string))
+					if err != nil {
+						log.Println("Error parsing time:", err)
+						continue
+					}
+					message.Time = t
+					messages = append(messages, message)
 
-				// Parse time string to time.Time
-				t, err := time.Parse(time.RFC3339Nano, raw["time"].(string))
-				if err != nil {
-					log.Println("Error parsing time:", err)
-					continue
+				} else if user == raw["name"].(string) {
+					fmt.Println("Found user", user)
+					message.CID = raw["CID"].(string)
+					message.Seed = raw["seed"].(string)
+					message.Status = raw["status"].(string)
+					message.Name = raw["name"].(string)
+					message.Elapsed = raw["elapsed"].(string)
+
+					// Parse time string to time.Time
+					t, err := time.Parse(time.RFC3339Nano, raw["time"].(string))
+					if err != nil {
+						log.Println("Error parsing time:", err)
+						continue
+					}
+					message.Time = t
+					messages = append(messages, message)
+
 				}
-				message.Time = t
 
-				messages = append(messages, message)
 			}
 		}
 

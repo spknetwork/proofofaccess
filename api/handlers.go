@@ -24,6 +24,7 @@ type WSMessage struct {
 }
 
 func getStatsHandler(c *gin.Context) {
+	key := c.Query("username")
 	conn := upgradeToWebSocket(c)
 	if conn == nil {
 		log.Error("Failed to upgrade to WebSocket")
@@ -41,7 +42,7 @@ func getStatsHandler(c *gin.Context) {
 	const pageSize = 50 // define the number of results per page
 
 	// Fetch stats from the database
-	stats := database.GetStats()
+	stats := database.GetStats(key)
 
 	// Sort stats by date
 	sort.Slice(stats, func(i, j int) bool {
@@ -247,13 +248,14 @@ func handleShutdown(c *gin.Context) {
 
 func handleStats(c *gin.Context) {
 	conn := upgradeToWebSocket(c)
+	key := c.Query("username")
 	if conn == nil {
 		log.Error("Failed to upgrade to WebSocket")
 		return
 	}
 	defer closeWebSocket(conn)
 	//log.Info("Entering handleStats")
-	stats(conn)
+	stats(conn, key)
 	return
 }
 
