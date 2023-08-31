@@ -234,7 +234,7 @@ func GetStats(user string) []Message {
 
 	err := DB.View(func(txn *badger.Txn) error {
 		opts := badger.DefaultIteratorOptions
-		opts.PrefetchSize = 10
+		opts.PrefetchSize = 1000
 		it := txn.NewIterator(opts)
 		defer it.Close()
 
