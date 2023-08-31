@@ -241,6 +241,7 @@ func GetStats(user string) []Message {
 		prefix := []byte("Stats")
 
 		for it.Seek(prefix); it.ValidForPrefix(prefix); it.Next() {
+			fmt.Println("Found key", it.Item().Key())
 			item := it.Item()
 			k := item.Key()
 			v, err := item.ValueCopy(nil)
