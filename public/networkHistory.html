@@ -2,6 +2,7 @@
 <html>
 <head>
     <title>Stats Viewer</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
         body.dark-mode {
             background-color: #333;
@@ -11,62 +12,19 @@
             background-color: #fff;
             color: #000;
         }
-        table {
-            width: 100%;
-        }
-        th, td {
-            padding: 15px;
-            text-align: left;
-            border-bottom: 1px solid #ddd;
-        }
-        .loading-overlay {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: rgba(0, 0, 0, 0.6);
-            z-index: 1000;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            color: white;
-            font-size: 30px;
-            display: none; /* Hidden by default */
-        }
-        /* Pagination styles */
-        .pagination {
-            display: flex;
-            justify-content: center;
-            margin-top: 20px;
-        }
-        .pagination li {
-            margin: 0 5px;
-            cursor: pointer;
-            padding: 20px;
-        }
-        .pagination li.active {
-            font-weight: bold;
-        }
     </style>
-
 </head>
 <body class="dark-mode">
 <button id="themeSwitch">Toggle Theme</button>
 <h1>Database Stats</h1>
 
-<table id="statsTable">
-    <tr>
-        <th>Peers</th>
-        <th>NetworkSize</th>
-        <th>Date</th>
-    </tr>
-</table>
+<canvas id="statsChart"></canvas>
 
 <!-- Pagination -->
 <ul class="pagination" id="pagination"></ul>
 
 <script>
+    // Theme toggle logic
     document.addEventListener('DOMContentLoaded', (event) => {
         const themeSwitch = document.getElementById('themeSwitch');
         themeSwitch.addEventListener('click', function(){
@@ -80,17 +38,55 @@
         });
     });
 
-    const statsTable = document.getElementById('statsTable');
+    const ctx = document.getElementById('statsChart').getContext('2d');
     const pagination = document.getElementById('pagination');
-    let currentPage = 1; // Start with page 1
-    const totalPages = 10; // Total number of pages - replace this with the actual number of pages
+    const labels = [];
+    const peersData = [];
+    const networkSizeData = [];
+
+    const chart = new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: labels,
+            datasets: [
+                {
+                    label: 'Peers',
+                    data: peersData,
+                    borderColor: 'blue'
+                },
+                {
+                    label: 'Network Size',
+                    data: networkSizeData,
+                    borderColor: 'green'
+                }
+            ]
+        },
+        options: {
+            scales: {
+                x: {
+                    title: {
+                        display: true,
+                        text: 'Date'
+                    }
+                },
+                y: {
+                    title: {
+                        display: true,
+                        text: 'Value'
+                    }
+                }
+            }
+        }
+    });
+
+    let currentPage = 1;
+    const totalPages = 10;
 
     function fetchData(pageNumber) {
         const wsUrl = "ws://spk.tv/network-history";
         const ws = new WebSocket(wsUrl);
 
         ws.onopen = function() {
-            // Fetch the requested page of data when the connection opens
             ws.send(JSON.stringify({ page: pageNumber }));
         };
 
@@ -98,16 +94,16 @@
             let data = JSON.parse(event.data);
             if (data.Status === "OK") {
                 let stats = JSON.parse(data.Message);
-                stats.forEach(stat => {
-                    let row = statsTable.insertRow(-1);
-                    let peersCell = row.insertCell(0);
-                    let networksizeCell = row.insertCell(1);
-                    let dateCell = row.insertCell(2);
 
-                    peersCell.innerHTML = stat.Peers;
-                    networksizeCell.innerHTML = stat.NetworkStorage; // Fixed here
-                    dateCell.innerHTML = stat.date; // Fixed here
+                // Update the chart data arrays and labels
+                stats.forEach(stat => {
+                    labels.push(stat.date);
+                    peersData.push(stat.Peers);
+                    networkSizeData.push(stat.NetworkStorage);
                 });
+
+                // Update the chart to reflect the new data
+                chart.update();
             }
         };
 
@@ -120,7 +116,6 @@
         };
     }
 
-    // Fetch the first page of data when the page loads
     fetchData(currentPage);
 
     // Generate pagination controls
@@ -131,14 +126,12 @@
             li.classList.add('active');
         }
         li.addEventListener('click', function() {
-            // Clear table for new data
-            while (statsTable.rows.length > 1) {
-                statsTable.deleteRow(1);
-            }
-            // Fetch the clicked page of data
             currentPage = i;
+            labels.length = 0;
+            peersData.length = 0;
+            networkSizeData.length = 0;
             fetchData(currentPage);
-            // Update pagination controls
+
             Array.from(pagination.children).forEach((child, index) => {
                 child.classList.remove('active');
                 if (index + 1 === currentPage) {
@@ -148,9 +141,6 @@
         });
         pagination.appendChild(li);
     }
-
-
 </script>
-
 </body>
 </html>

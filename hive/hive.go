@@ -168,6 +168,7 @@ func GetHiveSent() map[string]float64 {
 			if transaction.Op.Type == "transfer_operation" {
 				transferData := transaction.Op.Value
 				if transferData.From == accountToCheck && transferData.To != accountToCheck {
+					fmt.Println(transferData.To, transferData.Amount.Amount)
 					amount, _ := strconv.ParseFloat(transferData.Amount.Amount, 64)
 					amount /= math.Pow(10, float64(transferData.Amount.Precision))
 					sentAmounts[transferData.To] += amount

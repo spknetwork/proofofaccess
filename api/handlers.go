@@ -95,7 +95,7 @@ func getNetworkHandler(c *gin.Context) {
 		return
 	}
 
-	const pageSize = 50 // define the number of results per page
+	const pageSize = 500 // define the number of results per page
 	fmt.Println("Getting network records")
 	// Fetch stats from the database
 	stats := database.GetNetwork()

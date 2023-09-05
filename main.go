@@ -41,6 +41,7 @@ var (
 	log       = logrus.New()
 	newPins   = false
 )
+var mu sync.Mutex
 
 func main() {
 	flag.Parse()
@@ -316,18 +317,24 @@ func checkSynced(ctx context.Context) {
 	}
 }
 func isConnectionOpen(conn *websocket.Conn) bool {
+	mu.Lock()
+	defer mu.Unlock()
 	var writeWait = 1 * time.Second
+
 	if err := conn.SetWriteDeadline(time.Now().Add(writeWait)); err != nil {
+		log.Println("SetWriteDeadline failed:", err)
 		return false
 	}
 
 	// Write the ping message to the connection
 	if err := conn.WriteMessage(websocket.PingMessage, nil); err != nil {
+		log.Println("WriteMessage failed:", err)
 		return false
 	}
 
 	// Reset the write deadline
 	if err := conn.SetWriteDeadline(time.Time{}); err != nil {
+		log.Println("Resetting WriteDeadline failed:", err)
 		return false
 	}
 
