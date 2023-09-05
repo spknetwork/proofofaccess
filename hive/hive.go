@@ -147,7 +147,7 @@ func GetHiveSent() map[string]float64 {
 		if err != nil || len(history) == 0 {
 			break
 		}
-
+		fmt.Println("Fetched", len(history), "entries")
 		for _, resultSlice := range history {
 			if len(resultSlice) < 2 {
 				continue

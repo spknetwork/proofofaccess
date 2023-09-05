@@ -67,7 +67,9 @@ func initialize(ctx context.Context) {
 	localdata.WsPort = *wsPort
 	ipfs.IpfsPeerID()
 	if *getHiveRewards {
+		fmt.Println("Getting Hive rewards")
 		localdata.HiveRewarded = hive.GetHiveSent()
+		fmt.Println("Done getting Hive rewards")
 	}
 	if *getVids {
 		fmt.Println("Getting 3Speak videos")
