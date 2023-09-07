@@ -175,7 +175,7 @@ func HandleRequestProof(req Request) {
 func HandleProofOfAccess(req Request) {
 	// Get the start time from the seed
 	start := localdata.GetTime(req.Seed)
-	// fmt.Println("Start time:", start)
+	fmt.Println("Start time:", start)
 	// Get the current time
 	elapsed := time.Since(start)
 	// fmt.Println("Elapsed time:", elapsed)
