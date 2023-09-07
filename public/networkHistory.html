@@ -102,6 +102,11 @@
                     networkSizeData.push(stat.NetworkStorage);
                 });
 
+                // Reverse the data to show oldest first
+                labels.reverse();
+                peersData.reverse();
+                networkSizeData.reverse();
+
                 // Update the chart to reflect the new data
                 chart.update();
             }
