@@ -99,6 +99,12 @@ func HandleMessage(message string) {
 	localdata.Lock.Unlock()
 	if nodeType == 1 {
 		if req.Type == TypeProofOfAccess {
+			fmt.Println("Proof of access received")
+			fmt.Println("Hash: " + req.Hash)
+			fmt.Println("Seed: " + req.Seed)
+			fmt.Println("User: " + req.User)
+			fmt.Println("CID: " + req.CID)
+			fmt.Println("Pins: " + req.Pins)
 			go HandleProofOfAccess(req)
 		}
 
