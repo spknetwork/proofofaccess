@@ -171,7 +171,7 @@ func HandleRequestProof(req Request) {
 		validationHash := validation.CreatProofHash(hash, CID)
 		SendProof(req, validationHash, hash, localdata.NodeName)
 	} else {
-		SendProof(req, hash, req.Seed, localdata.NodeName)
+		SendProof(req, "NA", hash, localdata.NodeName)
 	}
 
 }
@@ -202,7 +202,7 @@ func HandleProofOfAccess(req Request) {
 	localdata.Lock.Unlock()
 	// Create the proof hash
 	var validationHash string
-	if req.Hash != "" {
+	if req.Hash != "" || req.Hash != "NA" {
 		// fmt.Println("Creating proof of access hash")
 		validationHash = validation.CreatProofHash(seed, CID)
 		// Check if the proof of access is valid
