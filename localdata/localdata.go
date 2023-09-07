@@ -63,6 +63,8 @@ type NetworkRecord struct {
 func SaveTime(salt string) {
 	Time = time.Now()
 	timeStr := Time.Format(Layout)
+	fmt.Println("Time: ", timeStr)
+	fmt.Println("Salt: ", salt)
 	database.Update([]byte(salt+"time"), []byte(timeStr))
 }
 
@@ -70,6 +72,8 @@ func SaveTime(salt string) {
 // Gets the time from the database
 func GetTime(hash string) time.Time {
 	data := database.Read([]byte(hash + "time"))
+	fmt.Println("GetTime", string(data))
+	fmt.Println("salt", hash)
 	parsedTime, _ := time.Parse(Layout, string(data))
 	return parsedTime
 }
