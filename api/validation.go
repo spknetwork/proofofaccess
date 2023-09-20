@@ -120,7 +120,7 @@ func sendProofRequest(salt string, proofJson []byte, name string, conn *websocke
 		ws := localdata.WsClients[name]
 		ws.WriteMessage(websocket.TextMessage, proofJson)
 	} else if localdata.UseWS == true && localdata.NodeType == 2 {
-		localdata.WsValidators["Validator1"].WriteMessage(websocket.TextMessage, proofJson)
+		localdata.WsValidators[name].WriteMessage(websocket.TextMessage, proofJson)
 	} else {
 		err := pubsub.Publish(string(proofJson), name)
 		if err != nil {

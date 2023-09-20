@@ -83,7 +83,7 @@
     const totalPages = 10;
 
     function fetchData(pageNumber) {
-        const wsUrl = "ws://spk.tv/network-history";
+        const wsUrl = `ws://${location.host}/network-history`;
         const ws = new WebSocket(wsUrl);
 
         ws.onopen = function() {

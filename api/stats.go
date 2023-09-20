@@ -55,7 +55,7 @@ func stats(c *websocket.Conn, key string) {
 		"PeerProofs":      localdata.PeerProofs,
 		"PeerSynced":      peerSynced,
 		"PeerHiveRewards": localdata.HiveRewarded,
-		"PeerCids":        len(localdata.PeerCids),
+		"PeerCids":        localdata.PeerCids,
 	}
 	localdata.Lock.Unlock()
 	jsonData, err := json.Marshal(data)
