@@ -25,6 +25,7 @@ var Synced = false
 var NodeName = ""
 var PeerNames = []string{}
 var ValidatorNames = []string{}
+var ValidatorAddress = map[string]string{}
 var PeerStats = map[string][]string{}
 var PeerSize = map[string]int{}
 var Validators = map[string]bool{}

@@ -95,7 +95,7 @@
     const totalPages = 10;
 
     function fetchData(pageNumber, username) {
-        const wsUrl = "ws://spk.tv/get-stats";
+        const wsUrl = `ws://${location.host}/get-stats`;
         const ws = new WebSocket(wsUrl);
 
         ws.onopen = function() {
