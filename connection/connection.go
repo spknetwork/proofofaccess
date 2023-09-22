@@ -54,8 +54,12 @@ func CheckSynced(ctx context.Context) {
 		default:
 			for _, peerName := range localdata.PeerNames {
 				if localdata.WsPeers[peerName] == peerName {
-					if IsConnectionOpen(localdata.WsClients[peerName]) == false {
+					localdata.Lock.Lock()
+					peerWs := localdata.WsClients[peerName]
+					localdata.Lock.Unlock()
+					if IsConnectionOpen(peerWs) == false {
 						fmt.Println("Connection to validator", peerName, "lost")
+						localdata.Lock.Lock()
 						localdata.WsPeers[peerName] = ""
 						localdata.WsClients[peerName] = nil
 						newPeerNames := make([]string, 0, len(localdata.PeerNames)-1)
@@ -65,21 +69,28 @@ func CheckSynced(ctx context.Context) {
 							}
 						}
 						localdata.PeerNames = newPeerNames
+						localdata.Lock.Unlock()
 					}
 				} else {
 					// Get the start time from the seed
+					localdata.Lock.Lock()
 					start := localdata.PingTime[peerName]
-
+					localdata.Lock.Unlock()
 					// Get the current time
 					elapsed := time.Since(start)
 					if elapsed.Seconds() > 121 {
+						localdata.Lock.Lock()
+						peerN := localdata.PeerNames
 						newPeerNames := make([]string, 0, len(localdata.PeerNames)-1)
-						for _, pn := range localdata.PeerNames {
+						localdata.Lock.Unlock()
+						for _, pn := range peerN {
 							if pn != peerName {
 								newPeerNames = append(newPeerNames, pn)
 							}
 						}
+						localdata.Lock.Lock()
 						localdata.PeerNames = newPeerNames
+						localdata.Lock.Unlock()
 					}
 				}
 			}
