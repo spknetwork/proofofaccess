@@ -15,8 +15,8 @@ import (
 	"proofofaccess/hive"
 	"proofofaccess/ipfs"
 	"proofofaccess/localdata"
+	"proofofaccess/messaging"
 	"proofofaccess/peers"
-	"proofofaccess/pubsub"
 	"proofofaccess/validators"
 	"sync"
 	"syscall"
@@ -80,7 +80,7 @@ func initialize(ctx context.Context) {
 
 	database.Init()
 	if *nodeType == 1 {
-		go pubsub.PubsubHandler(ctx)
+		go messaging.PubsubHandler(ctx)
 		go connection.CheckSynced(ctx)
 		go Rewards.Update(ctx)
 	} else {
@@ -95,7 +95,7 @@ func initialize(ctx context.Context) {
 			}
 
 		} else {
-			go pubsub.PubsubHandler(ctx)
+			go messaging.PubsubHandler(ctx)
 			go validators.ConnectToValidators(ctx, nodeType)
 		}
 	}

@@ -1,9 +1,12 @@
 package messaging
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"github.com/gorilla/websocket"
+	"github.com/sirupsen/logrus"
+	poaipfs "proofofaccess/ipfs"
 	"proofofaccess/localdata"
 	"proofofaccess/pubsub"
 	"sync"
@@ -29,6 +32,9 @@ const (
 	TypePingPongPong  = "PingPongPong"
 )
 
+var (
+	log = logrus.New()
+)
 var wsMutex = &sync.Mutex{}
 var Ping = map[string]bool{}
 var ProofRequest = map[string]bool{}
@@ -120,7 +126,33 @@ func HandleMessage(message string) {
 	// fmt.Println("Message handled")
 
 }
+func PubsubHandler(ctx context.Context) {
+	if poaipfs.Shell != nil {
+		sub, err := pubsub.Subscribe(localdata.NodeName)
+		if err != nil {
+			log.Error("Error subscribing to pubsub: ", err)
+			return
+		}
 
+		log.Info("User:", localdata.NodeName)
+
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			default:
+				msg, err := pubsub.Read(sub)
+				if err != nil {
+					log.Error("Error reading from pubsub: ", err)
+					continue
+				}
+				HandleMessage(msg)
+			}
+		}
+	} else {
+		time.Sleep(1 * time.Second)
+	}
+}
 func SendPing(hash string, user string) {
 	data := map[string]string{
 		"type": TypePingPongPing,

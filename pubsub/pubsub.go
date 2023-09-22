@@ -4,15 +4,7 @@ import (
 	"context"
 	"fmt"
 	ipfs "github.com/ipfs/go-ipfs-api"
-	"github.com/sirupsen/logrus"
 	poaipfs "proofofaccess/ipfs"
-	"proofofaccess/localdata"
-	"proofofaccess/messaging"
-	"time"
-)
-
-var (
-	log = logrus.New()
 )
 
 // Subscribe to a topic
@@ -47,31 +39,4 @@ func Publish(message string, user string) error {
 		return err
 	}
 	return nil
-}
-func PubsubHandler(ctx context.Context) {
-	if poaipfs.Shell != nil {
-		sub, err := Subscribe(localdata.NodeName)
-		if err != nil {
-			log.Error("Error subscribing to pubsub: ", err)
-			return
-		}
-
-		log.Info("User:", localdata.NodeName)
-
-		for {
-			select {
-			case <-ctx.Done():
-				return
-			default:
-				msg, err := Read(sub)
-				if err != nil {
-					log.Error("Error reading from pubsub: ", err)
-					continue
-				}
-				messaging.HandleMessage(msg)
-			}
-		}
-	} else {
-		time.Sleep(1 * time.Second)
-	}
 }
