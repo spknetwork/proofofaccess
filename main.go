@@ -15,6 +15,7 @@ import (
 	"proofofaccess/hive"
 	"proofofaccess/ipfs"
 	"proofofaccess/localdata"
+	"proofofaccess/peers"
 	"proofofaccess/pubsub"
 	"proofofaccess/validators"
 	"sync"
@@ -83,7 +84,7 @@ func initialize(ctx context.Context) {
 		go connection.CheckSynced(ctx)
 		go Rewards.Update(ctx)
 	} else {
-		go ipfs.FetchPins(ctx)
+		go peers.FetchPins(ctx)
 	}
 	if *nodeType == 2 {
 		validators.GetValidators()
