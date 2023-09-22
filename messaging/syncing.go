@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/gorilla/websocket"
-	"log"
 	"proofofaccess/database"
 	"proofofaccess/ipfs"
 	"proofofaccess/localdata"
