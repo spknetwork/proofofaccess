@@ -34,12 +34,12 @@ func RunProofs(cids []string) error {
 		//fmt.Println("length of localdata.PeerNames: " + strconv.Itoa(len(localdata.PeerNames)))
 		//fmt.Println("Length of ThreeSpeakVideos: " + strconv.Itoa(len(localdata.ThreeSpeakVideos)))
 		for _, cid := range cids {
-			fmt.Println("Running proofs for CID: " + cid)
+			// fmt.Println("Running proofs for CID: " + cid)
 			localdata.Lock.Lock()
 			peerNames := localdata.PeerNames
 			localdata.Lock.Unlock()
 			for _, peer := range peerNames {
-				fmt.Println("Running proof for peer: " + peer)
+				//fmt.Println("Running proof for peer: " + peer)
 				isPinnedInDB := ipfs.IsPinnedInDB(cid)
 				if isPinnedInDB == true {
 					//fmt.Println("Running proofs for peer: " + peer)

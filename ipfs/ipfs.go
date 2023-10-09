@@ -277,22 +277,22 @@ func SyncNode(NewPins map[string]interface{}, name string) {
 			}
 
 		}
-		fmt.Printf("Name: %s, CID: %s has %d references so far (%.2f%%)\n", name, key, refCounts[i], percentage)
+		//fmt.Printf("Name: %s, CID: %s has %d references so far (%.2f%%)\n", name, key, refCounts[i], percentage)
 	}
 
 	index := 0
 	for key := range NewPins {
 		wg.Add(1)
 		go func(i int, key string) {
-			fmt.Println("Starting goroutine for: ", key)
+			//fmt.Println("Starting goroutine for: ", key)
 			defer wg.Done()
 			size, _ := FileSize(key)
 			localdata.Lock.Lock()
 			peersize = peersize + size
 			localdata.Lock.Unlock()
 			// Check if the key exists in Pins
-			fmt.Println("Checking if key exists: ", key)
-			fmt.Println("name: ", name)
+			//fmt.Println("Checking if key exists: ", key)
+			//fmt.Println("name: ", name)
 			isPinnedInDB := IsPinnedInDB(key)
 			if isPinnedInDB == false {
 				if localdata.NodesStatus[name] != "Synced" {
@@ -300,7 +300,7 @@ func SyncNode(NewPins map[string]interface{}, name string) {
 					localdata.PeerSize[name] = peersize
 					localdata.Lock.Unlock()
 				}
-				fmt.Println("Key not found: ", key)
+				//fmt.Println("Key not found: ", key)
 				// Get the size of the file
 				stat, err := Shell.ObjectStat(key)
 				if err != nil {
@@ -328,7 +328,7 @@ func SyncNode(NewPins map[string]interface{}, name string) {
 					log.Printf("Error: %v\n", err)
 					return
 				}
-				fmt.Println("Saving refs: ", key)
+				// fmt.Println("Saving refs: ", key)
 				database.Save([]byte("refs"+key), refsBytes)
 				completed[i] = true
 			} else {
@@ -340,15 +340,15 @@ func SyncNode(NewPins map[string]interface{}, name string) {
 					localdata.PeerSize[name] = peersize
 					localdata.Lock.Unlock()
 				}
-				fmt.Println("Key found: ", key)
+				//fmt.Println("Key found: ", key)
 			}
 			localdata.Lock.Lock()
 			localdata.CIDRefPercentage[key] = 100
 			localdata.CIDRefStatus[key] = true
 			localdata.Lock.Unlock()
 			keyCount++
-			fmt.Println("Key: ", keyCount)
-			fmt.Println("Map length: ", mapLength)
+			//fmt.Println("Key: ", keyCount)
+			//fmt.Println("Map length: ", mapLength)
 			if keyCount == mapLength {
 				//fmt.Println("All keys found")
 				localdata.Lock.Lock()
