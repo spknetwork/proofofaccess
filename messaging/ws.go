@@ -63,7 +63,9 @@ func StartWsClient() {
 				wsPing(salt)
 			} else {
 				// Ping the server to check if still connected
+				localdata.Lock.Lock()
 				err = localdata.WsValidators["Validator1"].WriteMessage(websocket.PingMessage, nil)
+				localdata.Lock.Unlock()
 				if err != nil {
 					log.Println("write:", err)
 					fmt.Println("Connection lost. Reconnecting...")
@@ -75,7 +77,9 @@ func StartWsClient() {
 			case <-interrupt:
 				log.Println("interrupt")
 				if isConnected {
+					localdata.Lock.Lock()
 					err = localdata.WsValidators["Validator1"].WriteMessage(websocket.CloseMessage, websocket.FormatCloseMessage(websocket.CloseNormalClosure, ""))
+					localdata.Lock.Unlock()
 					if err != nil {
 						log.Println("write close:", err)
 						return
@@ -91,7 +95,9 @@ func StartWsClient() {
 		case <-interrupt:
 			log.Println("interrupt")
 			if isConnected {
+				localdata.Lock.Lock()
 				err = localdata.WsValidators["Validator1"].WriteMessage(websocket.CloseMessage, websocket.FormatCloseMessage(websocket.CloseNormalClosure, ""))
+				localdata.Lock.Unlock()
 				if err != nil {
 					log.Println("write close:", err)
 					return
