@@ -38,7 +38,10 @@ func RunProofs(cids []string) error {
 		//fmt.Println("length of localdata.PeerNames: " + strconv.Itoa(len(localdata.PeerNames)))
 		//fmt.Println("Length of ThreeSpeakVideos: " + strconv.Itoa(len(localdata.ThreeSpeakVideos)))
 		for _, cid := range cids {
-			if localdata.CIDRefStatus[cid] == true {
+			localdata.Lock.Lock()
+			cidStatus := localdata.CIDRefStatus[cid]
+			localdata.Lock.Unlock()
+			if cidStatus == true {
 				// fmt.Println("Running proofs for CID: " + cid)
 				localdata.Lock.Lock()
 				peerNames := localdata.PeerNames
