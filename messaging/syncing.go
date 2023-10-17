@@ -153,12 +153,9 @@ func SyncNode(req Request) {
 	syncSeed := localdata.PeerSyncSeed[req.Seed]
 	localdata.Lock.Unlock()
 	if syncSeed == totalParts {
-		allPinsMap := make(map[string]interface{})
-		for _, pin := range allPins {
-			allPinsMap[pin] = nil
-		}
-
-		go ipfs.SyncNode(allPinsMap, req.User)
+		localdata.Lock.Lock()
+		localdata.NodesStatus[req.User] = "Synced"
+		localdata.Lock.Unlock()
 	} else {
 		return
 	}

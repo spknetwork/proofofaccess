@@ -10,6 +10,7 @@ import (
 	"net/url"
 	"proofofaccess/ipfs"
 	"proofofaccess/localdata"
+	"sync"
 	"time"
 )
 
@@ -28,30 +29,35 @@ type HiveTransfer struct {
 	Amount   string `json:"amount"`
 }
 
+// Create a WaitGroup to wait for the function to finish
+var wg sync.WaitGroup
+
 func RunProofs(cids []string) error {
 	for {
 		//fmt.Println("Running proofs")
 		//fmt.Println("length of localdata.PeerNames: " + strconv.Itoa(len(localdata.PeerNames)))
 		//fmt.Println("Length of ThreeSpeakVideos: " + strconv.Itoa(len(localdata.ThreeSpeakVideos)))
 		for _, cid := range cids {
-			// fmt.Println("Running proofs for CID: " + cid)
-			localdata.Lock.Lock()
-			peerNames := localdata.PeerNames
-			localdata.Lock.Unlock()
-			for _, peer := range peerNames {
-				//fmt.Println("Running proof for peer: " + peer)
-				isPinnedInDB := ipfs.IsPinnedInDB(cid)
-				if isPinnedInDB == true {
-					//fmt.Println("Running proofs for peer: " + peer)
-					//fmt.Println("Length of PeerCids: " + strconv.Itoa(len(localdata.PeerCids[peer])))
-					localdata.Lock.Lock()
-					peers := localdata.PeerCids[peer]
-					localdata.Lock.Unlock()
-					for _, peerHash := range peers {
-						if peerHash == cid {
-							fmt.Println("Running proof for peer: " + peer + " and CID: " + cid)
-							go RunProof(peer, cid)
-							time.Sleep(8 * time.Second)
+			if localdata.CIDRefStatus[cid] == true {
+				// fmt.Println("Running proofs for CID: " + cid)
+				localdata.Lock.Lock()
+				peerNames := localdata.PeerNames
+				localdata.Lock.Unlock()
+				for _, peer := range peerNames {
+					//fmt.Println("Running proof for peer: " + peer)
+					isPinnedInDB := ipfs.IsPinnedInDB(cid)
+					if isPinnedInDB == true {
+						//fmt.Println("Running proofs for peer: " + peer)
+						//fmt.Println("Length of PeerCids: " + strconv.Itoa(len(localdata.PeerCids[peer])))
+						localdata.Lock.Lock()
+						peers := localdata.PeerCids[peer]
+						localdata.Lock.Unlock()
+						for _, peerHash := range peers {
+							if peerHash == cid {
+								fmt.Println("Running proof for peer: " + peer + " and CID: " + cid)
+								go RunProof(peer, cid)
+								time.Sleep(8 * time.Second)
+							}
 						}
 					}
 				}

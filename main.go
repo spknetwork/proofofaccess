@@ -13,6 +13,7 @@ import (
 	"proofofaccess/connection"
 	"proofofaccess/database"
 	"proofofaccess/hive"
+	"proofofaccess/honeycomb"
 	"proofofaccess/ipfs"
 	"proofofaccess/localdata"
 	"proofofaccess/messaging"
@@ -33,10 +34,11 @@ var (
 	runProofs      = flag.Bool("runProofs", false, "Run proofs")
 	pinVideos      = flag.Bool("pinVideos", false, "Pin videos")
 	getHiveRewards = flag.Bool("getHive", false, "Get Hive rewards")
-
-	CID, Hash string
-	log       = logrus.New()
-	newPins   = false
+	useHoneycomb   = flag.Bool("honeycomb", false, "Use honeycomb")
+	honeycombApi   = flag.String("url", "", "Honeycomb API URL")
+	CID, Hash      string
+	log            = logrus.New()
+	newPins        = false
 )
 var mu sync.Mutex
 
@@ -62,6 +64,7 @@ func initialize(ctx context.Context) {
 	localdata.SetNodeName(*username)
 	localdata.NodeType = *nodeType
 	localdata.WsPort = *wsPort
+	database.Init()
 	ipfs.IpfsPeerID()
 	if *getHiveRewards {
 		fmt.Println("Getting Hive rewards")
@@ -76,9 +79,22 @@ func initialize(ctx context.Context) {
 			fmt.Println("Pinning and unpinning videos")
 			go Rewards.PinVideos(*storageLimit)
 		}
+		go ipfs.SaveRefs(localdata.ThreeSpeakVideos)
 	}
-
-	database.Init()
+	if *useHoneycomb {
+		var url = ""
+		if *honeycombApi == "" {
+			url = "https://spktest.dlux.io/list-contract"
+		} else {
+			url = *honeycombApi
+		}
+		cids, err := honeycomb.GetCIDsFromAPI(url)
+		localdata.Lock.Lock()
+		localdata.HoneycombContractCIDs = cids
+		localdata.Lock.Unlock()
+		log.Error(err)
+		go ipfs.SaveRefs(localdata.HoneycombContractCIDs)
+	}
 	if *nodeType == 1 {
 		go messaging.PubsubHandler(ctx)
 		go connection.CheckSynced(ctx)

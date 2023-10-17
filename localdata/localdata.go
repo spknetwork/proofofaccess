@@ -52,6 +52,8 @@ var PeerProofs = map[string]int{}
 var PeerLastActive = map[string]time.Time{}
 var HiveRewarded = map[string]float64{}
 var PiningVideos = false
+var HoneycombContractCIDs = []string{}
+var CidSize = map[string]int{}
 
 type NetworkRecord struct {
 	Peers          int    `json:"Peers"`
