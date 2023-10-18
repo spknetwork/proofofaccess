@@ -86,7 +86,7 @@ func initialize(ctx context.Context) {
 	if *useHoneycomb {
 		var url = ""
 		if *honeycombApi == "" {
-			url = "https://spktest.dlux.io/list-contract"
+			url = "https://spktest.dlux.io/list-contracts"
 		} else {
 			url = *honeycombApi
 		}
