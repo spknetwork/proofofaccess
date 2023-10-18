@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"github.com/gorilla/websocket"
 	"proofofaccess/database"
-	"proofofaccess/ipfs"
 	"proofofaccess/localdata"
 	"proofofaccess/pubsub"
 	"proofofaccess/validation"
@@ -17,14 +16,16 @@ import (
 func HandleRequestProof(req Request) {
 	CID := req.CID
 	hash := req.Hash
-	if ipfs.IsPinned(CID) == true {
-		fmt.Println("Sending proof of access to validation node")
-		validationHash := validation.CreatProofHash(hash, CID)
-		SendProof(req, validationHash, hash, localdata.NodeName)
-	} else {
-		fmt.Println("Pin not found")
-		SendProof(req, "NA", hash, localdata.NodeName)
-	}
+	validationHash := validation.CreatProofHash(hash, CID)
+	SendProof(req, validationHash, hash, localdata.NodeName)
+	//if ipfs.IsPinned(CID) == true {
+	//	fmt.Println("Sending proof of access to validation node")
+	//	validationHash := validation.CreatProofHash(hash, CID)
+	//	SendProof(req, validationHash, hash, localdata.NodeName)
+	//} else {
+	//	fmt.Println("Pin not found")
+	//	SendProof(req, "NA", hash, localdata.NodeName)
+	//}
 
 }
 
