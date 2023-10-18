@@ -74,7 +74,9 @@ func Refs(CID string) ([]string, error) {
 }
 func IsPinned(cid string) bool {
 	// Check if the CID is pinned
+	fmt.Println("Checking if CID is pinned")
 	_, ok := localdata.SavedRefs[cid]
+	fmt.Println("CID is pinned: ", ok)
 	return ok
 }
 func IsPinnedInDB(cid string) bool {
