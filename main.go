@@ -90,6 +90,8 @@ func initialize(ctx context.Context) {
 		} else {
 			url = *honeycombApi
 		}
+		fmt.Println("Getting Honeycomb CIDs")
+		fmt.Println(url)
 		cids, err := honeycomb.GetCIDsFromAPI(url)
 		localdata.Lock.Lock()
 		localdata.HoneycombContractCIDs = cids

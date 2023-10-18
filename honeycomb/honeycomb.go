@@ -17,6 +17,7 @@ type Contract struct {
 
 func GetCIDsFromAPI(url string) ([]string, error) {
 	resp, err := http.Get(url)
+	fmt.Println("resp", resp)
 	if err != nil {
 		return nil, err
 	}
