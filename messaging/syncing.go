@@ -64,7 +64,9 @@ func SendSynced(req Request) {
 
 }
 func ReceiveSyncing(req Request) {
+	localdata.Lock.Lock()
 	localdata.ValidatorsStatus[req.User] = "Syncing"
+	localdata.Lock.Unlock()
 	fmt.Println("Syncing with " + req.User)
 }
 func ReceiveSynced(req Request) {
