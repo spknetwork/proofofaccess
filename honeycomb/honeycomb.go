@@ -2,6 +2,7 @@ package honeycomb
 
 import (
 	"encoding/json"
+	"fmt"
 	"io/ioutil"
 	"net/http"
 )
@@ -30,11 +31,12 @@ func GetCIDsFromAPI(url string) ([]string, error) {
 	if err := json.Unmarshal(body, &response); err != nil {
 		return nil, err
 	}
-
+	fmt.Println("response", response)
 	var cids []string
 	for _, contracts := range response.Contracts {
 		for _, contract := range contracts {
 			for cid := range contract.DF {
+				fmt.Println("Contract CID", cid)
 				cids = append(cids, cid)
 			}
 		}
