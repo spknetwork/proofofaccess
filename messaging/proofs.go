@@ -56,7 +56,7 @@ func HandleProofOfAccess(req Request) {
 	// Create the proof hash
 	var validationHash string
 	if req.Hash != "" || req.Hash != "NA" {
-		// fmt.Println("Creating proof of access hash")
+		fmt.Println("Creating proof of access hash")
 		validationHash = validation.CreatProofHash(seed, CID)
 		// Check if the proof of access is valid
 		if validationHash == req.Hash && elapsed < 2500*time.Millisecond {
