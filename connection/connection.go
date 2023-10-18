@@ -112,7 +112,10 @@ func StartWsClient(name string) {
 	go func() {
 		for {
 			if isConnected {
-				_, message, err := localdata.WsValidators[name].ReadMessage()
+				localdata.Lock.Lock()
+				validatorWs := localdata.WsValidators[name]
+				localdata.Lock.Unlock()
+				_, message, err := validatorWs.ReadMessage()
 				if err != nil {
 					log.Println("read:", err)
 					fmt.Println("Connection lost. Reconnecting...")
@@ -141,7 +144,9 @@ func StartWsClient(name string) {
 				isConnected = true
 				log.Println("Connected to the server")
 				salt, _ := proofcrypto.CreateRandomHash()
+				localdata.Lock.Lock()
 				localdata.WsValidators[name] = c
+				localdata.Lock.Unlock()
 				fmt.Println("Connected to validator1")
 				wsPing(salt, name)
 			} else {
