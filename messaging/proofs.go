@@ -32,6 +32,7 @@ func HandleRequestProof(req Request) {
 // HandleProofOfAccess
 // This is the function that handles the proof of access response from the storage node
 func HandleProofOfAccess(req Request) {
+	fmt.Println("Handling proof of access response from storage node")
 	// Get the start time from the seed
 	start := localdata.GetTime(req.Seed)
 	fmt.Println("Start time:", start)
@@ -55,12 +56,13 @@ func HandleProofOfAccess(req Request) {
 	localdata.Lock.Unlock()
 	// Create the proof hash
 	var validationHash string
+	fmt.Println("Request Hash", req.Hash)
 	if req.Hash != "" || req.Hash != "NA" {
 		fmt.Println("Creating proof of access hash")
 		validationHash = validation.CreatProofHash(seed, CID)
 		fmt.Println("Validation Hash", validationHash)
 		// Check if the proof of access is valid
-		if validationHash == req.Hash && elapsed < 2500*time.Millisecond {
+		if validationHash == req.Hash && elapsed < 25000000*time.Millisecond {
 			fmt.Println("Proof of access is valid")
 			//fmt.Println(req.Seed)
 			localdata.SetStatus(req.Seed, CID, "Valid", req.User)
