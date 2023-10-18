@@ -114,8 +114,8 @@ func StartWsClient(name string) {
 			if isConnected {
 				localdata.Lock.Lock()
 				validatorWs := localdata.WsValidators[name]
-				localdata.Lock.Unlock()
 				_, message, err := validatorWs.ReadMessage()
+				localdata.Lock.Unlock()
 				if err != nil {
 					log.Println("read:", err)
 					fmt.Println("Connection lost. Reconnecting...")
@@ -154,10 +154,10 @@ func StartWsClient(name string) {
 				// Ping the server to check if still connected
 				localdata.Lock.Lock()
 				validatorWs := localdata.WsValidators[name]
-				localdata.Lock.Unlock()
 				localdata.WsWriteMutexes[name].Lock()
 				err = validatorWs.WriteMessage(websocket.PingMessage, nil)
 				localdata.WsWriteMutexes[name].Unlock()
+				localdata.Lock.Unlock()
 				if err != nil {
 					log.Println("write:", err)
 					fmt.Println("Connection lost. Reconnecting...")
@@ -171,8 +171,8 @@ func StartWsClient(name string) {
 				if isConnected {
 					localdata.Lock.Lock()
 					validatorWs := localdata.WsValidators[name]
-					localdata.Lock.Unlock()
 					err = validatorWs.WriteMessage(websocket.CloseMessage, websocket.FormatCloseMessage(websocket.CloseNormalClosure, ""))
+					localdata.Lock.Unlock()
 					if err != nil {
 						log.Println("write close:", err)
 						return
@@ -190,8 +190,8 @@ func StartWsClient(name string) {
 			if isConnected {
 				localdata.Lock.Lock()
 				validatorWs := localdata.WsValidators[name]
-				localdata.Lock.Unlock()
 				err = validatorWs.WriteMessage(websocket.CloseMessage, websocket.FormatCloseMessage(websocket.CloseNormalClosure, ""))
+				localdata.Lock.Unlock()
 				if err != nil {
 					log.Println("write close:", err)
 					return
@@ -219,8 +219,9 @@ func wsPing(hash string, name string) {
 	fmt.Println("Client send: ", string(jsonData))
 	localdata.Lock.Lock()
 	validatorWs := localdata.WsValidators[name]
-	localdata.Lock.Unlock()
 	localdata.WsWriteMutexes[name].Lock()
 	err = validatorWs.WriteMessage(websocket.TextMessage, jsonData)
 	localdata.WsWriteMutexes[name].Unlock()
+	localdata.Lock.Unlock()
+
 }
