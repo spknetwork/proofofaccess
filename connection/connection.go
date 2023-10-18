@@ -146,6 +146,7 @@ func StartWsClient(name string) {
 				salt, _ := proofcrypto.CreateRandomHash()
 				localdata.Lock.Lock()
 				localdata.WsValidators[name] = c
+				localdata.WsWriteMutexes[name] = &sync.Mutex{}
 				localdata.Lock.Unlock()
 				fmt.Println("Connected to validator1")
 				wsPing(salt, name)
@@ -154,7 +155,9 @@ func StartWsClient(name string) {
 				localdata.Lock.Lock()
 				validatorWs := localdata.WsValidators[name]
 				localdata.Lock.Unlock()
+				localdata.WsWriteMutexes[name].Lock()
 				err = validatorWs.WriteMessage(websocket.PingMessage, nil)
+				localdata.WsWriteMutexes[name].Unlock()
 				if err != nil {
 					log.Println("write:", err)
 					fmt.Println("Connection lost. Reconnecting...")
@@ -217,5 +220,7 @@ func wsPing(hash string, name string) {
 	localdata.Lock.Lock()
 	validatorWs := localdata.WsValidators[name]
 	localdata.Lock.Unlock()
+	localdata.WsWriteMutexes[name].Lock()
 	err = validatorWs.WriteMessage(websocket.TextMessage, jsonData)
+	localdata.WsWriteMutexes[name].Unlock()
 }

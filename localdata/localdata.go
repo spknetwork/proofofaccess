@@ -54,6 +54,7 @@ var HiveRewarded = map[string]float64{}
 var PiningVideos = false
 var HoneycombContractCIDs = []string{}
 var CidSize = map[string]int{}
+var WsWriteMutexes = make(map[string]*sync.Mutex)
 
 type NetworkRecord struct {
 	Peers          int    `json:"Peers"`
