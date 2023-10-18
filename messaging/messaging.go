@@ -79,6 +79,7 @@ func HandleMessage(message string) {
 	//Handle request for proof request from validation node
 	if nodeType == 2 {
 		if req.Type == TypeRequestProof {
+			fmt.Println("Request for proof received")
 			go HandleRequestProof(req)
 		}
 		if req.Type == TypePingPongPong {

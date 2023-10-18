@@ -38,13 +38,14 @@ func RequestCIDS(req Request) {
 }
 func SendCIDS(name string) {
 	allPins, _ := ipfs.Shell.Pins()
-
+	fmt.Println("Fetched pins")
 	NewPins := make([]string, 0)
 	for key, pinInfo := range allPins {
 		if pinInfo.Type == "recursive" {
 			NewPins = append(NewPins, key)
 		}
 	}
+	fmt.Println("Sending CIDS")
 	pinsJson, err := json.Marshal(NewPins)
 	if err != nil {
 		fmt.Println(err)

@@ -36,6 +36,8 @@ var (
 	getHiveRewards = flag.Bool("getHive", false, "Get Hive rewards")
 	useHoneycomb   = flag.Bool("honeycomb", false, "Use honeycomb")
 	honeycombApi   = flag.String("url", "", "Honeycomb API URL")
+	validatorsApi  = flag.String("validators", "https://spkinstant.hivehoneycomb.com/markets", "Validators URL")
+	threeSpeakNode = flag.Bool("threeSpeak", false, "3Speak node")
 	CID, Hash      string
 	log            = logrus.New()
 	newPins        = false
@@ -100,16 +102,19 @@ func initialize(ctx context.Context) {
 		go connection.CheckSynced(ctx)
 		go Rewards.Update(ctx)
 	} else {
-		go peers.FetchPins(ctx)
+		if *threeSpeakNode {
+			go peers.FetchPins(ctx)
+		}
 	}
 	if *nodeType == 2 {
-		validators.GetValidators()
+		//validators.GetValidators(*validatorsApi)
 		if *useWS {
 			localdata.UseWS = *useWS
-			for _, name := range localdata.ValidatorNames {
-				go connection.StartWsClient(name)
-			}
-
+			//	for _, name := range localdata.ValidatorNames {
+			//		go connection.StartWsClient(name)
+			//	}
+			localdata.ValidatorAddress["validator1"] = "ws://spk.tv/messaging"
+			go connection.StartWsClient("validator1")
 		} else {
 			go messaging.PubsubHandler(ctx)
 			go validators.ConnectToValidators(ctx, nodeType)

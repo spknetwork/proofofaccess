@@ -20,7 +20,7 @@ type Markets struct {
 	Node map[string]Market `json:"node"`
 }
 
-func GetValidators() {
+func GetValidators(validators string) {
 	resp, err := http.Get("https://spkinstant.hivehoneycomb.com/markets")
 	if err != nil {
 		fmt.Printf("Error fetching data: %s\n", err)
