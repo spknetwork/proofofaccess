@@ -74,8 +74,8 @@ func SendCIDS(name string) {
 		if localdata.UseWS == true && localdata.NodeType == 2 {
 			localdata.Lock.Lock()
 			ws := localdata.WsValidators[name]
-			localdata.Lock.Unlock()
 			ws.WriteJSON(data)
+			localdata.Lock.Unlock()
 
 		} else {
 			pubsub.Publish(string(jsonData), name)
