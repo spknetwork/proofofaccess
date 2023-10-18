@@ -70,8 +70,10 @@ func ReceiveSyncing(req Request) {
 	fmt.Println("Syncing with " + req.User)
 }
 func ReceiveSynced(req Request) {
+	localdata.Lock.Lock()
 	localdata.ValidatorNames = localdata.RemoveDuplicates(append(localdata.ValidatorNames, req.User))
 	localdata.ValidatorsStatus[req.User] = "Synced"
+	localdata.Lock.Unlock()
 	fmt.Println("Synced with " + req.User)
 }
 func SyncNode(req Request) {
