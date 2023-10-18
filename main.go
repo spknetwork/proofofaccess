@@ -102,9 +102,7 @@ func initialize(ctx context.Context) {
 		go connection.CheckSynced(ctx)
 		go Rewards.Update(ctx)
 	} else {
-		if *threeSpeakNode {
-			go peers.FetchPins(ctx)
-		}
+		go peers.FetchPins(ctx)
 	}
 	if *nodeType == 2 {
 		//validators.GetValidators(*validatorsApi)
