@@ -155,6 +155,7 @@ func PubsubHandler(ctx context.Context) {
 	}
 }
 func SendPing(hash string, user string) {
+	fmt.Println("Sending Ping")
 	data := map[string]string{
 		"type": TypePingPongPing,
 		"hash": hash,
@@ -180,6 +181,7 @@ func SendPing(hash string, user string) {
 	}
 }
 func PingPongPong(req Request, hash string, user string) {
+	fmt.Println("Sending PingPongPong")
 	data := map[string]string{
 		"type": TypePingPongPong,
 		"hash": hash,
