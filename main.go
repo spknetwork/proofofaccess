@@ -95,7 +95,8 @@ func initialize(ctx context.Context) {
 		localdata.HoneycombContractCIDs = cids
 		localdata.Lock.Unlock()
 		log.Error(err)
-		go ipfs.SaveRefs(localdata.HoneycombContractCIDs)
+		fmt.Println("Got Honeycomb CIDs")
+		go ipfs.SaveRefs(cids)
 	}
 	if *nodeType == 1 {
 		go messaging.PubsubHandler(ctx)
