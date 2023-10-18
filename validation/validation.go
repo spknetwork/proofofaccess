@@ -34,8 +34,9 @@ func AppendHashToFile(hash string, CID string) string {
 func CreatProofHash(hash string, CID string) string {
 	// Get all the file blocks CIDs from the Target Files CID
 	//fmt.Println("CID: ", CID)
-	fmt.Println("Prrof CID: ", CID)
+	fmt.Println("Proof CID: ", CID)
 	refsBytes := database.Read([]byte("refs" + CID))
+	fmt.Println("Refs Bytes: ", refsBytes)
 	var cids []string
 	if err := json.Unmarshal(refsBytes, &cids); err != nil {
 		fmt.Printf("Error while unmarshaling refs: %v\n", err)
