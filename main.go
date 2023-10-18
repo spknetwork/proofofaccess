@@ -96,6 +96,7 @@ func initialize(ctx context.Context) {
 		localdata.Lock.Unlock()
 		log.Error(err)
 		fmt.Println("Got Honeycomb CIDs")
+		fmt.Println(cids)
 		go ipfs.SaveRefs(cids)
 	}
 	if *nodeType == 1 {
