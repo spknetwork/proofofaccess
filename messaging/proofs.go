@@ -22,6 +22,7 @@ func HandleRequestProof(req Request) {
 		validationHash := validation.CreatProofHash(hash, CID)
 		SendProof(req, validationHash, hash, localdata.NodeName)
 	} else {
+		fmt.Println("Pin not found")
 		SendProof(req, "NA", hash, localdata.NodeName)
 	}
 
