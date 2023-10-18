@@ -83,12 +83,14 @@ func HandleProofOfAccess(req Request) {
 // SendProof
 // This is the function that sends the proof of access to the validation node
 func SendProof(req Request, hash string, seed string, user string) {
+	fmt.Println("Sending proof of access to validation node")
 	data := map[string]string{
 		"type": TypeProofOfAccess,
 		"hash": hash,
 		"seed": seed,
 		"user": user,
 	}
+	fmt.Println("data", data)
 	jsonData, err := json.Marshal(data)
 	if err != nil {
 		fmt.Println("Error encoding JSON:", err)
@@ -108,6 +110,7 @@ func SendProof(req Request, hash string, seed string, user string) {
 		localdata.Lock.Lock()
 		localdata.WsValidators[req.User].WriteMessage(websocket.TextMessage, jsonData)
 		localdata.Lock.Unlock()
+		fmt.Println("Sent proof of access to validation node")
 	} else {
 		pubsub.Publish(string(jsonData), user)
 	}

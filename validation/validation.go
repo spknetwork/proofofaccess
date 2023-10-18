@@ -36,7 +36,7 @@ func CreatProofHash(hash string, CID string) string {
 	//fmt.Println("CID: ", CID)
 	fmt.Println("Proof CID: ", CID)
 	refsBytes := database.Read([]byte("refs" + CID))
-	fmt.Println("Refs Bytes: ", refsBytes)
+	//fmt.Println("Refs Bytes: ", refsBytes)
 	var cids []string
 	if err := json.Unmarshal(refsBytes, &cids); err != nil {
 		fmt.Printf("Error while unmarshaling refs: %v\n", err)
