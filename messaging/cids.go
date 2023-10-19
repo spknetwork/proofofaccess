@@ -13,19 +13,23 @@ import (
 )
 
 func RequestCIDS(req Request) {
+	fmt.Println("Requesting CIDS")
 	data := map[string]string{
 		"type": "RequestCIDS",
 		"user": localdata.GetNodeName(),
 	}
 	jsonData, err := json.Marshal(data)
+	fmt.Println("jsonData", string(jsonData))
 	if err != nil {
 		fmt.Println("Error encoding JSON:", err)
 		return
 	}
 	if localdata.WsPeers[req.User] == req.User && localdata.NodeType == 1 {
 		wsMutex.Lock()
+		fmt.Println("Locking wsMutex")
 		ws := localdata.WsClients[req.User]
 		ws.WriteMessage(websocket.TextMessage, jsonData)
+		fmt.Println("Sent RequestCIDS to client")
 		wsMutex.Unlock()
 	} else if localdata.UseWS == true && localdata.NodeType == 2 {
 		wsMutex.Lock()
