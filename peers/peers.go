@@ -69,8 +69,6 @@ func FetchPins(ctx context.Context) {
 				go func(key string) {
 					defer wg.Done()
 					// Check if the key exists in Pins
-					localdata.Lock.Lock()
-					localdata.Lock.Unlock()
 					size, _ := ipfs.FileSize(key)
 					localdata.Lock.Lock()
 					PeerSize += size

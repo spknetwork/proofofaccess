@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"github.com/gorilla/websocket"
 	"proofofaccess/database"
+	"proofofaccess/ipfs"
 	"proofofaccess/localdata"
 	"proofofaccess/pubsub"
 	"proofofaccess/validation"
@@ -16,17 +17,14 @@ import (
 func HandleRequestProof(req Request) {
 	CID := req.CID
 	hash := req.Hash
-	validationHash := validation.CreatProofHash(hash, CID)
-	SendProof(req, validationHash, hash, localdata.NodeName)
-	//if ipfs.IsPinned(CID) == true {
-	//	fmt.Println("Sending proof of access to validation node")
-	//	validationHash := validation.CreatProofHash(hash, CID)
-	//	SendProof(req, validationHash, hash, localdata.NodeName)
-	//} else {
-	//	fmt.Println("Pin not found")
-	//	SendProof(req, "NA", hash, localdata.NodeName)
-	//}
-
+	if ipfs.IsPinnedInDB(CID) == true {
+		fmt.Println("Sending proof of access to validation node")
+		validationHash := validation.CreatProofHash(hash, CID)
+		SendProof(req, validationHash, hash, localdata.NodeName)
+	} else {
+		fmt.Println("Pin not found")
+		SendProof(req, "NA", hash, localdata.NodeName)
+	}
 }
 
 // HandleProofOfAccess
@@ -92,26 +90,23 @@ func SendProof(req Request, hash string, seed string, user string) {
 		"seed": seed,
 		"user": user,
 	}
-	fmt.Println("data", data)
 	jsonData, err := json.Marshal(data)
 	if err != nil {
 		fmt.Println("Error encoding JSON:", err)
 		return
 	}
-	localdata.Lock.Lock()
 	wsPeers := localdata.WsPeers[req.User]
 	nodeType := localdata.NodeType
-	localdata.Lock.Unlock()
 	if wsPeers == req.User && nodeType == 1 {
-		localdata.Lock.Lock()
 		ws := localdata.WsClients[req.User]
-		localdata.Lock.Unlock()
+		WsMutex.Lock()
 		ws.WriteMessage(websocket.TextMessage, jsonData)
-		wsMutex.Unlock()
+		WsMutex.Unlock()
 	} else if localdata.UseWS == true && localdata.NodeType == 2 {
-		localdata.Lock.Lock()
-		localdata.WsValidators[req.User].WriteMessage(websocket.TextMessage, jsonData)
-		localdata.Lock.Unlock()
+		ws := localdata.WsValidators[req.User]
+		WsMutex.Lock()
+		ws.WriteMessage(websocket.TextMessage, jsonData)
+		WsMutex.Unlock()
 		fmt.Println("Sent proof of access to validation node")
 	} else {
 		pubsub.Publish(string(jsonData), user)

@@ -11,7 +11,6 @@ import (
 
 func stats(c *websocket.Conn, key string) {
 	NetworkStorage := 0
-	localdata.Lock.Lock()
 	if localdata.NodeType == 2 {
 		NetworkStorage = localdata.PeerSize[localdata.NodeName]
 	} else {
@@ -57,7 +56,6 @@ func stats(c *websocket.Conn, key string) {
 		"PeerHiveRewards": localdata.HiveRewarded,
 		"PeerCids":        localdata.PeerCids,
 	}
-	localdata.Lock.Unlock()
 	jsonData, err := json.Marshal(data)
 	if err != nil {
 		log.Printf("Error: %v", err)

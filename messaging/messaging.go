@@ -35,7 +35,7 @@ const (
 var (
 	log = logrus.New()
 )
-var wsMutex = &sync.Mutex{}
+var WsMutex = &sync.Mutex{}
 var Ping = map[string]bool{}
 var ProofRequest = map[string]bool{}
 var ProofRequestStatus = map[string]bool{}
@@ -51,6 +51,7 @@ type PinMap map[string]PinType
 // HandleMessage
 // This is the function that handles the messages from the pubsub
 func HandleMessage(message string) {
+	fmt.Println("Message received:", message)
 	// JSON decode message
 	req := Request{}
 	err := json.Unmarshal([]byte(message), &req)
@@ -60,9 +61,7 @@ func HandleMessage(message string) {
 	}
 	//fmt.Println("Message received:", message)
 	//Handle proof of access response from storage node
-	localdata.Lock.Lock()
 	nodeType := localdata.NodeType
-	localdata.Lock.Unlock()
 	if nodeType == 1 {
 		if req.Type == TypeProofOfAccess {
 			fmt.Println("Proof of access received")
@@ -99,6 +98,8 @@ func HandleMessage(message string) {
 		PingPongPong(req, req.Hash, req.User)
 		nodeStatus := localdata.NodesStatus[req.User]
 		nodes := Nodes[req.User]
+		fmt.Println("Node Status: " + nodeStatus)
+		fmt.Println("Nodes: " + fmt.Sprint(nodes))
 		if nodeType == 1 && !nodes && nodeStatus != "Synced" {
 			fmt.Println("syncing: " + req.User)
 			go RequestCIDS(req)
@@ -168,14 +169,14 @@ func SendPing(hash string, user string) {
 	}
 	localdata.PingTime[user] = time.Now()
 	if localdata.WsPeers[user] == user && localdata.NodeType == 1 {
-		wsMutex.Lock()
 		ws := localdata.WsClients[user]
+		WsMutex.Lock()
 		ws.WriteMessage(websocket.TextMessage, jsonData)
-		wsMutex.Unlock()
+		WsMutex.Unlock()
 	} else if localdata.UseWS == true && localdata.NodeType == 2 {
-		wsMutex.Lock()
+		WsMutex.Lock()
 		localdata.WsValidators[user].WriteMessage(websocket.TextMessage, jsonData)
-		wsMutex.Unlock()
+		WsMutex.Unlock()
 	} else {
 		pubsub.Publish(string(jsonData), user)
 	}
@@ -193,15 +194,20 @@ func PingPongPong(req Request, hash string, user string) {
 		return
 	}
 	if localdata.WsPeers[req.User] == req.User && localdata.NodeType == 1 {
-		wsMutex.Lock()
 		ws := localdata.WsClients[req.User]
+		fmt.Println("Sending PingPongPong to client")
+		localdata.Lock.Lock()
 		localdata.PeerLastActive[req.User] = time.Now()
+		localdata.Lock.Unlock()
+		fmt.Println("Time since last ping:", time.Since(localdata.PingTime[req.User]))
+		WsMutex.Lock()
 		ws.WriteMessage(websocket.TextMessage, jsonData)
-		wsMutex.Unlock()
+		WsMutex.Unlock()
+		fmt.Println("Sent PingPongPong to client")
 	} else if localdata.UseWS == true && localdata.NodeType == 2 {
-		wsMutex.Lock()
+		WsMutex.Lock()
 		localdata.WsValidators[req.User].WriteMessage(websocket.TextMessage, jsonData)
-		wsMutex.Unlock()
+		WsMutex.Unlock()
 	} else {
 		pubsub.Publish(string(jsonData), user)
 	}

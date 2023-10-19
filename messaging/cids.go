@@ -25,16 +25,16 @@ func RequestCIDS(req Request) {
 		return
 	}
 	if localdata.WsPeers[req.User] == req.User && localdata.NodeType == 1 {
-		wsMutex.Lock()
+		WsMutex.Lock()
 		fmt.Println("Locking wsMutex")
 		ws := localdata.WsClients[req.User]
 		ws.WriteMessage(websocket.TextMessage, jsonData)
 		fmt.Println("Sent RequestCIDS to client")
-		wsMutex.Unlock()
+		WsMutex.Unlock()
 	} else if localdata.UseWS == true && localdata.NodeType == 2 {
-		wsMutex.Lock()
+		WsMutex.Lock()
 		localdata.WsValidators[req.User].WriteMessage(websocket.TextMessage, jsonData)
-		wsMutex.Unlock()
+		WsMutex.Unlock()
 	} else {
 		pubsub.Publish(string(jsonData), req.User)
 	}
@@ -76,11 +76,12 @@ func SendCIDS(name string) {
 		}
 
 		if localdata.UseWS == true && localdata.NodeType == 2 {
-			localdata.Lock.Lock()
 			ws := localdata.WsValidators[name]
+			fmt.Println("Sending CIDS to validation node")
+			WsMutex.Lock()
 			ws.WriteJSON(data)
-			localdata.Lock.Unlock()
-
+			WsMutex.Unlock()
+			fmt.Println("Sent CIDS to validation node")
 		} else {
 			pubsub.Publish(string(jsonData), name)
 		}

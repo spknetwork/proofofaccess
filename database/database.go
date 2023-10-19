@@ -32,9 +32,14 @@ var Lock = false
 // ErrDatabaseClosed is an error indicating that the database is closed
 var ErrDatabaseClosed = errors.New("database is closed")
 
-func Init() {
+func Init(nodeType int) {
 	var err error
-	opts := badger.DefaultOptions("./data/badger")
+	var opts badger.Options
+	if nodeType == 1 {
+		opts = badger.DefaultOptions("./data/badger")
+	} else {
+		opts = badger.DefaultOptions("./data/badger1")
+	}
 
 	// First attempt to open the database without truncation
 	DB, err = badger.Open(opts)

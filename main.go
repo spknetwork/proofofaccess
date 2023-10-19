@@ -66,7 +66,7 @@ func initialize(ctx context.Context) {
 	localdata.SetNodeName(*username)
 	localdata.NodeType = *nodeType
 	localdata.WsPort = *wsPort
-	database.Init()
+	database.Init(*nodeType)
 	ipfs.IpfsPeerID()
 	if *getHiveRewards {
 		fmt.Println("Getting Hive rewards")
@@ -115,7 +115,7 @@ func initialize(ctx context.Context) {
 			//	for _, name := range localdata.ValidatorNames {
 			//		go connection.StartWsClient(name)
 			//	}
-			localdata.ValidatorAddress["validator1"] = "ws://spk.tv/messaging"
+			localdata.ValidatorAddress["validator1"] = "ws://localhost:8000/messaging"
 			go connection.StartWsClient("validator1")
 		} else {
 			go messaging.PubsubHandler(ctx)

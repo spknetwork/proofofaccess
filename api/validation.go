@@ -118,6 +118,7 @@ func sendProofRequest(salt string, proofJson []byte, name string, conn *websocke
 	sendWsResponse(wsRequestingProof, "RequestingProof", "0", conn)
 	if localdata.WsPeers[name] == name && localdata.NodeType == 1 {
 		ws := localdata.WsClients[name]
+
 		ws.WriteMessage(websocket.TextMessage, proofJson)
 	} else if localdata.UseWS == true && localdata.NodeType == 2 {
 		localdata.Lock.Lock()

@@ -25,14 +25,15 @@ func SendSyncing(req Request) {
 		return
 	}
 	if localdata.WsPeers[req.User] == req.User && localdata.NodeType == 1 {
-		wsMutex.Lock()
 		ws := localdata.WsClients[req.User]
+		WsMutex.Lock()
 		ws.WriteMessage(websocket.TextMessage, jsonData)
-		wsMutex.Unlock()
+		WsMutex.Unlock()
 	} else if localdata.UseWS == true && localdata.NodeType == 2 {
-		wsMutex.Lock()
-		localdata.WsValidators[req.User].WriteMessage(websocket.TextMessage, jsonData)
-		wsMutex.Unlock()
+		ws := localdata.WsClients[req.User]
+		WsMutex.Lock()
+		ws.WriteMessage(websocket.TextMessage, jsonData)
+		WsMutex.Unlock()
 	} else {
 		pubsub.Publish(string(jsonData), req.User)
 	}
@@ -50,14 +51,14 @@ func SendSynced(req Request) {
 	}
 	if localdata.WsPeers[req.User] == req.User && localdata.NodeType == 1 {
 		fmt.Println("Sending Synced to " + req.User)
-		wsMutex.Lock()
+		WsMutex.Lock()
 		ws := localdata.WsClients[req.User]
 		ws.WriteMessage(websocket.TextMessage, jsonData)
-		wsMutex.Unlock()
+		WsMutex.Unlock()
 	} else if localdata.UseWS == true && localdata.NodeType == 2 {
-		wsMutex.Lock()
+		WsMutex.Lock()
 		localdata.WsValidators[req.User].WriteMessage(websocket.TextMessage, jsonData)
-		wsMutex.Unlock()
+		WsMutex.Unlock()
 	} else {
 		pubsub.Publish(string(jsonData), req.User)
 	}
@@ -81,15 +82,18 @@ func SyncNode(req Request) {
 	localdata.Lock.Lock()
 	Nodes[req.User] = true
 	localdata.Lock.Unlock()
+	fmt.Println("Requesting CIDS")
 	peerName := req.User
 	localdata.Lock.Lock()
 	localdata.PeerNames = localdata.RemoveDuplicates(append(localdata.PeerNames, peerName))
 	localdata.NodesStatus[req.User] = "Syncing"
 	localdata.Lock.Unlock()
+	fmt.Println("Requesting CIDS from " + req.User)
 	fmt.Println(req.Pins)
 	var myData map[string]interface{}
 
 	if localdata.WsPeers[req.User] != req.User && localdata.NodeType == 1 {
+		fmt.Println("Ipfs DownloadAndDecodeJSON")
 		err := ipfs.DownloadAndDecodeJSON(req.CID, &myData)
 		if err != nil {
 			localdata.Lock.Lock()
@@ -105,7 +109,7 @@ func SyncNode(req Request) {
 	// Handle the chunks of allPins data
 	part, _ := strconv.Atoi(req.Part)
 	totalParts, _ := strconv.Atoi(req.TotalParts)
-
+	fmt.Println("Part", part, "of", totalParts)
 	var pins []string
 	err := json.Unmarshal([]byte(req.Pins), &pins)
 	if err != nil {
@@ -153,9 +157,8 @@ func SyncNode(req Request) {
 
 	// Save allPins to the database
 	database.Save([]byte("allPins:"+req.User), allPinsJson)
-	localdata.Lock.Lock()
+	fmt.Println("Saved allPins to database")
 	syncSeed := localdata.PeerSyncSeed[req.Seed]
-	localdata.Lock.Unlock()
 	if syncSeed == totalParts {
 		localdata.Lock.Lock()
 		localdata.NodesStatus[req.User] = "Synced"
@@ -167,7 +170,7 @@ func SyncNode(req Request) {
 	go func() {
 		for {
 			time.Sleep(1 * time.Second)
-			//fmt.Println("Checking if synced with " + req.User)
+			fmt.Println("Checking if synced with " + req.User)
 			localdata.Lock.Lock()
 			nodeStatus := localdata.NodesStatus[req.User]
 			localdata.Lock.Unlock()

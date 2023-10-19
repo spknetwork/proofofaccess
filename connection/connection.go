@@ -22,8 +22,7 @@ var (
 var mu sync.Mutex
 
 func IsConnectionOpen(conn *websocket.Conn) bool {
-	mu.Lock()
-	defer mu.Unlock()
+	fmt.Println("Checking if connection is open")
 	var writeWait = 1 * time.Second
 
 	if err := conn.SetWriteDeadline(time.Now().Add(writeWait)); err != nil {
@@ -42,7 +41,7 @@ func IsConnectionOpen(conn *websocket.Conn) bool {
 		log.Println("Resetting WriteDeadline failed:", err)
 		return false
 	}
-
+	fmt.Println("Connection is open")
 	return true
 }
 
@@ -53,50 +52,53 @@ func CheckSynced(ctx context.Context) {
 			return
 		default:
 			for _, peerName := range localdata.PeerNames {
+				fmt.Println("Checking if synced with", peerName)
 				if localdata.WsPeers[peerName] == peerName {
-					localdata.Lock.Lock()
 					peerWs := localdata.WsClients[peerName]
-					localdata.Lock.Unlock()
+					fmt.Println("Checking if synced with2", peerName)
 					if IsConnectionOpen(peerWs) == false {
 						fmt.Println("Connection to validator", peerName, "lost")
 						localdata.Lock.Lock()
 						localdata.WsPeers[peerName] = ""
 						localdata.WsClients[peerName] = nil
+						localdata.NodesStatus[peerName] = "Disconnected"
+						localdata.Lock.Unlock()
 						newPeerNames := make([]string, 0, len(localdata.PeerNames)-1)
 						for _, pn := range localdata.PeerNames {
 							if pn != peerName {
 								newPeerNames = append(newPeerNames, pn)
+								fmt.Println("Removing", peerName, "from peerNames")
 							}
 						}
+						localdata.Lock.Lock()
 						localdata.PeerNames = newPeerNames
 						localdata.Lock.Unlock()
+
 					}
 				} else {
+					fmt.Println("Connection to validator", peerName, "lost")
 					// Get the start time from the seed
-					localdata.Lock.Lock()
 					start := localdata.PingTime[peerName]
-					localdata.Lock.Unlock()
 					// Get the current time
 					elapsed := time.Since(start)
 					if elapsed.Seconds() > 121 {
-						localdata.Lock.Lock()
 						peerN := localdata.PeerNames
 						newPeerNames := make([]string, 0, len(localdata.PeerNames)-1)
-						localdata.Lock.Unlock()
 						for _, pn := range peerN {
 							if pn != peerName {
 								newPeerNames = append(newPeerNames, pn)
 							}
 						}
+						fmt.Println("Removing", peerName, "from peerNames")
 						localdata.Lock.Lock()
 						localdata.PeerNames = newPeerNames
 						localdata.Lock.Unlock()
+						fmt.Println("Removing2", peerName, "from wsPeers")
 					}
 				}
 			}
-			time.Sleep(60 * time.Second)
+			time.Sleep(10 * time.Second)
 		}
-
 	}
 }
 
@@ -146,18 +148,15 @@ func StartWsClient(name string) {
 				salt, _ := proofcrypto.CreateRandomHash()
 				localdata.Lock.Lock()
 				localdata.WsValidators[name] = c
-				localdata.WsWriteMutexes[name] = &sync.Mutex{}
 				localdata.Lock.Unlock()
 				fmt.Println("Connected to validator1")
 				wsPing(salt, name)
 			} else {
 				// Ping the server to check if still connected
-				localdata.Lock.Lock()
 				validatorWs := localdata.WsValidators[name]
-				localdata.WsWriteMutexes[name].Lock()
+				messaging.WsMutex.Lock()
 				err = validatorWs.WriteMessage(websocket.PingMessage, nil)
-				localdata.WsWriteMutexes[name].Unlock()
-				localdata.Lock.Unlock()
+				messaging.WsMutex.Unlock()
 				if err != nil {
 					log.Println("write:", err)
 					fmt.Println("Connection lost. Reconnecting...")
@@ -206,6 +205,7 @@ func StartWsClient(name string) {
 }
 
 func wsPing(hash string, name string) {
+	fmt.Println("Sending Ping")
 	data := map[string]string{
 		"type": "PingPongPing",
 		"hash": hash,
@@ -217,11 +217,6 @@ func wsPing(hash string, name string) {
 		return
 	}
 	fmt.Println("Client send: ", string(jsonData))
-	localdata.Lock.Lock()
 	validatorWs := localdata.WsValidators[name]
-	localdata.WsWriteMutexes[name].Lock()
 	err = validatorWs.WriteMessage(websocket.TextMessage, jsonData)
-	localdata.WsWriteMutexes[name].Unlock()
-	localdata.Lock.Unlock()
-
 }
