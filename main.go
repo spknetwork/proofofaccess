@@ -106,7 +106,7 @@ func initialize(ctx context.Context) {
 		go connection.CheckSynced(ctx)
 		go Rewards.Update(ctx)
 	} else {
-		go peers.FetchPins(ctx)
+		go peers.FetchPins()
 	}
 	if *nodeType == 2 {
 		//validators.GetValidators(*validatorsApi)

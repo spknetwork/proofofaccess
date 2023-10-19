@@ -102,7 +102,7 @@ func HandleMessage(message string) {
 		fmt.Println("Nodes: " + fmt.Sprint(nodes))
 		if nodeType == 1 && !nodes && nodeStatus != "Synced" {
 			fmt.Println("syncing: " + req.User)
-			go RequestCIDS(req)
+			go SyncNode(req)
 		}
 
 	}
