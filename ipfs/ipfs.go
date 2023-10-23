@@ -385,33 +385,33 @@ func SaveRefs(cids []string) {
 	var wg sync.WaitGroup
 	refCounts := make([]int, len(cidsMap))
 	completed := make([]bool, len(cidsMap))
-	sizes := make([]int, len(cidsMap))
+	// sizes := make([]int, len(cidsMap))
 	// Function to print the progress of each CID
-	printProgress := func(i int, key string) {
-		var percentage float64
-		var percentageInt int
-		if completed[i] {
-			localdata.Lock.Lock()
-			localdata.CIDRefPercentage[key] = 100
-			localdata.CIDRefStatus[key] = true
-			localdata.Lock.Unlock()
-			percentage = 100.0
-		} else if sizes[i] > 0 {
-			percentage = float64(refCounts[i]*256*1024) / float64(sizes[i]) * 100
-			percentageInt = int(percentage)
-			localdata.Lock.Lock()
-			cIDRefPercentage := localdata.CIDRefPercentage[key]
-			localdata.Lock.Unlock()
-			if percentageInt+1 > cIDRefPercentage {
-				localdata.Lock.Lock()
-				localdata.CIDRefPercentage[key] = percentageInt
-				localdata.CIDRefStatus[key] = false
-				localdata.Lock.Unlock()
-			}
-
-		}
-		fmt.Printf("CID: %s has %d references so far (%.2f%%)\n", key, refCounts[i], percentage)
-	}
+	//printProgress := func(i int, key string) {
+	//	var percentage float64
+	//	var percentageInt int
+	//	if completed[i] {
+	//		localdata.Lock.Lock()
+	//		localdata.CIDRefPercentage[key] = 100
+	//		localdata.CIDRefStatus[key] = true
+	//		localdata.Lock.Unlock()
+	//		percentage = 100.0
+	//	} else if sizes[i] > 0 {
+	//		percentage = float64(refCounts[i]*256*1024) / float64(sizes[i]) * 100
+	//		percentageInt = int(percentage)
+	//		localdata.Lock.Lock()
+	//		cIDRefPercentage := localdata.CIDRefPercentage[key]
+	//		localdata.Lock.Unlock()
+	//		if percentageInt+1 > cIDRefPercentage {
+	//			localdata.Lock.Lock()
+	//			localdata.CIDRefPercentage[key] = percentageInt
+	//			localdata.CIDRefStatus[key] = false
+	//			localdata.Lock.Unlock()
+	//		}
+	//
+	//	}
+	//	fmt.Printf("CID: %s has %d references so far (%.2f%%)\n", key, refCounts[i], percentage)
+	//}
 	index := 0
 	for key := range cidsMap {
 		wg.Add(1)
@@ -437,7 +437,7 @@ func SaveRefs(cids []string) {
 				for ref := range refs {
 					refsSlice = append(refsSlice, ref)
 					refCounts[i]++
-					printProgress(i, key)
+					//printProgress(i, key)
 				}
 				localdata.Lock.Lock()
 				localdata.SavedRefs[key] = refsSlice
