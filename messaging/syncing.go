@@ -159,6 +159,8 @@ func SyncNode(req Request) {
 	database.Save([]byte("allPins:"+req.User), allPinsJson)
 	fmt.Println("Saved allPins to database")
 	syncSeed := localdata.PeerSyncSeed[req.Seed]
+	fmt.Println("Sync seed:", syncSeed)
+	fmt.Println("Total parts:", totalParts)
 	if syncSeed == totalParts {
 		localdata.Lock.Lock()
 		localdata.NodesStatus[req.User] = "Synced"
