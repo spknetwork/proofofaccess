@@ -162,7 +162,13 @@ func SyncNode(req Request) {
 	fmt.Println("Sync seed:", syncSeed)
 	fmt.Println("Total parts:", totalParts)
 	if syncSeed == totalParts {
+		// Calculate the size of the pins
+		var size int
+		for _, pin := range allPins {
+			size = localdata.CidSize[pin] + size
+		}
 		localdata.Lock.Lock()
+		localdata.PeerSize[req.User] = size
 		localdata.NodesStatus[req.User] = "Synced"
 		localdata.Lock.Unlock()
 	} else if syncSeed == 1 {
