@@ -165,8 +165,13 @@ func SyncNode(req Request) {
 		// Calculate the size of the pins
 		var size int
 		for _, key := range allPins {
-			if localdata.CidSize[key] > 0 {
+			localdata.Lock.Lock()
+			keySize := localdata.CidSize[key]
+			localdata.Lock.Unlock()
+			if keySize > 0 {
+				localdata.Lock.Lock()
 				size = localdata.CidSize[key] + size
+				localdata.Lock.Unlock()
 				fmt.Println("Size", size)
 			} else {
 				fmt.Println("Getting size of " + key)
