@@ -203,7 +203,7 @@ func SyncNode(req Request) {
 				Nodes[req.User] = false
 				localdata.Lock.Unlock()
 				break
-			} else if nodeStatus == "Failed" {
+			} else if nodeStatus == "Failed" || nodeStatus == "Disconnected" {
 				RequestCIDS(req)
 				break
 			}
