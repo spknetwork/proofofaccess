@@ -164,8 +164,20 @@ func SyncNode(req Request) {
 	if syncSeed == totalParts {
 		// Calculate the size of the pins
 		var size int
-		for _, pin := range allPins {
-			size = localdata.CidSize[pin] + size
+		for _, key := range allPins {
+			if localdata.CidSize[key] > 0 {
+				size = localdata.CidSize[key] + size
+				fmt.Println("Size", size)
+			} else {
+				fmt.Println("Getting size of " + key)
+				stat, _ := ipfs.Shell.ObjectStat(key)
+				localdata.Lock.Lock()
+				localdata.CidSize[key] = stat.CumulativeSize
+				localdata.Lock.Unlock()
+				size = stat.CumulativeSize + size
+				fmt.Println("Size", size)
+			}
+
 		}
 		localdata.Lock.Lock()
 		localdata.PeerSize[req.User] = size
