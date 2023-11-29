@@ -113,7 +113,9 @@ func initialize(ctx context.Context) {
 		if *useWS {
 			localdata.UseWS = *useWS
 			for _, name := range localdata.ValidatorNames {
-				go connection.StartWsClient(name)
+				if *username != name {
+					go connection.StartWsClient(name)
+				}
 			}
 		} else {
 			go messaging.PubsubHandler(ctx)
