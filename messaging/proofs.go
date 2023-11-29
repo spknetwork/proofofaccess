@@ -55,7 +55,7 @@ func HandleProofOfAccess(req Request) {
 	// Create the proof hash
 	var validationHash string
 	fmt.Println("Request Hash", req.Hash)
-	if req.Hash != "" || req.Hash != "NA" {
+	if req.Hash != "NA" || req.Hash != "" {
 		fmt.Println("Creating proof of access hash")
 		validationHash = validation.CreatProofHash(seed, CID)
 		fmt.Println("Validation Hash", validationHash)
@@ -109,6 +109,6 @@ func SendProof(req Request, hash string, seed string, user string) {
 		WsMutex.Unlock()
 		fmt.Println("Sent proof of access to validation node")
 	} else {
-		pubsub.Publish(string(jsonData), user)
+		pubsub.Publish(string(jsonData), req.User)
 	}
 }

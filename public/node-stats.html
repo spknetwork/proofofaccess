@@ -136,6 +136,9 @@
             var peerProof = peerProofs[peer] || "N/A";
             var rawPeerHiveRewards = PeerHiveRewards[peer];
             var rawPeerCids = PeerCids[peer];
+            if (rawPeerCids === undefined) {
+                rawPeerCids = [];
+            }
             var peerHiveRewards = "N/A";
             if (rawPeerHiveRewards !== undefined && !isNaN(rawPeerHiveRewards)) {
                 peerHiveRewards = parseFloat(rawPeerHiveRewards).toFixed(3);

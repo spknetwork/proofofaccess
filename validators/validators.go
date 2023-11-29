@@ -9,19 +9,21 @@ import (
 	"proofofaccess/localdata"
 	"proofofaccess/messaging"
 	"proofofaccess/proofcrypto"
+	"strings"
 	"time"
 )
 
-type Market struct {
-	Domain string `json:"domain"`
+type Service struct {
+	Domain   string `json:"a"` // Domain
+	NodeName string `json:"b"` // NodeName
 }
 
-type Markets struct {
-	Node map[string]Market `json:"node"`
+type Services struct {
+	Services []map[string]Service `json:"services"`
 }
 
 func GetValidators(validators string) {
-	resp, err := http.Get("https://spkinstant.hivehoneycomb.com/markets")
+	resp, err := http.Get(validators)
 	if err != nil {
 		fmt.Printf("Error fetching data: %s\n", err)
 		return
@@ -34,16 +36,25 @@ func GetValidators(validators string) {
 		return
 	}
 
-	var markets Markets
-	err = json.Unmarshal(body, &markets)
+	var services Services
+	err = json.Unmarshal(body, &services)
 	if err != nil {
 		fmt.Printf("Error unmarshalling JSON: %s\n", err)
 		return
 	}
 
-	for nodeName, marketInfo := range markets.Node {
-		localdata.ValidatorNames = append(localdata.ValidatorNames, nodeName)
-		localdata.ValidatorAddress[nodeName] = marketInfo.Domain
+	for _, serviceMap := range services.Services {
+		for _, service := range serviceMap {
+			if strings.HasPrefix(service.Domain, "https://") {
+				service.Domain = "wss://" + strings.TrimPrefix(service.Domain, "https://")
+			}
+			if strings.HasSuffix(service.Domain, "/") {
+				service.Domain = strings.TrimSuffix(service.Domain, "/")
+			}
+			localdata.ValidatorNames = append(localdata.ValidatorNames, service.NodeName)
+			localdata.ValidatorAddress[service.NodeName] = service.Domain
+			fmt.Println("Service:", service)
+		}
 	}
 }
 func ConnectToValidators(ctx context.Context, nodeType *int) {
@@ -53,6 +64,7 @@ func ConnectToValidators(ctx context.Context, nodeType *int) {
 			return
 		default:
 			if *nodeType == 2 {
+				fmt.Println("Connecting to validators")
 				for _, name := range localdata.ValidatorNames {
 					fmt.Println("Connecting to validator: ", name)
 					salt, _ := proofcrypto.CreateRandomHash()

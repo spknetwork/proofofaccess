@@ -51,7 +51,7 @@ func CheckSynced(ctx context.Context) {
 		case <-ctx.Done():
 			return
 		default:
-			for _, peerName := range localdata.PeerNames {
+			for _, peerName := range localdata.WsPeers {
 				fmt.Println("Checking if synced with", peerName)
 				if localdata.WsPeers[peerName] == peerName {
 					peerWs := localdata.WsClients[peerName]
@@ -103,6 +103,11 @@ func CheckSynced(ctx context.Context) {
 }
 
 func StartWsClient(name string) {
+	if localdata.UseWS == false {
+		fmt.Println("Skipping WebSocket connection due to UseWS being false")
+		return
+	}
+
 	interrupt := make(chan os.Signal, 1)
 	signal.Notify(interrupt, os.Interrupt)
 
@@ -128,7 +133,7 @@ func StartWsClient(name string) {
 				//fmt.Println("Client recv: ", string(message))
 			} else {
 				log.Println("Connection is not established.")
-				time.Sleep(1 * time.Second) // Sleep for a second before next reconnection attempt
+				time.Sleep(10 * time.Second) // Sleep for a second before next reconnection attempt
 			}
 		}
 	}()
@@ -137,10 +142,11 @@ func StartWsClient(name string) {
 	for {
 		for {
 			if !isConnected {
-				c, _, err = websocket.DefaultDialer.Dial(localdata.ValidatorAddress[name], nil)
+				fmt.Println("Validator is not connected. Connecting..", localdata.ValidatorAddress[name])
+				c, _, err = websocket.DefaultDialer.Dial(localdata.ValidatorAddress[name]+"/messaging", nil)
 				if err != nil {
 					log.Println("dial:", err)
-					time.Sleep(1 * time.Second)
+					time.Sleep(10 * time.Second)
 					continue
 				}
 				isConnected = true
@@ -179,7 +185,7 @@ func StartWsClient(name string) {
 				}
 				return
 			default:
-				time.Sleep(1 * time.Second)
+				time.Sleep(10 * time.Second)
 			}
 		}
 
@@ -199,7 +205,7 @@ func StartWsClient(name string) {
 			return
 		default:
 			// Run default operations in non-blocking manner
-			time.Sleep(1 * time.Second) // Added sleep here
+			time.Sleep(10 * time.Second) // Added sleep here
 		}
 	}
 }

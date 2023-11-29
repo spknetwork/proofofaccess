@@ -36,7 +36,7 @@ var (
 	getHiveRewards = flag.Bool("getHive", false, "Get Hive rewards")
 	useHoneycomb   = flag.Bool("honeycomb", false, "Use honeycomb")
 	honeycombApi   = flag.String("url", "", "Honeycomb API URL")
-	validatorsApi  = flag.String("validators", "https://spkinstant.hivehoneycomb.com/markets", "Validators URL")
+	validatorsApi  = flag.String("validators", "http://localhost:3000/services/VAL", "Validators URL")
 	threeSpeakNode = flag.Bool("threeSpeak", false, "3Speak node")
 	CID, Hash      string
 	log            = logrus.New()
@@ -109,14 +109,12 @@ func initialize(ctx context.Context) {
 		go peers.FetchPins()
 	}
 	if *nodeType == 2 {
-		//validators.GetValidators(*validatorsApi)
+		validators.GetValidators(*validatorsApi)
 		if *useWS {
 			localdata.UseWS = *useWS
-			//	for _, name := range localdata.ValidatorNames {
-			//		go connection.StartWsClient(name)
-			//	}
-			localdata.ValidatorAddress["validator1"] = "ws://localhost:8000/messaging"
-			go connection.StartWsClient("validator1")
+			for _, name := range localdata.ValidatorNames {
+				go connection.StartWsClient(name)
+			}
 		} else {
 			go messaging.PubsubHandler(ctx)
 			go validators.ConnectToValidators(ctx, nodeType)

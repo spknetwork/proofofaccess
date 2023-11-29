@@ -127,7 +127,7 @@
         const name = document.getElementById('name').value;
         const cid = document.getElementById('cid').value;
         resetStepTexts();
-        const socket = new WebSocket(`ws://${location.host}/validate`);
+        const socket = new WebSocket(`wss://${location.host}/validate`);
 
         const steps = document.querySelectorAll('.step, .step5');
         const stepTexts = document.querySelectorAll('.step-text');
