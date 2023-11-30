@@ -8,7 +8,7 @@ import (
 	"proofofaccess/pubsub"
 )
 
-func SendSyncing(req Request) {
+func SendSyncing(req Request, ws *websocket.Conn) {
 	localdata.Synced = true
 	data := map[string]string{
 		"type": "Syncing",
@@ -21,12 +21,10 @@ func SendSyncing(req Request) {
 		return
 	}
 	if localdata.WsPeers[req.User] == req.User && localdata.NodeType == 1 {
-		ws := localdata.WsClients[req.User]
 		WsMutex.Lock()
 		ws.WriteMessage(websocket.TextMessage, jsonData)
 		WsMutex.Unlock()
 	} else if localdata.UseWS == true && localdata.NodeType == 2 {
-		ws := localdata.WsClients[req.User]
 		WsMutex.Lock()
 		ws.WriteMessage(websocket.TextMessage, jsonData)
 		WsMutex.Unlock()
@@ -34,7 +32,7 @@ func SendSyncing(req Request) {
 		pubsub.Publish(string(jsonData), req.User)
 	}
 }
-func SendSynced(req Request) {
+func SendSynced(req Request, ws *websocket.Conn) {
 	data := map[string]string{
 		"type": "Synced",
 		"user": localdata.GetNodeName(),
@@ -48,7 +46,6 @@ func SendSynced(req Request) {
 	if localdata.WsPeers[req.User] == req.User && localdata.NodeType == 1 {
 		fmt.Println("Sending Synced to " + req.User)
 		WsMutex.Lock()
-		ws := localdata.WsClients[req.User]
 		ws.WriteMessage(websocket.TextMessage, jsonData)
 		WsMutex.Unlock()
 	} else if localdata.UseWS == true && localdata.NodeType == 2 {
@@ -73,7 +70,7 @@ func ReceiveSynced(req Request) {
 	localdata.Lock.Unlock()
 	fmt.Println("Synced with " + req.User)
 }
-func SyncNode(req Request) {
+func SyncNode(req Request, ws *websocket.Conn) {
 	fmt.Println("Syncing with " + req.User)
 	peerName := req.User
 	localdata.Lock.Lock()
@@ -81,7 +78,7 @@ func SyncNode(req Request) {
 	localdata.PeerNames = localdata.RemoveDuplicates(append(localdata.PeerNames, peerName))
 	localdata.NodesStatus[req.User] = "Synced"
 	localdata.Lock.Unlock()
-	SendSynced(req)
+	SendSynced(req, ws)
 	fmt.Println("Synced with " + req.User)
 	Nodes[req.User] = false
 }

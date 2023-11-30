@@ -77,7 +77,7 @@ func performPingPong(ctx context.Context, salt string, name string, conn *websoc
 			if messaging.Ping[salt] {
 				return nil
 			}
-			messaging.SendPing(salt, name)
+			messaging.SendPing(salt, name, conn)
 			attempts++
 			if attempts > maxPingAttempts {
 				return sendWsResponseAndHandleError("Connection Error", "Could not connect to peer, try again", "0", conn, errors.New("connection error"))

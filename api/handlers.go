@@ -222,7 +222,7 @@ func handleMessaging(c *gin.Context) {
 			fmt.Println("Error encoding JSON:", err)
 			return
 		}
-		go messaging.HandleMessage(string(jsonData))
+		go messaging.HandleMessage(string(jsonData), ws)
 	}
 }
 

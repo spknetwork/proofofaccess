@@ -129,7 +129,7 @@ func StartWsClient(name string) {
 					isConnected = false
 					continue
 				}
-				go messaging.HandleMessage(string(message))
+				go messaging.HandleMessage(string(message), localdata.WsValidators[name])
 				//fmt.Println("Client recv: ", string(message))
 			} else {
 				log.Println("Connection is not established.")

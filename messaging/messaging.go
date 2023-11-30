@@ -50,7 +50,7 @@ type PinMap map[string]PinType
 
 // HandleMessage
 // This is the function that handles the messages from the pubsub
-func HandleMessage(message string) {
+func HandleMessage(message string, ws *websocket.Conn) {
 	fmt.Println("Message received:", message)
 	// JSON decode message
 	req := Request{}
@@ -70,7 +70,7 @@ func HandleMessage(message string) {
 			fmt.Println("User: " + req.User)
 			fmt.Println("CID: " + req.CID)
 			fmt.Println("Pins: " + req.Pins)
-			go HandleProofOfAccess(req)
+			go HandleProofOfAccess(req, ws)
 		}
 
 	}
@@ -79,7 +79,7 @@ func HandleMessage(message string) {
 	if nodeType == 2 {
 		if req.Type == TypeRequestProof {
 			fmt.Println("Request for proof received")
-			go HandleRequestProof(req)
+			go HandleRequestProof(req, ws)
 		}
 		if req.Type == TypePingPongPong {
 			validatorName := req.User
@@ -95,25 +95,25 @@ func HandleMessage(message string) {
 	}
 	if req.Type == TypePingPongPing {
 		fmt.Println("PingPongPing received")
-		PingPongPong(req, req.Hash, req.User)
+		PingPongPong(req, ws)
 		nodeStatus := localdata.NodesStatus[req.User]
 		nodes := Nodes[req.User]
 		fmt.Println("Node Status: " + nodeStatus)
 		fmt.Println("Nodes: " + fmt.Sprint(nodes))
 		if nodeType == 1 && !nodes && nodeStatus != "Synced" {
 			fmt.Println("syncing: " + req.User)
-			go SyncNode(req)
+			go SyncNode(req, ws)
 		}
 
 	}
 	if req.Type == "RequestCIDS" {
 		fmt.Println("RequestCIDS received")
-		go SendCIDS(req.User)
+		go SendCIDS(req.User, ws)
 
 	}
 	if req.Type == "SendCIDS" {
 		fmt.Println("SendCIDS received")
-		go SyncNode(req)
+		go SyncNode(req, ws)
 
 	}
 	if req.Type == "Syncing" {
@@ -148,14 +148,15 @@ func PubsubHandler(ctx context.Context) {
 					log.Error("Error reading from pubsub: ", err)
 					continue
 				}
-				HandleMessage(msg)
+				var ws *websocket.Conn
+				HandleMessage(msg, ws)
 			}
 		}
 	} else {
 		time.Sleep(1 * time.Second)
 	}
 }
-func SendPing(hash string, user string) {
+func SendPing(hash string, user string, ws *websocket.Conn) {
 	fmt.Println("Sending Ping")
 	data := map[string]string{
 		"type": TypePingPongPing,
@@ -169,7 +170,6 @@ func SendPing(hash string, user string) {
 	}
 	localdata.PingTime[user] = time.Now()
 	if localdata.WsPeers[user] == user && localdata.NodeType == 1 {
-		ws := localdata.WsClients[user]
 		WsMutex.Lock()
 		ws.WriteMessage(websocket.TextMessage, jsonData)
 		WsMutex.Unlock()
@@ -181,11 +181,11 @@ func SendPing(hash string, user string) {
 		pubsub.Publish(string(jsonData), user)
 	}
 }
-func PingPongPong(req Request, hash string, user string) {
+func PingPongPong(req Request, ws *websocket.Conn) {
 	fmt.Println("Sending PingPongPong")
 	data := map[string]string{
 		"type": TypePingPongPong,
-		"hash": hash,
+		"hash": req.Hash,
 		"user": localdata.GetNodeName(),
 	}
 	jsonData, err := json.Marshal(data)
@@ -194,7 +194,6 @@ func PingPongPong(req Request, hash string, user string) {
 		return
 	}
 	if localdata.WsPeers[req.User] == req.User && localdata.NodeType == 1 {
-		ws := localdata.WsClients[req.User]
 		fmt.Println("Sending PingPongPong to client")
 		localdata.Lock.Lock()
 		localdata.PeerLastActive[req.User] = time.Now()
@@ -209,6 +208,6 @@ func PingPongPong(req Request, hash string, user string) {
 		localdata.WsValidators[req.User].WriteMessage(websocket.TextMessage, jsonData)
 		WsMutex.Unlock()
 	} else {
-		pubsub.Publish(string(jsonData), user)
+		pubsub.Publish(string(jsonData), req.User)
 	}
 }

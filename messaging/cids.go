@@ -12,7 +12,7 @@ import (
 	"strings"
 )
 
-func RequestCIDS(req Request) {
+func RequestCIDS(req Request, ws *websocket.Conn) {
 	fmt.Println("Requesting CIDS")
 	data := map[string]string{
 		"type": "RequestCIDS",
@@ -27,7 +27,6 @@ func RequestCIDS(req Request) {
 	if localdata.WsPeers[req.User] == req.User && localdata.NodeType == 1 {
 		WsMutex.Lock()
 		fmt.Println("Locking wsMutex")
-		ws := localdata.WsClients[req.User]
 		ws.WriteMessage(websocket.TextMessage, jsonData)
 		fmt.Println("Sent RequestCIDS to client")
 		WsMutex.Unlock()
@@ -40,7 +39,7 @@ func RequestCIDS(req Request) {
 	}
 
 }
-func SendCIDS(name string) {
+func SendCIDS(name string, ws *websocket.Conn) {
 	allPins, _ := ipfs.Shell.Pins()
 	fmt.Println("Fetched pins")
 	NewPins := make([]string, 0)
@@ -76,8 +75,7 @@ func SendCIDS(name string) {
 		}
 
 		if localdata.UseWS == true && localdata.NodeType == 2 {
-			ws := localdata.WsValidators[name]
-			fmt.Println("Sending CIDS to validation node")
+			fmt.Println("Sending CIDS to validation node", name)
 			WsMutex.Lock()
 			ws.WriteJSON(data)
 			WsMutex.Unlock()

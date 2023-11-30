@@ -14,22 +14,22 @@ import (
 
 // HandleRequestProof
 // This is the function that handles the request for proof from the validation node
-func HandleRequestProof(req Request) {
+func HandleRequestProof(req Request, ws *websocket.Conn) {
 	CID := req.CID
 	hash := req.Hash
 	if ipfs.IsPinnedInDB(CID) == true {
 		fmt.Println("Sending proof of access to validation node")
 		validationHash := validation.CreatProofHash(hash, CID)
-		SendProof(req, validationHash, hash, localdata.NodeName)
+		SendProof(req, validationHash, hash, localdata.NodeName, ws)
 	} else {
 		fmt.Println("Pin not found")
-		SendProof(req, "NA", hash, localdata.NodeName)
+		SendProof(req, "NA", hash, localdata.NodeName, ws)
 	}
 }
 
 // HandleProofOfAccess
 // This is the function that handles the proof of access response from the storage node
-func HandleProofOfAccess(req Request) {
+func HandleProofOfAccess(req Request, ws *websocket.Conn) {
 	fmt.Println("Handling proof of access response from storage node")
 	// Get the start time from the seed
 	start := localdata.GetTime(req.Seed)
@@ -82,12 +82,12 @@ func HandleProofOfAccess(req Request) {
 
 // SendProof
 // This is the function that sends the proof of access to the validation node
-func SendProof(req Request, hash string, seed string, user string) {
+func SendProof(req Request, validationHash string, salt string, user string, ws *websocket.Conn) {
 	fmt.Println("Sending proof of access to validation node")
 	data := map[string]string{
 		"type": TypeProofOfAccess,
-		"hash": hash,
-		"seed": seed,
+		"hash": validationHash,
+		"seed": salt,
 		"user": user,
 	}
 	jsonData, err := json.Marshal(data)
@@ -98,12 +98,10 @@ func SendProof(req Request, hash string, seed string, user string) {
 	wsPeers := localdata.WsPeers[req.User]
 	nodeType := localdata.NodeType
 	if wsPeers == req.User && nodeType == 1 {
-		ws := localdata.WsClients[req.User]
 		WsMutex.Lock()
 		ws.WriteMessage(websocket.TextMessage, jsonData)
 		WsMutex.Unlock()
 	} else if localdata.UseWS == true && localdata.NodeType == 2 {
-		ws := localdata.WsValidators[req.User]
 		WsMutex.Lock()
 		ws.WriteMessage(websocket.TextMessage, jsonData)
 		WsMutex.Unlock()
