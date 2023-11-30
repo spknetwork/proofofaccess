@@ -16,7 +16,6 @@ var Pins = make(map[string]interface{})
 var NewPins = make(map[string]interface{})
 
 func FetchPins() {
-	newPins := false // Assuming this is a boolean based on your usage
 	localdata.Lock.Lock()
 	Pins = NewPins
 	var PeerSize = 0
@@ -66,10 +65,6 @@ func FetchPins() {
 			//fmt.Println("Peer size: ", localdata.PeerSize[localdata.NodeName])
 			localdata.Lock.Unlock()
 			if !ipfs.IsPinnedInDB(key) {
-				localdata.Lock.Lock()
-				newPins = true
-				localdata.Lock.Unlock()
-
 				// If the key doesn't exist in Pins, add it to the pinsNotIncluded map
 				savedRefs, _ := ipfs.Refs(key)
 				localdata.Lock.Lock()
@@ -97,11 +92,5 @@ func FetchPins() {
 	localdata.PeerSize[localdata.NodeName] = PeerSize
 	localdata.SyncedPercentage = 100
 	localdata.Lock.Unlock()
-
-	if newPins {
-		fmt.Println("New pins found")
-		messaging.SendCIDS("validator1")
-		newPins = false
-	}
 
 }

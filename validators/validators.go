@@ -69,7 +69,7 @@ func ConnectToValidators(ctx context.Context, nodeType *int) {
 					if localdata.GetNodeName() != name {
 						fmt.Println("Connecting to validator: ", name)
 						salt, _ := proofcrypto.CreateRandomHash()
-						messaging.SendPing(salt, name)
+						messaging.SendPing(salt, name, localdata.WsValidators[name])
 					}
 				}
 				time.Sleep(120 * time.Second)
