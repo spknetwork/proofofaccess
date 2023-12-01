@@ -36,7 +36,7 @@ var (
 	getHiveRewards = flag.Bool("getHive", false, "Get Hive rewards")
 	useHoneycomb   = flag.Bool("honeycomb", false, "Use honeycomb")
 	honeycombApi   = flag.String("url", "", "Honeycomb API URL")
-	validatorsApi  = flag.String("validators", "http://localhost:3000/services/VAL", "Validators URL")
+	validatorsApi  = flag.String("validators", "http://localhost:3001/services/VAL", "Validators URL")
 	threeSpeakNode = flag.Bool("threeSpeak", false, "3Speak node")
 	CID, Hash      string
 	log            = logrus.New()
