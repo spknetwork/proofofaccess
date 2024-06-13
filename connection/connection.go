@@ -121,18 +121,30 @@ func StartWsClient(name string) {
 			if isConnected {
 				localdata.Lock.Lock()
 				validatorWs := localdata.WsValidators[name]
-				_, message, err := validatorWs.ReadMessage()
 				localdata.Lock.Unlock()
-				if err != nil {
-					log.Println("read:", err)
-					fmt.Println("Connection lost. Reconnecting...")
-					isConnected = false
-					continue
+				for {
+					ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+					defer cancel()
+					select {
+					case <-ctx.Done():
+						log.Println("Timeout: No message received")
+						isConnected = false
+						return
+					default:
+						log.Println("Reading message")
+						_, message, err := validatorWs.ReadMessage()
+						if err != nil {
+							log.Println("read:", err)
+							fmt.Println("Connection lost. Reconnecting...")
+							isConnected = false
+							return
+						}
+						fmt.Println("Client received: ", string(message))
+						go messaging.HandleMessage(string(message), localdata.WsValidators[name])
+					}
 				}
-				go messaging.HandleMessage(string(message), localdata.WsValidators[name])
-				//fmt.Println("Client recv: ", string(message))
 			} else {
-				log.Println("Connection is not established.")
+				log.Println("Connection is not established. ", name)
 				time.Sleep(10 * time.Second) // Sleep for a second before next reconnection attempt
 			}
 		}
