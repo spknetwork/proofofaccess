@@ -205,7 +205,16 @@ func PingPongPong(req Request, ws *websocket.Conn) {
 		fmt.Println("Sent PingPongPong to client")
 	} else if localdata.UseWS == true && localdata.NodeType == 2 {
 		WsMutex.Lock()
-		localdata.WsValidators[req.User].WriteMessage(websocket.TextMessage, jsonData)
+		if conn, ok := localdata.WsValidators[req.User]; ok && conn != nil {
+			err := conn.WriteMessage(websocket.TextMessage, jsonData)
+			if err != nil {
+				log.Printf("Error writing message to %s: %v", req.User, err)
+				// Consider implementing a retry mechanism or connection reset here
+			}
+		} else {
+			log.Printf("No valid connection to %s", req.User)
+			// Consider triggering a reconnection attempt here
+		}
 		WsMutex.Unlock()
 	} else {
 		pubsub.Publish(string(jsonData), req.User)

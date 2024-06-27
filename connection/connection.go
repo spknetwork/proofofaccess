@@ -11,39 +11,22 @@ import (
 	"proofofaccess/localdata"
 	"proofofaccess/messaging"
 	"proofofaccess/proofcrypto"
-	"sync"
 	"time"
 )
 
-var (
-	interrupt = make(chan os.Signal, 1)
-	done      = make(chan struct{})
+const (
+	// Time allowed to write a message to the peer.
+	writeWait = 10 * time.Second
+
+	// Time allowed to read the next pong message from the peer.
+	pongWait = 60 * time.Second
+
+	// Send pings to peer with this period. Must be less than pongWait.
+	pingPeriod = (pongWait * 9) / 10
+
+	// Maximum message size allowed from peer.
+	maxMessageSize = 512
 )
-var mu sync.Mutex
-
-func IsConnectionOpen(conn *websocket.Conn) bool {
-	fmt.Println("Checking if connection is open")
-	var writeWait = 1 * time.Second
-
-	if err := conn.SetWriteDeadline(time.Now().Add(writeWait)); err != nil {
-		log.Println("SetWriteDeadline failed:", err)
-		return false
-	}
-
-	// Write the ping message to the connection
-	if err := conn.WriteMessage(websocket.PingMessage, nil); err != nil {
-		log.Println("WriteMessage failed:", err)
-		return false
-	}
-
-	// Reset the write deadline
-	if err := conn.SetWriteDeadline(time.Time{}); err != nil {
-		log.Println("Resetting WriteDeadline failed:", err)
-		return false
-	}
-	fmt.Println("Connection is open")
-	return true
-}
 
 func CheckSynced(ctx context.Context) {
 	for {
@@ -102,6 +85,30 @@ func CheckSynced(ctx context.Context) {
 	}
 }
 
+func IsConnectionOpen(conn *websocket.Conn) bool {
+	fmt.Println("Checking if connection is open")
+	var writeWait = 1 * time.Second
+
+	if err := conn.SetWriteDeadline(time.Now().Add(writeWait)); err != nil {
+		log.Println("SetWriteDeadline failed:", err)
+		return false
+	}
+
+	// Write the ping message to the connection
+	if err := conn.WriteMessage(websocket.PingMessage, nil); err != nil {
+		log.Println("WriteMessage failed:", err)
+		return false
+	}
+
+	// Reset the write deadline
+	if err := conn.SetWriteDeadline(time.Time{}); err != nil {
+		log.Println("Resetting WriteDeadline failed:", err)
+		return false
+	}
+	fmt.Println("Connection is open")
+	return true
+}
+
 func StartWsClient(name string) {
 	if localdata.UseWS == false {
 		fmt.Println("Skipping WebSocket connection due to UseWS being false")
@@ -111,118 +118,78 @@ func StartWsClient(name string) {
 	interrupt := make(chan os.Signal, 1)
 	signal.Notify(interrupt, os.Interrupt)
 
-	var c *websocket.Conn
-	var isConnected bool
-	var err error
-
-	// client reading messages
-	go func() {
-		for {
-			if isConnected {
-				localdata.Lock.Lock()
-				validatorWs := localdata.WsValidators[name]
-				localdata.Lock.Unlock()
-				for {
-					ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-					defer cancel()
-					select {
-					case <-ctx.Done():
-						log.Println("Timeout: No message received")
-						isConnected = false
-						return
-					default:
-						log.Println("Reading message")
-						_, message, err := validatorWs.ReadMessage()
-						if err != nil {
-							log.Println("read:", err)
-							fmt.Println("Connection lost. Reconnecting...")
-							isConnected = false
-							return
-						}
-						fmt.Println("Client received: ", string(message))
-						go messaging.HandleMessage(string(message), localdata.WsValidators[name])
-					}
-				}
-			} else {
-				log.Println("Connection is not established. ", name)
-				time.Sleep(10 * time.Second) // Sleep for a second before next reconnection attempt
-			}
-		}
-	}()
-
-	// Connection or reconnection loop
 	for {
-		for {
-			if !isConnected {
-				fmt.Println("Validator is not connected. Connecting..", localdata.ValidatorAddress[name])
-				c, _, err = websocket.DefaultDialer.Dial(localdata.ValidatorAddress[name]+"/messaging", nil)
-				if err != nil {
-					log.Println("dial:", err)
-					time.Sleep(10 * time.Second)
-					continue
-				}
-				isConnected = true
-				log.Println("Connected to the server")
-				salt, _ := proofcrypto.CreateRandomHash()
-				localdata.Lock.Lock()
-				localdata.WsValidators[name] = c
-				localdata.Lock.Unlock()
-				fmt.Println("Connected to validator1")
-				wsPing(salt, name)
-			} else {
-				// Ping the server to check if still connected
-				validatorWs := localdata.WsValidators[name]
-				messaging.WsMutex.Lock()
-				err = validatorWs.WriteMessage(websocket.PingMessage, nil)
-				messaging.WsMutex.Unlock()
-				if err != nil {
-					log.Println("write:", err)
-					fmt.Println("Connection lost. Reconnecting...")
-					isConnected = false
-				}
-			}
-
-			select {
-			case <-interrupt:
-				log.Println("interrupt")
-				if isConnected {
-					localdata.Lock.Lock()
-					validatorWs := localdata.WsValidators[name]
-					err = validatorWs.WriteMessage(websocket.CloseMessage, websocket.FormatCloseMessage(websocket.CloseNormalClosure, ""))
-					localdata.Lock.Unlock()
-					if err != nil {
-						log.Println("write close:", err)
-						return
-					}
-				}
-				return
-			default:
-				time.Sleep(10 * time.Second)
-			}
-		}
-
-		select {
-		case <-interrupt:
-			log.Println("interrupt")
-			if isConnected {
-				localdata.Lock.Lock()
-				validatorWs := localdata.WsValidators[name]
-				err = validatorWs.WriteMessage(websocket.CloseMessage, websocket.FormatCloseMessage(websocket.CloseNormalClosure, ""))
-				localdata.Lock.Unlock()
-				if err != nil {
-					log.Println("write close:", err)
-					return
-				}
-			}
-			return
-		default:
-			// Run default operations in non-blocking manner
-			time.Sleep(10 * time.Second) // Added sleep here
+		err := connectAndListen(name, interrupt)
+		if err != nil {
+			log.Printf("WebSocket error: %v", err)
+			time.Sleep(time.Second * 5) // Wait before attempting to reconnect
 		}
 	}
 }
 
-func wsPing(hash string, name string) {
+func connectAndListen(name string, interrupt <-chan os.Signal) error {
+	u := localdata.ValidatorAddress[name] + "/messaging"
+	log.Printf("Connecting to %s", u)
+
+	c, _, err := websocket.DefaultDialer.Dial(u, nil)
+	if err != nil {
+		return fmt.Errorf("dial: %v", err)
+	}
+	defer c.Close()
+
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		c.SetReadLimit(maxMessageSize)
+		c.SetReadDeadline(time.Now().Add(pongWait))
+		c.SetPongHandler(func(string) error { c.SetReadDeadline(time.Now().Add(pongWait)); return nil })
+		for {
+			_, message, err := c.ReadMessage()
+			if err != nil {
+				if websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway, websocket.CloseAbnormalClosure) {
+					log.Printf("read error: %v", err)
+				}
+				return
+			}
+			go messaging.HandleMessage(string(message), c)
+		}
+	}()
+
+	ticker := time.NewTicker(pingPeriod)
+	defer ticker.Stop()
+
+	localdata.Lock.Lock()
+	localdata.WsValidators[name] = c
+	localdata.Lock.Unlock()
+
+	salt, _ := proofcrypto.CreateRandomHash()
+	wsPing(salt, name, c)
+
+	for {
+		select {
+		case <-done:
+			return nil
+		case <-ticker.C:
+			c.SetWriteDeadline(time.Now().Add(writeWait))
+			if err := c.WriteMessage(websocket.PingMessage, nil); err != nil {
+				return fmt.Errorf("write ping: %v", err)
+			}
+		case <-interrupt:
+			log.Println("Interrupt received, closing connection")
+			err := c.WriteMessage(websocket.CloseMessage, websocket.FormatCloseMessage(websocket.CloseNormalClosure, ""))
+			if err != nil {
+				return fmt.Errorf("write close: %v", err)
+			}
+			select {
+			case <-done:
+			case <-time.After(time.Second):
+			}
+			return nil
+		}
+	}
+}
+
+func wsPing(hash string, name string, c *websocket.Conn) {
 	fmt.Println("Sending Ping")
 	data := map[string]string{
 		"type": "PingPongPing",
@@ -235,6 +202,8 @@ func wsPing(hash string, name string) {
 		return
 	}
 	fmt.Println("Client send: ", string(jsonData))
-	validatorWs := localdata.WsValidators[name]
-	err = validatorWs.WriteMessage(websocket.TextMessage, jsonData)
+	err = c.WriteMessage(websocket.TextMessage, jsonData)
+	if err != nil {
+		log.Printf("write ping: %v", err)
+	}
 }
