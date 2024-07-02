@@ -167,7 +167,10 @@ func handleValidate(c *gin.Context) {
 		if err != nil {
 			return
 		}
+	} else {
+		salt = salt + msg.CID + msg.Name
 	}
+
 	proofJson, err := createProofRequest(salt, msg.CID, conn, msg.Name)
 	if err != nil {
 		return
