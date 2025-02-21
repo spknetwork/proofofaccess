@@ -86,7 +86,7 @@ func getNetworkHandler(c *gin.Context) {
 		log.Error("Failed to upgrade to WebSocket")
 		return
 	}
-	fmt.Println("Upgraded to websocket")
+	//fmt.Println("Upgraded to websocket")
 	defer closeWebSocket(conn)
 	msg, err := readWebSocketMessage(conn)
 
@@ -137,13 +137,13 @@ func getNetworkHandler(c *gin.Context) {
 }
 
 func handleValidate(c *gin.Context) {
-	log.Info("Entering handleValidate")
+	//log.Info("Entering handleValidate")
 	conn := upgradeToWebSocket(c)
 	if conn == nil {
 		log.Error("Failed to upgrade to WebSocket")
 		return
 	}
-	fmt.Println("Upgraded to websocket")
+	//fmt.Println("Upgraded to websocket")
 
 	defer closeWebSocket(conn)
 
