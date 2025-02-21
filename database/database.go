@@ -4,10 +4,11 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/dgraph-io/badger"
 	"log"
 	"strings"
 	"time"
+
+	"github.com/dgraph-io/badger"
 )
 
 type Message struct {
@@ -76,11 +77,10 @@ func checkDatabaseOpen() error {
 // Delete
 // Delete the value associated with a key
 func Delete(key []byte) {
-	if Lock == true {
-		for Lock == true {
-			time.Sleep(10 * time.Millisecond)
-		}
+	for Lock {
+		time.Sleep(10 * time.Millisecond)
 	}
+
 	Lock = true
 	if err := checkDatabaseOpen(); err != nil {
 		log.Fatal(err)
@@ -114,11 +114,10 @@ func Save(key []byte, value []byte) {
 		log.Fatal(err)
 	}
 	fmt.Println("Saving data to database")
-	if Lock == true {
-		for Lock == true {
-			time.Sleep(10 * time.Millisecond)
-		}
+	for Lock {
+		time.Sleep(10 * time.Millisecond)
 	}
+
 	Lock = true
 	txn := DB.NewTransaction(true)
 	defer txn.Discard()
@@ -145,11 +144,8 @@ func Update(key []byte, value []byte) {
 	}
 
 	// fmt.Println("Updating value")
-	if Lock == true {
-		fmt.Println("Lock is true")
-		for Lock == true {
-			time.Sleep(10 * time.Millisecond)
-		}
+	for Lock {
+		time.Sleep(10 * time.Millisecond)
 	}
 	Lock = true
 	err := DB.Update(func(txn *badger.Txn) error {
