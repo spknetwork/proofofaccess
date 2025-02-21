@@ -3,8 +3,9 @@ package pubsub
 import (
 	"context"
 	"fmt"
-	ipfs "github.com/ipfs/go-ipfs-api"
 	poaipfs "proofofaccess/ipfs"
+
+	ipfs "github.com/ipfs/go-ipfs-api"
 )
 
 // Subscribe to a topic
@@ -32,10 +33,10 @@ func Read(sub *ipfs.PubSubSubscription) (string, error) {
 
 // Publish a message to a topic
 func Publish(message string, user string) error {
-	fmt.Println("Publishing message:", message, user)
+	//fmt.Println("Publishing message:", message, user)
 	err := poaipfs.Shell.PubSubPublish(user, message)
 	if err != nil {
-		fmt.Println("Error publishing message:", err)
+		//fmt.Println("Error publishing message:", err)
 		return err
 	}
 	return nil

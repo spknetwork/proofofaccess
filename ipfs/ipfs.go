@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	ipfs "github.com/ipfs/go-ipfs-api"
 	"io"
 	"io/ioutil"
 	"log"
@@ -15,6 +14,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	ipfs "github.com/ipfs/go-ipfs-api"
 )
 
 var Shell *ipfs.Shell
@@ -322,7 +323,7 @@ func SyncNode(NewPins map[string]interface{}, name string) {
 
 				stat, err := Shell.ObjectStat(key)
 				if err != nil {
-					fmt.Printf("Error getting size: %v\n", err)
+					//fmt.Printf("Error getting size: %v\n", err)
 					return
 				}
 				sizes[i] = stat.CumulativeSize
@@ -440,7 +441,7 @@ func SaveRefs(cids []string) {
 			if !isPinnedInDB {
 				stat, err := Shell.ObjectStat(key)
 				if err != nil {
-					fmt.Printf("Error getting size: %v\n", err)
+					//fmt.Printf("Error getting size: %v\n", err)
 					return
 				}
 				localdata.Lock.Lock()

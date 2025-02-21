@@ -3,8 +3,6 @@ package api
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/gin-gonic/gin"
-	"github.com/gorilla/websocket"
 	"net"
 	"net/http"
 	"os"
@@ -13,6 +11,9 @@ import (
 	"proofofaccess/messaging"
 	"sort"
 	"time"
+
+	"github.com/gin-gonic/gin"
+	"github.com/gorilla/websocket"
 )
 
 var WsClients = make(map[string]*websocket.Conn)
@@ -191,14 +192,14 @@ func handleValidate(c *gin.Context) {
 }
 
 func handleMessaging(c *gin.Context) {
-	fmt.Println("Entering handleMessaging")
-	fmt.Println("Upgrading to websocket")
+	//fmt.Println("Entering handleMessaging")
+	//fmt.Println("Upgrading to websocket")
 	ws := upgradeToWebSocket(c)
 	if ws == nil {
 		log.Error("Failed to upgrade to WebSocket")
 		return
 	}
-	fmt.Println("Upgraded to websocket")
+	//fmt.Println("Upgraded to websocket")
 
 	defer ws.Close()
 

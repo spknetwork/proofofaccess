@@ -3,13 +3,14 @@ package messaging
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/gorilla/websocket"
 	"proofofaccess/database"
 	"proofofaccess/ipfs"
 	"proofofaccess/localdata"
 	"proofofaccess/pubsub"
 	"proofofaccess/validation"
 	"time"
+
+	"github.com/gorilla/websocket"
 )
 
 // HandleRequestProof
@@ -83,7 +84,7 @@ func HandleProofOfAccess(req Request, ws *websocket.Conn) {
 // SendProof
 // This is the function that sends the proof of access to the validation node
 func SendProof(req Request, validationHash string, salt string, user string, ws *websocket.Conn) {
-	fmt.Println("Sending proof of access to validation node")
+	//fmt.Println("Sending proof of access to validation node")
 	data := map[string]string{
 		"type": TypeProofOfAccess,
 		"hash": validationHash,

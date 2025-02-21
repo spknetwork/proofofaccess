@@ -3,11 +3,12 @@ package localdata
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/gorilla/websocket"
 	"proofofaccess/database"
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/gorilla/websocket"
 )
 
 var Time = time.Now()
@@ -67,8 +68,8 @@ type NetworkRecord struct {
 func SaveTime(salt string) {
 	Time = time.Now()
 	timeStr := Time.Format(Layout)
-	fmt.Println("Time: ", timeStr)
-	fmt.Println("Salt: ", salt)
+	//fmt.Println("Time: ", timeStr)
+	//fmt.Println("Salt: ", salt)
 	database.Update([]byte(salt+"time"), []byte(timeStr))
 }
 
@@ -76,8 +77,8 @@ func SaveTime(salt string) {
 // Gets the time from the database
 func GetTime(hash string) time.Time {
 	data := database.Read([]byte(hash + "time"))
-	fmt.Println("GetTime", string(data))
-	fmt.Println("salt", hash)
+	//fmt.Println("GetTime", string(data))
+	//fmt.Println("salt", hash)
 	parsedTime, _ := time.Parse(Layout, string(data))
 	return parsedTime
 }
@@ -153,8 +154,8 @@ func RecordNetwork() {
 	currentTime := time.Now().Format(time.RFC3339)
 	NetworkStorage := 0
 	for _, peerName := range PeerNames {
-		fmt.Println("Peer: ", peerName)
-		fmt.Println("Size: ", PeerSize[peerName])
+		//fmt.Println("Peer: ", peerName)
+		//fmt.Println("Size: ", PeerSize[peerName])
 		NetworkStorage = NetworkStorage + PeerSize[peerName]
 	}
 	NetworkStorage = NetworkStorage / 1024 / 1024 / 1024
