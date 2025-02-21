@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/gorilla/websocket"
 	"log"
 	"os"
 	"os/signal"
@@ -12,6 +11,8 @@ import (
 	"proofofaccess/messaging"
 	"proofofaccess/proofcrypto"
 	"time"
+
+	"github.com/gorilla/websocket"
 )
 
 const (
@@ -201,7 +202,7 @@ func wsPing(hash string, name string, c *websocket.Conn) {
 		fmt.Println("Error encoding JSON:", err)
 		return
 	}
-	fmt.Println("Client send: ", string(jsonData))
+	//fmt.Println("Client send: ", string(jsonData))
 	err = c.WriteMessage(websocket.TextMessage, jsonData)
 	if err != nil {
 		log.Printf("write ping: %v", err)

@@ -2,7 +2,6 @@ package honeycomb
 
 import (
 	"encoding/json"
-	"fmt"
 	"io/ioutil"
 	"net/http"
 )
@@ -17,7 +16,7 @@ type Contract struct {
 
 func GetCIDsFromAPI(url string) ([]string, error) {
 	resp, err := http.Get(url)
-	fmt.Println("resp", resp)
+	// fmt.Println("resp", resp)
 	if err != nil {
 		return nil, err
 	}
@@ -32,12 +31,12 @@ func GetCIDsFromAPI(url string) ([]string, error) {
 	if err := json.Unmarshal(body, &response); err != nil {
 		return nil, err
 	}
-	fmt.Println("response", response)
+	//fmt.Println("response", response)
 	var cids []string
 	for _, contracts := range response.Contracts {
 		for _, contract := range contracts {
 			for cid := range contract.DF {
-				fmt.Println("Contract CID", cid)
+				//fmt.Println("Contract CID", cid)
 				cids = append(cids, cid)
 			}
 		}

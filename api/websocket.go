@@ -1,12 +1,12 @@
 package api
 
 import (
-	"fmt"
-	"github.com/gin-gonic/gin"
-	"github.com/gorilla/websocket"
 	"net/http"
 	"proofofaccess/localdata"
 	"sync"
+
+	"github.com/gin-gonic/gin"
+	"github.com/gorilla/websocket"
 )
 
 type ExampleResponse struct {
@@ -68,7 +68,7 @@ func readWebSocketMessage(conn *websocket.Conn) (*message, error) {
 
 func sendWsResponse(status string, message string, elapsed string, conn *websocket.Conn) {
 	localdata.Lock.Lock()
-	fmt.Println("sendWsResponse", status, message, elapsed)
+	//fmt.Println("sendWsResponse", status, message, elapsed)
 	err := conn.WriteJSON(ExampleResponse{
 		Status:  status,
 		Message: message,

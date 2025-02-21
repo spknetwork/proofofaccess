@@ -4,8 +4,6 @@ import (
 	"context"
 	"flag"
 	"fmt"
-	shell "github.com/ipfs/go-ipfs-api"
-	"github.com/sirupsen/logrus"
 	"os"
 	"os/signal"
 	"proofofaccess/Rewards"
@@ -21,6 +19,9 @@ import (
 	"proofofaccess/validators"
 	"sync"
 	"syscall"
+
+	shell "github.com/ipfs/go-ipfs-api"
+	"github.com/sirupsen/logrus"
 )
 
 var (
@@ -46,7 +47,7 @@ var mu sync.Mutex
 
 func main() {
 	flag.Parse()
-
+	log.SetLevel(logrus.WarnLevel)
 	ipfs.Shell = shell.NewShell("localhost:" + *ipfsPort)
 	ctx, cancel := context.WithCancel(context.Background())
 
@@ -98,7 +99,7 @@ func initialize(ctx context.Context) {
 		localdata.Lock.Unlock()
 		log.Error(err)
 		fmt.Println("Got Honeycomb CIDs")
-		fmt.Println(cids)
+		// fmt.Println(cids)
 		go ipfs.SaveRefs(cids)
 	}
 	if *nodeType == 1 {
