@@ -39,7 +39,7 @@ func connectToPeer(peerID string, conn *websocket.Conn, msg *message) error {
 	err = ipfs.IpfsPingNode(peerID)
 	if err != nil {
 		sendWsResponse("PeerNotFound", "Peer Not Found", "0", conn)
-		log.Warnf("Peer %s not found via routing: %v", peerID, err)
+		log.Debugf("Peer %s not found via routing: %v", peerID, err)
 		return err
 	}
 	sendWsResponse("Connected", "Connected to Peer", "0", conn)
