@@ -132,7 +132,7 @@ func StartWsClient(name string) {
 	for {
 		err := connectAndListen(name, interrupt)
 		if err != nil {
-			logrus.Warnf("WebSocket client connection error for %s: %v. Retrying in %v...", name, err, currentBackoff)
+			logrus.Debugf("WebSocket client connection error for %s: %v. Retrying in %v...", name, err, currentBackoff)
 
 			jitter := time.Duration(rand.Int63n(int64(currentBackoff))) - (currentBackoff / 2)
 			waitTime := currentBackoff + jitter

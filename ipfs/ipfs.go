@@ -1,7 +1,9 @@
 package ipfs
 
 import (
+	"bufio"
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -15,6 +17,7 @@ import (
 	"time"
 
 	ipfs "github.com/ipfs/go-ipfs-api"
+	multiaddr "github.com/multiformats/go-multiaddr"
 	"github.com/sirupsen/logrus"
 )
 
@@ -121,11 +124,12 @@ func IpfsPingNode(peerID string) error {
 		return fmt.Errorf("IPFS node is currently unavailable")
 	}
 
-	peer, err := Shell.FindPeer(peerID)
+	_, err := Shell.Request("routing", "findpeer", peerID).Send(context.Background())
 	if err != nil {
-		return fmt.Errorf("error finding peer %s: %v", peerID, err)
+		return fmt.Errorf("error finding peer %s via routing findpeer: %w", peerID, err)
 	}
-	logrus.Debugf("Found peer %s addresses: %v", peerID, peer.Addrs)
+
+	logrus.Debugf("Successfully found peer %s via routing findpeer", peerID)
 
 	return nil
 }
@@ -149,18 +153,48 @@ func GetIPFromPeerID(peerIDStr string) (string, error) {
 		return "", fmt.Errorf("IPFS node is currently unavailable")
 	}
 
-	peerInfo, err := Shell.FindPeer(peerIDStr)
+	res, err := Shell.Request("routing", "findpeer", peerIDStr).Send(context.Background())
 	if err != nil {
-		return "", fmt.Errorf("failed to find peer %s: %v", peerIDStr, err)
+		return "", fmt.Errorf("failed to find peer %s via routing findpeer: %w", peerIDStr, err)
+	}
+	defer res.Close()
+
+	if res.Error != nil {
+		return "", fmt.Errorf("routing findpeer command failed for %s: %w", peerIDStr, res.Error)
 	}
 
-	if len(peerInfo.Addrs) == 0 {
-		return "", fmt.Errorf("no addresses found for peer ID: %s", peerIDStr)
+	outputBytes, err := ioutil.ReadAll(res.Output)
+	if err != nil {
+		return "", fmt.Errorf("failed to read routing findpeer response for %s: %w", peerIDStr, err)
+	}
+
+	var addresses []multiaddr.Multiaddr
+	scanner := bufio.NewScanner(bytes.NewReader(outputBytes))
+	for scanner.Scan() {
+		line := scanner.Text()
+		addr, err := multiaddr.NewMultiaddr(line)
+		if err != nil {
+			logrus.Warnf("Could not parse address '%s' from routing findpeer output for %s: %v", line, peerIDStr, err)
+			continue
+		}
+		addresses = append(addresses, addr)
+	}
+	if err := scanner.Err(); err != nil {
+		return "", fmt.Errorf("error scanning routing findpeer response for %s: %w", peerIDStr, err)
+	}
+
+	if len(addresses) == 0 {
+		return "", fmt.Errorf("no parsable addresses found in routing findpeer response for peer ID: %s", peerIDStr)
 	}
 
 	var publicIP string
-	for _, addr := range peerInfo.Addrs {
-		ipAddr := strings.Split(addr, "/")[2]
+	for _, addr := range addresses {
+		addrStr := addr.String()
+		parts := strings.Split(addrStr, "/")
+		if len(parts) < 3 {
+			continue
+		}
+		ipAddr := parts[2]
 
 		ip := net.ParseIP(ipAddr)
 		if ip != nil && !isPrivateIP(ip) {
