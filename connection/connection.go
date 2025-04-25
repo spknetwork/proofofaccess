@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"math/rand"
 	"os"
 	"os/signal"
 	"proofofaccess/localdata"
@@ -124,13 +125,30 @@ func StartWsClient(name string) {
 	interrupt := make(chan os.Signal, 1)
 	signal.Notify(interrupt, os.Interrupt)
 
+	maxBackoff := 60 * time.Second // Max wait 1 minute
+	baseBackoff := 1 * time.Second // Start with 1 second
+	currentBackoff := baseBackoff
+
 	for {
 		err := connectAndListen(name, interrupt)
 		if err != nil {
-			logrus.Errorf("WebSocket client error for %s: %v. Retrying in 5s...", name, err)
-			time.Sleep(time.Second * 5)
+			logrus.Warnf("WebSocket client connection error for %s: %v. Retrying in %v...", name, err, currentBackoff)
+
+			jitter := time.Duration(rand.Int63n(int64(currentBackoff))) - (currentBackoff / 2)
+			waitTime := currentBackoff + jitter
+			if waitTime < 0 {
+				waitTime = 100 * time.Millisecond
+			}
+
+			time.Sleep(waitTime)
+
+			currentBackoff *= 2
+			if currentBackoff > maxBackoff {
+				currentBackoff = maxBackoff
+			}
 		} else {
 			logrus.Infof("WebSocket client for %s disconnected cleanly.", name)
+			currentBackoff = baseBackoff
 			time.Sleep(time.Second * 1)
 		}
 	}
@@ -140,7 +158,7 @@ func connectAndListen(name string, interrupt <-chan os.Signal) error {
 	localdata.Lock.Lock()
 	u := localdata.ValidatorAddress[name] + "/messaging"
 	localdata.Lock.Unlock()
-	logrus.Infof("Attempting to connect WebSocket client to validator %s at %s", name, u)
+	logrus.Debugf("Attempting to connect WebSocket client to validator %s at %s", name, u)
 
 	c, _, err := websocket.DefaultDialer.Dial(u, nil)
 	if err != nil {

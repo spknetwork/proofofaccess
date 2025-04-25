@@ -10,6 +10,7 @@ import (
 	"proofofaccess/localdata"
 	"proofofaccess/messaging"
 	"sort"
+	"syscall"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -197,67 +198,77 @@ func handleValidate(c *gin.Context) {
 	messaging.ConsensusProcessing[CID+salt] = false
 	messaging.ConsensusProcessingMutex.Unlock()
 
-	logrus.Infof("Proof request sent for CID %s, salt %s to %s. Starting %v timer for consensus.", CID, salt, targetName, validationTimeoutDuration)
-	time.AfterFunc(validationTimeoutDuration, func() {
-		// This function will run after the timeout duration
-		// Pass targetName to ProcessProofConsensus (exported function)
-		messaging.ProcessProofConsensus(CID, salt, targetName, startTime)
-	})
+	// Start the consensus timer
+	go messaging.StartConsensusTimer(salt, CID, validationTimeoutDuration, targetName)
+	logrus.Debugf("Proof request sent for CID %s, salt %s to %s. Starting %v timer for consensus.", CID, salt, targetName, validationTimeoutDuration)
 
-	// --- Wait for and Report Final Status (Polling) ---
-	sendWsResponse("Processing", "Waiting for validation consensus", "0", conn)
-	pollTicker := time.NewTicker(1 * time.Second)
-	defer pollTicker.Stop()
-	// Wait slightly longer than the validation timeout for consensus function to complete
-	pollTimeout := time.After(validationTimeoutDuration + 3*time.Second) // Increased buffer slightly
+	statusCh := make(chan string)
+	go func() {
+		// Wait for and Report Final Status (Polling) ---
+		sendWsResponse("Processing", "Waiting for validation consensus", "0", conn)
+		pollTicker := time.NewTicker(1 * time.Second)
+		defer pollTicker.Stop()
+		// Wait slightly longer than the validation timeout for consensus function to complete
+		pollTimeout := time.After(validationTimeoutDuration + 3*time.Second) // Increased buffer slightly
 
-	finalStatus := "Timeout"       // Default status if polling times out
-	var finalElapsed time.Duration // We may not have a meaningful single elapsed time now
+		finalStatus := "Timeout"       // Default status if polling times out
+		var finalElapsed time.Duration // We may not have a meaningful single elapsed time now
 
-	for {
-		select {
-		case <-pollTicker.C:
-			// Check the status record (keyed by seed only)
-			statusMsg := localdata.GetStatus(salt)
-			// Check for non-empty, non-pending status
-			if statusMsg.Status != "" && statusMsg.Status != "Pending" {
-				// Consensus process has finished and set the status
-				finalStatus = statusMsg.Status
-				// Elapsed time from the status record might not be relevant for consensus. Report 0?
-				logrus.Infof("Consensus result received for salt %s: %s", salt, finalStatus)
+		for {
+			select {
+			case <-pollTicker.C:
+				// Check the status record (keyed by seed only)
+				statusMsg := localdata.GetStatus(salt)
+				// Check for non-empty, non-pending status
+				if statusMsg.Status != "" && statusMsg.Status != "Pending" {
+					// Consensus process has finished and set the status
+					finalStatus = statusMsg.Status
+					// Elapsed time from the status record might not be relevant for consensus. Report 0?
+					logrus.Debugf("Consensus result received for salt %s: %s", salt, finalStatus)
+					goto reportResult // Exit loop
+				}
+			case <-pollTimeout:
+				logrus.Warnf("Polling timeout waiting for consensus result for salt %s", salt)
+				// Check status one last time in case it finished right at the timeout
+				statusMsg := localdata.GetStatus(salt)
+				if statusMsg.Status != "" && statusMsg.Status != "Pending" {
+					finalStatus = statusMsg.Status
+				} else {
+					// Consensus didn't finish or set status in time.
+					finalStatus = "Timeout"                   // Or "Invalid"
+					messaging.ConsensusProcessingMutex.Lock() // Use exported mutex
+					processing := messaging.ConsensusProcessing[CID+salt]
+					messaging.ConsensusProcessingMutex.Unlock()
+					if !processing {
+						logrus.Warnf("Consensus for %s not started by timeout, triggering manually.", CID+salt)
+						// Call exported function
+						go messaging.ProcessProofConsensus(CID, salt, targetName, startTime) // Run in background
+						time.Sleep(100 * time.Millisecond)                                   // Small delay
+						statusMsg = localdata.GetStatus(salt)                                // Check again
+						if statusMsg.Status != "" && statusMsg.Status != "Pending" {
+							finalStatus = statusMsg.Status
+						}
+					}
+
+				}
 				goto reportResult // Exit loop
 			}
-		case <-pollTimeout:
-			logrus.Warnf("Polling timeout waiting for consensus result for salt %s", salt)
-			// Check status one last time in case it finished right at the timeout
-			statusMsg := localdata.GetStatus(salt)
-			if statusMsg.Status != "" && statusMsg.Status != "Pending" {
-				finalStatus = statusMsg.Status
-			} else {
-				// Consensus didn't finish or set status in time.
-				finalStatus = "Timeout"                   // Or "Invalid"
-				messaging.ConsensusProcessingMutex.Lock() // Use exported mutex
-				processing := messaging.ConsensusProcessing[CID+salt]
-				messaging.ConsensusProcessingMutex.Unlock()
-				if !processing {
-					logrus.Warnf("Consensus for %s not started by timeout, triggering manually.", CID+salt)
-					// Call exported function
-					go messaging.ProcessProofConsensus(CID, salt, targetName, startTime) // Run in background
-					time.Sleep(100 * time.Millisecond)                                   // Small delay
-					statusMsg = localdata.GetStatus(salt)                                // Check again
-					if statusMsg.Status != "" && statusMsg.Status != "Pending" {
-						finalStatus = statusMsg.Status
-					}
-				}
-
-			}
-			goto reportResult // Exit loop
 		}
+
+	reportResult:
+		// Report the final status determined by consensus or timeout
+		sendWsResponse(finalStatus, finalStatus, formatElapsed(finalElapsed), conn)
+		statusCh <- finalStatus // Send the result back
+	}()
+
+	finalStatus := <-statusCh // Wait for the consensus result
+	logrus.Debugf("Consensus result received for salt %s: %s", salt, finalStatus)
+
+	if finalStatus == "Valid" || finalStatus == "Invalid" {
+		return finalStatus, formatElapsed(time.Since(startTime)), nil
 	}
 
-reportResult:
-	// Report the final status determined by consensus or timeout
-	sendWsResponse(finalStatus, finalStatus, formatElapsed(finalElapsed), conn)
+	return finalStatus, formatElapsed(time.Since(startTime)), nil
 }
 
 func handleMessaging(c *gin.Context) {
@@ -308,28 +319,21 @@ func handleMessaging(c *gin.Context) {
 }
 
 func handleShutdown(c *gin.Context) {
-	if localdata.NodeType != 1 {
+	logrus.Info("Shutdown request received via API. Preparing to shut down the application...")
 
-		logrus.Info("Shutdown request received via API. Preparing to shut down the application...")
-
-		// Respond to the client
-		c.JSON(http.StatusOK, gin.H{
-			"message": "Shutdown request received. The application will shut down.",
-		})
-
-		// Use a goroutine to shut down the application after responding to the client
-		go func() {
-			// Wait a bit to make sure the response can be sent before the application shuts down
-			time.Sleep(1 * time.Second)
-			logrus.Info("Shutting down the application now...")
-			os.Exit(0)
-		}()
-	} else {
-		logrus.Warn("Shutdown request received via API, but ignored (Node Type is 1)")
-		c.JSON(http.StatusForbidden, gin.H{
-			"message": "Shutdown is not allowed for this node type.",
-		})
+	// Send a signal to the main function to initiate shutdown
+	if localdata.ShutdownSignal != nil {
+		localdata.ShutdownSignal <- syscall.SIGTERM
 	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "Shutdown initiated"})
+
+	// Give the server a moment to respond before actually shutting down
+	go func() {
+		time.Sleep(1 * time.Second)
+		logrus.Info("Shutting down the application now...")
+		os.Exit(0)
+	}()
 }
 
 func handleStats(c *gin.Context) {

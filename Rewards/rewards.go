@@ -59,7 +59,7 @@ func RunProofs(cids []string) error {
 						localdata.Lock.Unlock()
 						for _, peerHash := range peers {
 							if peerHash == cid {
-								log.Infof("Running proof for peer: %s and CID: %s", peer, cid)
+								log.Debugf("Running proof for peer: %s and CID: %s", peer, cid)
 								go RunProof(peer, cid)
 								time.Sleep(8 * time.Second)
 							}
@@ -128,7 +128,7 @@ func RewardPeers() {
 					continue
 				}
 				localdata.HiveRewarded[peer] = localdata.HiveRewarded[peer] + 0.050
-				log.Infof("Rewarded hive to peer: %s", peer)
+				log.Debugf("Rewarded hive to peer: %s", peer)
 			}
 			localdata.Lock.Unlock()
 		}
@@ -172,7 +172,7 @@ func runProofAPI(peer string, cid string) (*Proof, error) {
 
 		// Stop processing when receiving a "Valid" message, but keep the connection open to receive other messages.
 		if proofMessage.Status == "Valid" {
-			log.Info("Valid")
+			log.Debug("Valid")
 			break
 		}
 
@@ -207,7 +207,7 @@ func RunRewardProofs(ctx context.Context) {
 		case <-ctx.Done():
 			return
 		default:
-			log.Info("Running proofs...")
+			log.Debug("Running proofs...")
 			localdata.Lock.Lock()
 			cids := localdata.ThreeSpeakVideos
 			localdata.Lock.Unlock()

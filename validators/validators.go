@@ -25,7 +25,7 @@ type Services struct {
 }
 
 func GetValidators(validatorsUrl string) {
-	logrus.Infof("Fetching validators from: %s", validatorsUrl)
+	logrus.Debugf("Fetching validators from: %s", validatorsUrl)
 	resp, err := http.Get(validatorsUrl)
 	if err != nil {
 		logrus.Errorf("Error fetching validators from %s: %v", validatorsUrl, err)

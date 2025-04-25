@@ -108,7 +108,7 @@ func ProcessProofConsensus(cid string, seed string, targetName string, startTime
 	ConsensusProcessing[key] = true
 	ConsensusProcessingMutex.Unlock() // Use exported mutex
 
-	logrus.Infof("Processing proof consensus for key: %s", key)
+	logrus.Debugf("Processing proof consensus for key: %s", key)
 
 	pendingProofsMutex.Lock()
 	responses, exists := pendingProofs[key]
@@ -158,7 +158,7 @@ func ProcessProofConsensus(cid string, seed string, targetName string, startTime
 
 	numTimelyResponses := len(timelyResponses)
 	numValidHashes := len(validHashes) // Count of non-"NA", non-empty hashes within timely responses
-	logrus.Infof("Consensus for key %s: %d total responses, %d timely, %d valid hashes.", key, len(responses), numTimelyResponses, numValidHashes)
+	logrus.Debugf("Consensus for key %s: %d total responses, %d timely, %d valid hashes.", key, len(responses), numTimelyResponses, numValidHashes)
 
 	// Determine if we need to calculate the expected hash
 	validationNeeded := false
@@ -170,17 +170,17 @@ func ProcessProofConsensus(cid string, seed string, targetName string, startTime
 	}
 
 	if spotCheckHit {
-		logrus.Infof("Spot check triggered for key %s (timestamp: %s)", key, startTime.String())
+		logrus.Debugf("Spot check triggered for key %s (timestamp: %s)", key, startTime.String())
 		validationNeeded = true
 	} else if numValidHashes < 3 {
-		logrus.Infof("Validation needed for key %s: Fewer than 3 valid hashes (%d received).", key, numValidHashes)
+		logrus.Debugf("Validation needed for key %s: Fewer than 3 valid hashes (%d received).", key, numValidHashes)
 		validationNeeded = true
 	} else if conflictingHashes {
-		logrus.Infof("Validation needed for key %s: Conflicting valid hashes received.", key)
+		logrus.Debugf("Validation needed for key %s: Conflicting valid hashes received.", key)
 		validationNeeded = true
 	} else if numValidHashes > 0 && !conflictingHashes && numValidHashes >= 3 {
 		validationNeeded = false
-		logrus.Infof("Validation not needed for key %s: >=3 timely, matching valid hashes and no spot check.", key)
+		logrus.Debugf("Validation not needed for key %s: >=3 timely, matching valid hashes and no spot check.", key)
 	} else {
 		logrus.Warnf("Defaulting to validation needed for key %s (numValidHashes: %d, conflicting: %t, spotCheck: %t)", key, numValidHashes, conflictingHashes, spotCheckHit)
 		validationNeeded = true
@@ -190,7 +190,7 @@ func ProcessProofConsensus(cid string, seed string, targetName string, startTime
 
 	if !validationNeeded {
 		finalStatus = "Valid"
-		logrus.Infof("Proof accepted for key %s based on consensus.", key)
+		logrus.Debugf("Proof accepted for key %s based on consensus.", key)
 	} else {
 		if numValidHashes == 0 {
 			logrus.Warnf("Validation failed for key %s: No valid hashes received among timely responses.", key)
@@ -204,7 +204,7 @@ func ProcessProofConsensus(cid string, seed string, targetName string, startTime
 				finalStatus = "Invalid"
 			} else {
 				if expectedHash == firstValidHash {
-					logrus.Infof("Proof validation successful for key %s: Expected hash matches received valid hash (%s).", key, expectedHash)
+					logrus.Debugf("Proof validation successful for key %s: Expected hash matches received valid hash (%s).", key, expectedHash)
 					finalStatus = "Valid"
 				} else {
 					logrus.Warnf("Proof validation failed for key %s: Hash mismatch. Expected %s, received consensus hash %s.", key, expectedHash, firstValidHash)
@@ -221,7 +221,7 @@ func ProcessProofConsensus(cid string, seed string, targetName string, startTime
 	}
 
 	localdata.SetStatus(seed, cid, finalStatus, targetName, startTime, 0) // Use updated SetStatus, pass 0 duration
-	logrus.Infof("Final status for key %s set to %s for target %s", key, finalStatus, targetName)
+	logrus.Debugf("Final status for key %s set to %s for target %s", key, finalStatus, targetName)
 }
 
 // SendProof

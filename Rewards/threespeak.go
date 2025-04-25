@@ -13,7 +13,7 @@ import (
 )
 
 func ThreeSpeak() {
-	logrus.Info("Fetching 3Speak video list...")
+	logrus.Debug("Fetching 3Speak video list...")
 	hashSet := make(map[string]struct{})
 	for skip := 0; skip <= 2000; skip += 40 {
 		url := fmt.Sprintf("https://3speak.tv/api/new/more?skip=%d", skip)
@@ -50,12 +50,12 @@ func ThreeSpeak() {
 	for hash := range hashSet {
 		localdata.ThreeSpeakVideos = append(localdata.ThreeSpeakVideos, hash)
 	}
-	logrus.Infof("Fetched %d unique 3Speak video CIDs", len(localdata.ThreeSpeakVideos))
+	logrus.Debugf("Fetched %d unique 3Speak video CIDs", len(localdata.ThreeSpeakVideos))
 	localdata.Lock.Unlock()
 }
 
 func PinVideos(gb int) error {
-	logrus.Info("Starting 3Speak video pinning process...")
+	logrus.Debug("Starting 3Speak video pinning process...")
 	sh := ipfs.Shell
 	const GB = 1024 * 1024 * 1024
 	limit := int64(gb * GB)
@@ -90,7 +90,7 @@ func PinVideos(gb int) error {
 				size := int64(stat.CumulativeSize)
 				totalPinned += size
 			} else {
-				logrus.Infof("Unpinning CID not in 3Speak list: %s", cid)
+				logrus.Debugf("Unpinning CID not in 3Speak list: %s", cid)
 				if err := sh.Unpin(cid); err != nil {
 					logrus.Errorf("Error unpinning CID %s: %v", cid, err)
 					continue
@@ -98,7 +98,7 @@ func PinVideos(gb int) error {
 			}
 		}
 	}
-	logrus.Infof("Current relevant pinned size after cleanup: %d bytes", totalPinned)
+	logrus.Debugf("Current relevant pinned size after cleanup: %d bytes", totalPinned)
 
 	localdata.Lock.Lock()
 	threeSpeakVideosCopy := make([]string, len(localdata.ThreeSpeakVideos))
@@ -107,7 +107,7 @@ func PinVideos(gb int) error {
 
 	for _, cid := range threeSpeakVideosCopy {
 		if totalPinned >= limit {
-			logrus.Infof("Storage limit (%d bytes) reached. Stopping pinning.", limit)
+			logrus.Debugf("Storage limit (%d bytes) reached. Stopping pinning.", limit)
 			break
 		}
 		if _, pinned := allPins[cid]; !pinned {
@@ -119,7 +119,7 @@ func PinVideos(gb int) error {
 
 			size := int64(stat.CumulativeSize)
 			if totalPinned+size <= limit {
-				logrus.Infof("Pinning CID %s (Size: %d bytes)", cid, size)
+				logrus.Debugf("Pinning CID %s (Size: %d bytes)", cid, size)
 				if err := sh.Pin(cid); err != nil {
 					logrus.Errorf("Failed to pin CID %s: %v", cid, err)
 					continue
@@ -133,6 +133,6 @@ func PinVideos(gb int) error {
 			logrus.Debugf("CID %s is already pinned.", cid)
 		}
 	}
-	logrus.Infof("Finished pinning process. Final pinned size: %d bytes", totalPinned)
+	logrus.Debugf("Finished pinning process. Final pinned size: %d bytes", totalPinned)
 	return nil
 }

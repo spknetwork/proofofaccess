@@ -3,13 +3,14 @@ package messaging
 import (
 	"context"
 	"encoding/json"
-	"github.com/gorilla/websocket"
-	"github.com/sirupsen/logrus"
 	poaipfs "proofofaccess/ipfs"
 	"proofofaccess/localdata"
 	"proofofaccess/pubsub"
 	"sync"
 	"time"
+
+	"github.com/gorilla/websocket"
+	"github.com/sirupsen/logrus"
 )
 
 type Request struct {
@@ -31,8 +32,7 @@ const (
 	TypePingPongPong  = "PingPongPong"
 )
 
-var (
-)
+var ()
 var WsMutex = &sync.Mutex{}
 var Ping = map[string]bool{}
 var ProofRequest = map[string]bool{}

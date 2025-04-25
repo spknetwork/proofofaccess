@@ -70,14 +70,14 @@ func initialize(ctx context.Context) {
 	database.Init(*nodeType)
 	ipfs.IpfsPeerID()
 	if *getHiveRewards {
-		log.Info("Getting Hive rewards...")
+		log.Debug("Getting Hive rewards...")
 		localdata.HiveRewarded = hive.GetHiveSent()
 	}
 	if *getVids {
-		log.Info("Getting 3Speak videos...")
+		log.Debug("Getting 3Speak videos...")
 		Rewards.ThreeSpeak()
 		if *pinVideos {
-			log.Info("Pinning and unpinning videos")
+			log.Debug("Pinning and unpinning videos")
 			go Rewards.PinVideos(*storageLimit)
 		}
 		go ipfs.SaveRefs(localdata.ThreeSpeakVideos)
@@ -126,7 +126,7 @@ func initialize(ctx context.Context) {
 	go api.StartAPI(ctx)
 
 	if *runProofs {
-		log.Info("Starting proof running routines")
+		log.Debug("Starting proof running routines")
 		go Rewards.RunRewardProofs(ctx)
 		go Rewards.RewardPeers()
 	}

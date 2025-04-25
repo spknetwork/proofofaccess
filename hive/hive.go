@@ -162,7 +162,7 @@ func GetHiveSent() map[string]float64 {
 			break
 		}
 		if len(history) == 0 {
-			log.Info("No more history entries found.")
+			log.Debug("No more history entries found.")
 			break
 		}
 		log.Debugf("Fetched %d history entries starting at index %d", len(history), startIndex)
@@ -224,6 +224,6 @@ func GetHiveSent() map[string]float64 {
 			break
 		}
 	}
-	log.Infof("Finished fetching hive sent history for %s.", accountToCheck)
+	log.Debugf("Finished fetching hive sent history for %s.", accountToCheck)
 	return sentAmounts
 }

@@ -307,7 +307,8 @@ func GetNetwork() []NetworkRecord {
 	if err := checkDatabaseOpen(); err != nil {
 		log.Fatalf("Database not open: %v", err)
 	}
-	log.Info("Getting network records")
+	log.Debug("Getting network records")
+
 	var messages []NetworkRecord
 
 	err := DB.View(func(txn *badger.Txn) error {
@@ -376,7 +377,7 @@ func GetNetwork() []NetworkRecord {
 	if err != nil {
 		log.Errorf("Error reading network records from database: %v", err)
 	}
-	log.Infof("Returning %d network records", len(messages))
+	log.Debugf("Returning %d network records", len(messages))
 	log.Debugf("Network records: %+v", messages)
 	return messages
 }

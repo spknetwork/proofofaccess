@@ -327,9 +327,9 @@ func SyncNode(NewPins map[string]interface{}, name string) {
 	localdata.CIDRefStatus[name] = true
 	peersize := totalSize
 	localdata.PeerSize[name] = peersize
+	localdata.SyncedPercentage = 100
 	localdata.Lock.Unlock()
-
-	logrus.Infof("Finished syncing with node %s. Total size: %d", name, peersize)
+	logrus.Debugf("Finished syncing with node %s. Total size: %d", name, peersize)
 }
 
 func FileSize(cid string) (int, error) {
@@ -344,7 +344,7 @@ func FileSize(cid string) (int, error) {
 }
 
 func SaveRefs(cids []string) {
-	logrus.Infof("Saving refs for %d CIDs...", len(cids))
+	logrus.Debugf("Saving refs for %d CIDs...", len(cids))
 	var wg sync.WaitGroup
 	percentage := 0
 
@@ -374,5 +374,5 @@ func SaveRefs(cids []string) {
 		}(key, i)
 	}
 	wg.Wait()
-	logrus.Info("Finished saving refs.")
+	logrus.Debug("Finished saving refs.")
 }
