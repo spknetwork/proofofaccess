@@ -190,10 +190,10 @@ func PingPongPong(req Request, ws *websocket.Conn) {
 		if conn, ok := localdata.WsValidators[req.User]; ok && conn != nil {
 			err := conn.WriteMessage(websocket.TextMessage, jsonData)
 			if err != nil {
-				logrus.Errorf("Error writing PingPongPong message to WebSocket validator %s: %v", req.User, err)
+				logrus.Debugf("Error writing PingPongPong message to WebSocket validator %s: %v", req.User, err)
 			}
 		} else {
-			logrus.Warnf("No valid WebSocket connection to validator %s in PingPongPong", req.User)
+			logrus.Debugf("No valid WebSocket connection to validator %s in PingPongPong", req.User)
 		}
 		WsMutex.Unlock()
 	} else {

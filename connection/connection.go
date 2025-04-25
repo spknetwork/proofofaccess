@@ -52,7 +52,7 @@ func CheckSynced(ctx context.Context) {
 
 				if isRegisteredPeer {
 					if peerWs == nil || !IsConnectionOpen(peerWs) {
-						logrus.Warnf("WebSocket connection to peer %s lost or failed check.", peerName)
+						logrus.Debugf("WebSocket connection to peer %s lost or failed check.", peerName)
 						localdata.Lock.Lock()
 						delete(localdata.WsPeers, peerName)
 						delete(localdata.WsClients, peerName)
@@ -71,7 +71,7 @@ func CheckSynced(ctx context.Context) {
 					if !pstartTime.IsZero() {
 						elapsed := time.Since(pstartTime)
 						if elapsed.Seconds() > 121 {
-							logrus.Warnf("Peer %s inactive (last ping %v ago), removing.", peerName, elapsed)
+							logrus.Debugf("Peer %s inactive (last ping %v ago), removing.", peerName, elapsed)
 							localdata.Lock.Lock()
 							peerN := localdata.PeerNames
 							newPeerNames := make([]string, 0, len(peerN)-1)
@@ -110,7 +110,7 @@ func IsConnectionOpen(conn *websocket.Conn) bool {
 	}
 
 	if err := conn.SetWriteDeadline(time.Time{}); err != nil {
-		logrus.Warnf("Resetting WriteDeadline failed after WS ping check: %v", err)
+		logrus.Debugf("Resetting WriteDeadline failed after WS ping check: %v", err)
 		return false
 	}
 	return true
@@ -179,7 +179,7 @@ func connectAndListen(name string, interrupt <-chan os.Signal) error {
 				if websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway, websocket.CloseAbnormalClosure) {
 					logrus.Errorf("WebSocket read error for %s: %v", name, err)
 				} else {
-					logrus.Warnf("WebSocket closed for %s: %v", name, err)
+					logrus.Debugf("WebSocket closed for %s: %v", name, err)
 				}
 				return
 			}

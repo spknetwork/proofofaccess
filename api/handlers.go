@@ -229,7 +229,7 @@ func handleValidate(c *gin.Context) {
 				goto reportResult // Exit loop
 			}
 		case <-pollTimeout:
-			logrus.Warnf("Polling timeout waiting for consensus result for salt %s", salt)
+			logrus.Debugf("Polling timeout waiting for consensus result for salt %s", salt)
 			// Check status one last time in case it finished right at the timeout
 			statusMsg := localdata.GetStatus(salt)
 			if statusMsg.Status != "" && statusMsg.Status != "Pending" {
@@ -278,7 +278,7 @@ func handleMessaging(c *gin.Context) {
 			if websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway, websocket.CloseAbnormalClosure) {
 				logrus.Errorf("Error reading JSON from WebSocket: %v", err)
 			} else {
-				logrus.Warnf("WebSocket closed for user %s: %v", clientUser, err)
+				logrus.Debugf("WebSocket closed for user %s: %v", clientUser, err)
 			}
 			if clientUser != "" {
 				if _, ok := localdata.WsClients[clientUser]; ok {
