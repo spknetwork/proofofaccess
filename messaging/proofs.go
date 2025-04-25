@@ -37,7 +37,7 @@ var ConsensusProcessingMutex sync.Mutex
 func HandleRequestProof(req Request, ws *websocket.Conn) {
 	CID := req.CID
 	hash := req.Hash
-	if ipfs.IsPinnedInDB(CID) == true {
+	if ipfs.IsPinnedInDB(CID) {
 		validationHash := validation.CreatProofHash(hash, CID)
 		SendProof(req, validationHash, hash, localdata.NodeName, ws)
 	} else {
@@ -247,7 +247,7 @@ func SendProof(req Request, validationHash string, salt string, user string, ws 
 			logrus.Errorf("Error writing ProofOfAccess message to WebSocket for %s: %v", req.User, err)
 		}
 		WsMutex.Unlock()
-	} else if localdata.UseWS == true && nodeType == 2 {
+	} else if localdata.UseWS && nodeType == 2 {
 		WsMutex.Lock()
 		err = ws.WriteMessage(websocket.TextMessage, jsonData)
 		if err != nil {

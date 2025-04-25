@@ -2,10 +2,11 @@ package messaging
 
 import (
 	"encoding/json"
-	"github.com/gorilla/websocket"
-	"github.com/sirupsen/logrus"
 	"proofofaccess/localdata"
 	"proofofaccess/pubsub"
+
+	"github.com/gorilla/websocket"
+	"github.com/sirupsen/logrus"
 )
 
 func SendSyncing(req Request, ws *websocket.Conn) {
@@ -27,7 +28,7 @@ func SendSyncing(req Request, ws *websocket.Conn) {
 			logrus.Errorf("Error writing Syncing message to WebSocket for %s: %v", req.User, err)
 		}
 		WsMutex.Unlock()
-	} else if localdata.UseWS == true && localdata.NodeType == 2 {
+	} else if localdata.UseWS && localdata.NodeType == 2 {
 		WsMutex.Lock()
 		err = ws.WriteMessage(websocket.TextMessage, jsonData)
 		if err != nil {
@@ -50,17 +51,25 @@ func SendSynced(req Request, ws *websocket.Conn) {
 		return
 	}
 	if localdata.WsPeers[req.User] == req.User && localdata.NodeType == 1 {
+		if ws == nil {
+			logrus.Debugf("SendSynced request for peer %s via PubSub (no WebSocket), publishing response", req.User)
+			pubsub.Publish(string(jsonData), req.User)
+			return
+		}
 		WsMutex.Lock()
 		err = ws.WriteMessage(websocket.TextMessage, jsonData)
 		if err != nil {
 			logrus.Errorf("Error writing Synced message to WebSocket for %s: %v", req.User, err)
 		}
 		WsMutex.Unlock()
-	} else if localdata.UseWS == true && localdata.NodeType == 2 {
+	} else if localdata.UseWS && localdata.NodeType == 2 {
 		WsMutex.Lock()
 		err = localdata.WsValidators[req.User].WriteMessage(websocket.TextMessage, jsonData)
 		if err != nil {
 			logrus.Errorf("Error writing Synced message to WebSocket validator %s: %v", req.User, err)
+			localdata.Lock.Lock()
+			delete(localdata.WsValidators, req.User)
+			localdata.Lock.Unlock()
 		}
 		WsMutex.Unlock()
 	} else {

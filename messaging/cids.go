@@ -2,14 +2,15 @@ package messaging
 
 import (
 	"encoding/json"
-	"github.com/gorilla/websocket"
-	"github.com/sirupsen/logrus"
 	"proofofaccess/ipfs"
 	"proofofaccess/localdata"
 	"proofofaccess/proofcrypto"
 	"proofofaccess/pubsub"
 	"strconv"
 	"strings"
+
+	"github.com/gorilla/websocket"
+	"github.com/sirupsen/logrus"
 )
 
 func RequestCIDS(req Request, ws *websocket.Conn) {
@@ -29,7 +30,7 @@ func RequestCIDS(req Request, ws *websocket.Conn) {
 			logrus.Errorf("Error writing RequestCIDS to WebSocket for %s: %v", req.User, err)
 		}
 		WsMutex.Unlock()
-	} else if localdata.UseWS == true && localdata.NodeType == 2 {
+	} else if localdata.UseWS && localdata.NodeType == 2 {
 		WsMutex.Lock()
 		err = localdata.WsValidators[req.User].WriteMessage(websocket.TextMessage, jsonData)
 		if err != nil {
@@ -78,7 +79,7 @@ func SendCIDS(name string, ws *websocket.Conn) {
 			return
 		}
 
-		if localdata.UseWS == true && localdata.NodeType == 2 {
+		if localdata.UseWS && localdata.NodeType == 2 {
 			WsMutex.Lock()
 			err = ws.WriteJSON(data)
 			if err != nil {

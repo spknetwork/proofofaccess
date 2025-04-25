@@ -153,7 +153,7 @@ func SendPing(hash string, user string, ws *websocket.Conn) {
 			logrus.Errorf("Error writing Ping message to WebSocket for %s: %v", user, err)
 		}
 		WsMutex.Unlock()
-	} else if localdata.UseWS == true && localdata.NodeType == 2 {
+	} else if localdata.UseWS && localdata.NodeType == 2 {
 		WsMutex.Lock()
 		err = localdata.WsValidators[user].WriteMessage(websocket.TextMessage, jsonData)
 		if err != nil {
@@ -190,7 +190,7 @@ func PingPongPong(req Request, ws *websocket.Conn) {
 			logrus.Errorf("Error writing PingPongPong message to WebSocket for %s: %v", req.User, err)
 		}
 		WsMutex.Unlock()
-	} else if localdata.UseWS == true && localdata.NodeType == 2 {
+	} else if localdata.UseWS && localdata.NodeType == 2 {
 		WsMutex.Lock()
 		if conn, ok := localdata.WsValidators[req.User]; ok && conn != nil {
 			err := conn.WriteMessage(websocket.TextMessage, jsonData)
