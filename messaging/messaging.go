@@ -3,7 +3,6 @@ package messaging
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"github.com/gorilla/websocket"
 	"github.com/sirupsen/logrus"
 	poaipfs "proofofaccess/ipfs"
@@ -33,7 +32,6 @@ const (
 )
 
 var (
-	log = logrus.New()
 )
 var WsMutex = &sync.Mutex{}
 var Ping = map[string]bool{}
@@ -51,25 +49,17 @@ type PinMap map[string]PinType
 // HandleMessage
 // This is the function that handles the messages from the pubsub
 func HandleMessage(message string, ws *websocket.Conn) {
-	fmt.Println("Message received:", message)
 	// JSON decode message
 	req := Request{}
 	err := json.Unmarshal([]byte(message), &req)
 	if err != nil {
-		fmt.Println("Error decoding JSON:", err)
+		logrus.Errorf("Error decoding JSON message: %v, Message: %s", err, message)
 		return
 	}
-	//fmt.Println("Message received:", message)
 	//Handle proof of access response from storage node
 	nodeType := localdata.NodeType
 	if nodeType == 1 {
 		if req.Type == TypeProofOfAccess {
-			fmt.Println("Proof of access received")
-			fmt.Println("Hash: " + req.Hash)
-			fmt.Println("Seed: " + req.Seed)
-			fmt.Println("User: " + req.User)
-			fmt.Println("CID: " + req.CID)
-			fmt.Println("Pins: " + req.Pins)
 			go HandleProofOfAccess(req, ws)
 		}
 
@@ -78,7 +68,6 @@ func HandleMessage(message string, ws *websocket.Conn) {
 	//Handle request for proof request from validation node
 	if nodeType == 2 {
 		if req.Type == TypeRequestProof {
-			fmt.Println("Request for proof received")
 			go HandleRequestProof(req, ws)
 		}
 		if req.Type == TypePingPongPong {
@@ -86,57 +75,46 @@ func HandleMessage(message string, ws *websocket.Conn) {
 			localdata.Lock.Lock()
 			localdata.Validators[validatorName] = true
 			localdata.Lock.Unlock()
-			fmt.Println("Validator", validatorName, "is online")
 		}
 	}
 	if req.Type == TypePingPongPong {
 		Ping[req.Hash] = true
-		fmt.Println("PingPongPong received")
 	}
 	if req.Type == TypePingPongPing {
-		fmt.Println("PingPongPing received")
 		PingPongPong(req, ws)
 		nodeStatus := localdata.NodesStatus[req.User]
 		nodes := Nodes[req.User]
-		fmt.Println("Node Status: " + nodeStatus)
-		fmt.Println("Nodes: " + fmt.Sprint(nodes))
 		if nodeType == 1 && !nodes && nodeStatus != "Synced" {
-			fmt.Println("syncing: " + req.User)
 			go SyncNode(req, ws)
 		}
 
 	}
 	if req.Type == "RequestCIDS" {
-		fmt.Println("RequestCIDS received")
 		go SendCIDS(req.User, ws)
 
 	}
 	if req.Type == "SendCIDS" {
-		fmt.Println("SendCIDS received")
 		go SyncNode(req, ws)
 
 	}
 	if req.Type == "Syncing" {
-		fmt.Println("Syncing received")
 		go ReceiveSyncing(req)
 	}
 	if req.Type == "Synced" {
-		fmt.Println("Synced with " + req.User)
 		localdata.Synced = true
 		go ReceiveSynced(req)
 	}
-	// fmt.Println("Message handled")
 
 }
 func PubsubHandler(ctx context.Context) {
 	if poaipfs.Shell != nil {
 		sub, err := pubsub.Subscribe(localdata.NodeName)
 		if err != nil {
-			log.Error("Error subscribing to pubsub: ", err)
+			logrus.Errorf("Error subscribing to pubsub topic %s: %v", localdata.NodeName, err)
 			return
 		}
 
-		log.Info("User:", localdata.NodeName)
+		logrus.Infof("Subscribed to PubSub topic: %s", localdata.NodeName)
 
 		for {
 			select {
@@ -145,7 +123,7 @@ func PubsubHandler(ctx context.Context) {
 			default:
 				msg, err := pubsub.Read(sub)
 				if err != nil {
-					log.Error("Error reading from pubsub: ", err)
+					logrus.Errorf("Error reading from pubsub: %v", err)
 					continue
 				}
 				var ws *websocket.Conn
@@ -157,7 +135,6 @@ func PubsubHandler(ctx context.Context) {
 	}
 }
 func SendPing(hash string, user string, ws *websocket.Conn) {
-	fmt.Println("Sending Ping")
 	data := map[string]string{
 		"type": TypePingPongPing,
 		"hash": hash,
@@ -165,24 +142,29 @@ func SendPing(hash string, user string, ws *websocket.Conn) {
 	}
 	jsonData, err := json.Marshal(data)
 	if err != nil {
-		fmt.Println("Error encoding JSON:", err)
+		logrus.Errorf("Error encoding Ping JSON: %v", err)
 		return
 	}
 	localdata.PingTime[user] = time.Now()
 	if localdata.WsPeers[user] == user && localdata.NodeType == 1 {
 		WsMutex.Lock()
-		ws.WriteMessage(websocket.TextMessage, jsonData)
+		err = ws.WriteMessage(websocket.TextMessage, jsonData)
+		if err != nil {
+			logrus.Errorf("Error writing Ping message to WebSocket for %s: %v", user, err)
+		}
 		WsMutex.Unlock()
 	} else if localdata.UseWS == true && localdata.NodeType == 2 {
 		WsMutex.Lock()
-		localdata.WsValidators[user].WriteMessage(websocket.TextMessage, jsonData)
+		err = localdata.WsValidators[user].WriteMessage(websocket.TextMessage, jsonData)
+		if err != nil {
+			logrus.Errorf("Error writing Ping message to WebSocket validator %s: %v", user, err)
+		}
 		WsMutex.Unlock()
 	} else {
 		pubsub.Publish(string(jsonData), user)
 	}
 }
 func PingPongPong(req Request, ws *websocket.Conn) {
-	fmt.Println("Sending PingPongPong")
 	data := map[string]string{
 		"type": TypePingPongPong,
 		"hash": req.Hash,
@@ -190,30 +172,28 @@ func PingPongPong(req Request, ws *websocket.Conn) {
 	}
 	jsonData, err := json.Marshal(data)
 	if err != nil {
-		fmt.Println("Error encoding JSON:", err)
+		logrus.Errorf("Error encoding PingPongPong JSON: %v", err)
 		return
 	}
 	if localdata.WsPeers[req.User] == req.User && localdata.NodeType == 1 {
-		fmt.Println("Sending PingPongPong to client")
 		localdata.Lock.Lock()
 		localdata.PeerLastActive[req.User] = time.Now()
 		localdata.Lock.Unlock()
-		fmt.Println("Time since last ping:", time.Since(localdata.PingTime[req.User]))
 		WsMutex.Lock()
-		ws.WriteMessage(websocket.TextMessage, jsonData)
+		err = ws.WriteMessage(websocket.TextMessage, jsonData)
+		if err != nil {
+			logrus.Errorf("Error writing PingPongPong message to WebSocket for %s: %v", req.User, err)
+		}
 		WsMutex.Unlock()
-		fmt.Println("Sent PingPongPong to client")
 	} else if localdata.UseWS == true && localdata.NodeType == 2 {
 		WsMutex.Lock()
 		if conn, ok := localdata.WsValidators[req.User]; ok && conn != nil {
 			err := conn.WriteMessage(websocket.TextMessage, jsonData)
 			if err != nil {
-				log.Printf("Error writing message to %s: %v", req.User, err)
-				// Consider implementing a retry mechanism or connection reset here
+				logrus.Errorf("Error writing PingPongPong message to WebSocket validator %s: %v", req.User, err)
 			}
 		} else {
-			log.Printf("No valid connection to %s", req.User)
-			// Consider triggering a reconnection attempt here
+			logrus.Warnf("No valid WebSocket connection to validator %s in PingPongPong", req.User)
 		}
 		WsMutex.Unlock()
 	} else {

@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/gorilla/websocket"
+	"github.com/sirupsen/logrus"
 )
 
 var Time = time.Now()
@@ -64,62 +65,86 @@ type NetworkRecord struct {
 }
 
 // SaveTime
-// Saves the time to the database
-func SaveTime(salt string) {
+// Saves the time to the database using CID + salt as key
+func SaveTime(cid string, salt string) {
 	Time = time.Now()
 	timeStr := Time.Format(Layout)
-	//fmt.Println("Time: ", timeStr)
-	//fmt.Println("Salt: ", salt)
-	database.Update([]byte(salt+"time"), []byte(timeStr))
+	key := cid + salt + "time"
+	database.Update([]byte(key), []byte(timeStr))
 }
 
 // GetTime
-// Gets the time from the database
-func GetTime(hash string) time.Time {
-	data := database.Read([]byte(hash + "time"))
-	//fmt.Println("GetTime", string(data))
-	//fmt.Println("salt", hash)
-	parsedTime, _ := time.Parse(Layout, string(data))
+// Gets the time from the database using CID + hash (salt) as key
+func GetTime(cid string, hash string) time.Time {
+	key := cid + hash + "time"
+	data := database.Read([]byte(key))
+	if data == nil {
+		logrus.Warnf("No time found for key %s", key)
+		return time.Time{}
+	}
+	parsedTime, err := time.Parse(Layout, string(data))
+	if err != nil {
+		logrus.Warnf("Error parsing time layout for key %s (data: %s): %v", key, string(data), err)
+		return time.Time{}
+	}
 	return parsedTime
 }
 
 // SetElapsed
-// Sets the elapsed time to the database
-func SetElapsed(hash string, elapsed time.Duration) {
-	database.Update([]byte(hash+"elapsed"), []byte(elapsed.String()))
+// Sets the elapsed time to the database using CID + hash as key
+func SetElapsed(cid string, hash string, elapsed time.Duration) {
+	key := cid + hash + "elapsed"
+	database.Update([]byte(key), []byte(elapsed.String()))
 }
 
 // GetElapsed
-// Gets the elapsed time from the database
-func GetElapsed(hash string) time.Duration {
-	data := database.Read([]byte(hash + "elapsed"))
-	parsedTime, _ := time.ParseDuration(string(data))
-	return parsedTime
+// Gets the elapsed time from the database using CID + hash as key
+func GetElapsed(cid string, hash string) time.Duration {
+	key := cid + hash + "elapsed"
+	data := database.Read([]byte(key))
+	if data == nil {
+		logrus.Warnf("No elapsed time found for key %s", key)
+		return 0
+	}
+	parsedDuration, err := time.ParseDuration(string(data))
+	if err != nil {
+		logrus.Warnf("Error parsing duration for key %s (data: %s): %v", key, string(data), err)
+		return 0
+	}
+	return parsedDuration
 }
 
 // GetStatus
-// Gets the status from the database
+// Gets the status from the database (keyed by "Stats"+seed)
 func GetStatus(seed string) Message {
 	data := database.Read([]byte("Stats" + seed))
 	var message Message
+	if data == nil {
+		logrus.Debugf("No status record found for seed %s", seed)
+		return message
+	}
 	err := json.Unmarshal([]byte(string(data)), &message)
 	if err != nil {
-		fmt.Println("Error decoding JSON:", err)
+		logrus.Errorf("Error decoding Stats JSON for seed %s (data: %s): %v", seed, string(data), err)
 	}
 	return message
 }
 
 // SetStatus
-// Sets the status to the database
-func SetStatus(seed string, cid string, status string, name string) {
-	// fmt.Println("SetStatus", seed, cid, status)
-	time1 := GetTime(seed)
-	elapsed := GetElapsed(seed)
-	timeString := time1.Format(time.RFC3339)
+// Sets the final consensus status to the database (keyed by "Stats"+seed).
+// Accepts startTime and elapsed duration but might ignore elapsed for consensus records.
+func SetStatus(seed string, cid string, status string, name string, startTime time.Time, elapsed time.Duration) {
+	timeString := ""
+	if !startTime.IsZero() {
+		timeString = startTime.Format(time.RFC3339)
+	}
 	elapsedString := elapsed.String()
-	jsonString := `{"type": "ProofOfAccess", "CID":"` + cid + `", "seed":"` + seed + `", "status":"` + status + `", "name":"` + name + `", "time":"` + timeString + `", "elapsed":"` + elapsedString + `"}`
+	jsonString := fmt.Sprintf(`{"type": "ProofOfAccessConsensus", "CID":"%s", "seed":"%s", "status":"%s", "name":"%s", "time":"%s", "elapsed":"%s"}`,
+		cid, seed, status, name, timeString, elapsedString)
 	jsonString = strings.TrimSpace(jsonString)
-	database.Update([]byte("Stats"+seed), []byte(jsonString))
+	dbKey := "Stats" + seed
+	database.Update([]byte(dbKey), []byte(jsonString))
+	logrus.Debugf("SetStatus updated DB key %s with status %s", dbKey, status)
 }
 
 // SetNodeName
@@ -153,13 +178,16 @@ func RecordNetwork() {
 	// Get the current time
 	currentTime := time.Now().Format(time.RFC3339)
 	NetworkStorage := 0
-	for _, peerName := range PeerNames {
-		//fmt.Println("Peer: ", peerName)
-		//fmt.Println("Size: ", PeerSize[peerName])
+	Lock.Lock()
+	peerNamesCopy := make([]string, len(PeerNames))
+	copy(peerNamesCopy, PeerNames)
+	for _, peerName := range peerNamesCopy {
 		NetworkStorage = NetworkStorage + PeerSize[peerName]
 	}
+	peers := len(peerNamesCopy)
+	Lock.Unlock()
+
 	NetworkStorage = NetworkStorage / 1024 / 1024 / 1024
-	peers := len(PeerNames)
 
 	record := NetworkRecord{
 		Peers:          peers,
@@ -168,9 +196,8 @@ func RecordNetwork() {
 	}
 
 	jsonRecord, err := json.Marshal(record)
-	fmt.Println("JSON Record: ", string(jsonRecord))
 	if err != nil {
-		fmt.Println("Error encoding JSON")
+		logrus.Errorf("Error encoding NetworkRecord JSON: %v", err)
 		return
 	}
 

@@ -3,7 +3,6 @@ package api
 import (
 	"context"
 	"errors"
-	"github.com/gorilla/websocket"
 	"proofofaccess/hive"
 	"proofofaccess/ipfs"
 	"proofofaccess/localdata"
@@ -11,8 +10,9 @@ import (
 	"proofofaccess/proofcrypto"
 	"proofofaccess/pubsub"
 	"proofofaccess/validation"
-	"strconv"
 	"time"
+
+	"github.com/gorilla/websocket"
 )
 
 func getPeerID(msg *message, conn *websocket.Conn) (string, error) {
@@ -101,7 +101,9 @@ func createRandomHash(conn *websocket.Conn) (string, error) {
 func createProofRequest(salt string, CID string, conn *websocket.Conn, name string) ([]byte, error) {
 	//fmt.Println(name)
 	localdata.Lock.Lock()
-	localdata.SetStatus(salt, CID, "Pending", name)
+	// Call SetStatus with new signature for initial Pending status
+	// Pass zero time and zero duration initially.
+	localdata.SetStatus(salt, CID, "Pending", name, time.Time{}, 0)
 	localdata.Lock.Unlock()
 	//fmt.Println("createProofRequest2")
 	proofJson, err := validation.ProofRequestJson(salt, CID)
@@ -114,11 +116,10 @@ func createProofRequest(salt string, CID string, conn *websocket.Conn, name stri
 	return proofJson, nil
 }
 
-func sendProofRequest(salt string, proofJson []byte, name string, conn *websocket.Conn) error {
+func sendProofRequest(salt string, cid string, proofJson []byte, name string, conn *websocket.Conn) error {
 	sendWsResponse(wsRequestingProof, "RequestingProof", "0", conn)
 	if localdata.WsPeers[name] == name && localdata.NodeType == 1 {
 		ws := localdata.WsClients[name]
-
 		ws.WriteMessage(websocket.TextMessage, proofJson)
 	} else if localdata.UseWS == true && localdata.NodeType == 2 {
 		localdata.Lock.Lock()
@@ -133,80 +134,7 @@ func sendProofRequest(salt string, proofJson []byte, name string, conn *websocke
 			return err
 		}
 	}
-	// fmt.Println("sendProofRequest")
-	localdata.SaveTime(salt)
+	// Call SaveTime with CID and salt
+	localdata.SaveTime(cid, salt)
 	return nil
-}
-
-func waitForProofStatus(salt string, cid string, conn *websocket.Conn) (string, time.Duration, error) {
-	sendWsResponse("Waiting Proof", "Waiting for Proof", "0", conn)
-	proofTimeout := time.NewTicker(validationTimeout)
-	defer proofTimeout.Stop()
-
-	proofStart := make(chan struct{}, 1)
-	defer close(proofStart)
-
-	go func() {
-		for {
-			localdata.Lock.Lock()
-			proofRequest := messaging.ProofRequest[salt]
-			localdata.Lock.Unlock()
-			if proofRequest {
-				sendWsResponse(wsProofReceived, "ProofReceived", "0", conn)
-				sendWsResponse(wsValidating, "Validating", "0", conn)
-				return
-			}
-			//wait 1 second before checking again
-			time.Sleep(100 * time.Millisecond)
-		}
-	}()
-
-	proofDone := make(chan struct{})
-	defer close(proofDone)
-
-	go func() {
-		for {
-			select {
-			case <-proofTimeout.C:
-				localdata.Lock.Lock()
-				proofRequestStatus := messaging.ProofRequestStatus[salt]
-				localdata.Lock.Unlock()
-				if proofRequestStatus {
-					sendWsResponse(localdata.GetStatus(salt).Status, localdata.GetStatus(salt).Status, localdata.GetElapsed(salt).String(), conn)
-					close(proofDone)
-					return
-				}
-			case <-proofDone:
-				return
-			}
-		}
-	}()
-	<-proofDone
-	ctx, cancel := context.WithTimeout(context.Background(), validationTimeout)
-	defer cancel()
-	status, elapsed, err := getStatusAndElapsed(ctx, salt)
-	if err != nil {
-		return "", 0, err
-	}
-	return status, elapsed, nil
-}
-
-func getStatusAndElapsed(ctx context.Context, salt string) (string, time.Duration, error) {
-	for {
-		select {
-		case <-ctx.Done():
-			return "", 0, ctx.Err()
-		default:
-			status := localdata.GetStatus(salt).Status
-			if status != "Pending" {
-				elapsed := localdata.GetElapsed(salt)
-				return status, elapsed, nil
-			}
-			time.Sleep(validationTimeout)
-		}
-	}
-}
-
-func formatElapsed(elapsed time.Duration) string {
-	return strconv.FormatFloat(float64(elapsed.Milliseconds()), 'f', 0, 64) + "ms"
 }

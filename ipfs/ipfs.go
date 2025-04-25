@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
-	"log"
 	"net"
 	"os"
 	"proofofaccess/database"
@@ -16,6 +15,7 @@ import (
 	"time"
 
 	ipfs "github.com/ipfs/go-ipfs-api"
+	"github.com/sirupsen/logrus"
 )
 
 var Shell *ipfs.Shell
@@ -36,7 +36,7 @@ func checkIPFSConnection() bool {
 	_, err := Shell.ID()
 	if err != nil {
 		if !isIPFSDown {
-			log.Println("IPFS node is down:", err)
+			logrus.Errorf("IPFS node connection error: %v", err)
 			isIPFSDown = true
 			lastIPFSErrorTime = time.Now()
 		}
@@ -44,7 +44,7 @@ func checkIPFSConnection() bool {
 	}
 
 	if isIPFSDown {
-		log.Println("IPFS node is back online")
+		logrus.Info("IPFS node is back online")
 		isIPFSDown = false
 	}
 	return true
@@ -101,11 +101,13 @@ func Refs(CID string) ([]string, error) {
 
 func IsPinned(cid string) bool {
 	if !checkIPFSConnection() {
-		log.Println("Cannot check if CID is pinned: IPFS is currently unavailable")
+		logrus.Warn("Cannot check if CID is pinned: IPFS is currently unavailable")
 		return false
 	}
 
+	localdata.Lock.Lock()
 	_, ok := localdata.SavedRefs[cid]
+	localdata.Lock.Unlock()
 	return ok
 }
 
@@ -121,9 +123,9 @@ func IpfsPingNode(peerID string) error {
 
 	peer, err := Shell.FindPeer(peerID)
 	if err != nil {
-		return fmt.Errorf("error pinging node: %v", err)
+		return fmt.Errorf("error finding peer %s: %v", peerID, err)
 	}
-	fmt.Println("Peer Addrs", peer.Addrs)
+	logrus.Debugf("Found peer %s addresses: %v", peerID, peer.Addrs)
 
 	return nil
 }
@@ -135,10 +137,10 @@ func IpfsPeerID() string {
 
 	peerID, err := Shell.ID()
 	if err != nil {
-		log.Println("Error getting peer ID:", err)
+		logrus.Errorf("Error getting local IPFS Peer ID: %v", err)
 		return ""
 	}
-	fmt.Println("Peer ID:", peerID.ID)
+	logrus.Infof("Local IPFS Peer ID: %s", peerID.ID)
 	return peerID.ID
 }
 
@@ -147,10 +149,9 @@ func GetIPFromPeerID(peerIDStr string) (string, error) {
 		return "", fmt.Errorf("IPFS node is currently unavailable")
 	}
 
-	fmt.Println("Getting IP from Peer ID: ", peerIDStr)
 	peerInfo, err := Shell.FindPeer(peerIDStr)
 	if err != nil {
-		return "", fmt.Errorf("failed to find peer: %v", err)
+		return "", fmt.Errorf("failed to find peer %s: %v", peerIDStr, err)
 	}
 
 	if len(peerInfo.Addrs) == 0 {
@@ -158,21 +159,20 @@ func GetIPFromPeerID(peerIDStr string) (string, error) {
 	}
 
 	var publicIP string
-	fmt.Println("Peer Addrs", peerInfo.Addrs)
 	for _, addr := range peerInfo.Addrs {
 		ipAddr := strings.Split(addr, "/")[2]
-		fmt.Println("IP Address:", ipAddr)
 
 		ip := net.ParseIP(ipAddr)
 		if ip != nil && !isPrivateIP(ip) {
 			publicIP = ipAddr
+			break
 		}
 	}
 
 	if publicIP == "" {
 		return "", fmt.Errorf("no public IP address found for peer ID: %s", peerIDStr)
 	}
-	fmt.Println("Public IP:", publicIP)
+	logrus.Debugf("Found public IP %s for Peer ID %s", publicIP, peerIDStr)
 	return publicIP, nil
 }
 
@@ -213,23 +213,23 @@ func UploadTextToFile(text, filePath string) (string, error) {
 
 	err := ioutil.WriteFile(filePath, []byte(text), 0644)
 	if err != nil {
-		return "", fmt.Errorf("error writing to file: %v", err)
+		return "", fmt.Errorf("error writing to file %s: %v", filePath, err)
 	}
 
 	file, err := os.Open(filePath)
 	if err != nil {
-		return "", fmt.Errorf("error reading file: %v", err)
+		return "", fmt.Errorf("error reading file %s: %v", filePath, err)
 	}
 	defer file.Close()
 
 	cid, err := Shell.Add(file)
 	if err != nil {
-		return "", fmt.Errorf("error uploading file to IPFS: %v", err)
+		return "", fmt.Errorf("error uploading file %s to IPFS: %v", filePath, err)
 	}
 
 	err = os.Remove(filePath)
 	if err != nil {
-		fmt.Printf("warning: error removing local file: %v\n", err)
+		logrus.Warnf("Error removing local file %s after IPFS upload: %v", filePath, err)
 	}
 
 	return cid, nil
@@ -260,221 +260,119 @@ func DownloadAndDecodeJSON(fileHash string, dest interface{}) error {
 }
 
 func SyncNode(NewPins map[string]interface{}, name string) {
-	if !checkIPFSConnection() {
-		log.Println("Cannot sync node: IPFS is currently unavailable")
-		return
-	}
-
-	fmt.Println("Syncing node: ", name)
 	if len(NewPins) == 0 {
-		fmt.Println("No pins found")
+		logrus.Warnf("Attempted to sync node %s, but no pins provided.", name)
 		return
 	}
-
-	mapLength := len(NewPins)
-	keyCount := 0
-	var peersize = 0
-	refCounts := make([]int, len(NewPins))
-	sizes := make([]int, len(NewPins))
-	completed := make([]bool, len(NewPins))
+	localdata.Lock.Lock()
+	localdata.PeerCids[name] = make([]string, 0, len(NewPins))
+	localdata.Lock.Unlock()
+	var totalSize int
 	var wg sync.WaitGroup
+	percentage := 0
 
-	printProgress := func(i int, key string) {
-		var percentage float64
-		var percentageInt int
-		if completed[i] {
-			localdata.Lock.Lock()
-			localdata.CIDRefPercentage[key] = 100
-			localdata.CIDRefStatus[key] = true
-			localdata.Lock.Unlock()
-			percentage = 100.0
-		} else if sizes[i] > 0 {
-			percentage = float64(refCounts[i]*256*1024) / float64(sizes[i]) * 100
-			percentageInt = int(percentage)
-			localdata.Lock.Lock()
-			cIDRefPercentage := localdata.CIDRefPercentage[key]
-			localdata.Lock.Unlock()
-			if percentageInt+1 > cIDRefPercentage {
-				localdata.Lock.Lock()
-				localdata.CIDRefPercentage[key] = percentageInt
-				localdata.CIDRefStatus[key] = false
-				localdata.Lock.Unlock()
-			}
-		}
+	keys := make([]string, 0, len(NewPins))
+	for k := range NewPins {
+		keys = append(keys, k)
 	}
 
-	index := 0
-	for key := range NewPins {
+	localdata.Lock.Lock()
+	localdata.PeerSyncSeed[name] = 0
+	localdata.CIDRefStatus[name] = false
+	localdata.CIDRefPercentage[name] = percentage
+	localdata.Lock.Unlock()
+
+	for i, key := range keys {
 		wg.Add(1)
-		go func(i int, key string) {
+		go func(key string, index int) {
 			defer wg.Done()
-			size, _ := FileSize(key)
+
+			size, err := FileSize(key)
+			if err != nil {
+				logrus.Warnf("Error getting size for CID %s during sync with %s: %v", key, name, err)
+				return
+			}
+
 			localdata.Lock.Lock()
-			peersize = peersize + size
+			totalSize += size
+			localdata.PeerCids[name] = append(localdata.PeerCids[name], key)
+			localdata.CidSize[key] = size
+			percentage = (index + 1) * 100 / len(keys)
+			localdata.CIDRefPercentage[name] = percentage
 			localdata.Lock.Unlock()
 
-			isPinnedInDB := IsPinnedInDB(key)
-			if !isPinnedInDB {
-				if localdata.NodesStatus[name] != "Synced" {
-					localdata.Lock.Lock()
-					localdata.PeerSize[name] = peersize
-					localdata.Lock.Unlock()
-				}
-
-				stat, err := Shell.ObjectStat(key)
+			if !IsPinnedInDB(key) {
+				savedRefs, err := Refs(key)
 				if err != nil {
-					//fmt.Printf("Error getting size: %v\n", err)
+					logrus.Warnf("Error getting refs for CID %s during sync with %s: %v", key, name, err)
 					return
-				}
-				sizes[i] = stat.CumulativeSize
-
-				refs, err := Shell.Refs(key, true)
-				if err != nil {
-					fmt.Printf("Error: %v\n", err)
-					return
-				}
-				var refsSlice []string
-				for ref := range refs {
-					refsSlice = append(refsSlice, ref)
-					refCounts[i]++
-					printProgress(i, key)
 				}
 				localdata.Lock.Lock()
-				localdata.SavedRefs[key] = refsSlice
-				localdata.Lock.Unlock()
-				refsBytes, err := json.Marshal(refsSlice)
+				localdata.SavedRefs[key] = savedRefs
+				refsBytes, err := json.Marshal(savedRefs)
 				if err != nil {
-					log.Printf("Error: %v\n", err)
+					logrus.Errorf("Error marshaling refs for CID %s: %v", key, err)
+					localdata.Lock.Unlock()
 					return
 				}
 				database.Save([]byte("refs"+key), refsBytes)
-				completed[i] = true
-			} else {
-				localdata.Lock.Lock()
-				nodesStatus := localdata.NodesStatus[name]
 				localdata.Lock.Unlock()
-				if nodesStatus != "Synced" {
-					localdata.Lock.Lock()
-					localdata.PeerSize[name] = peersize
-					localdata.Lock.Unlock()
-				}
 			}
-			localdata.Lock.Lock()
-			localdata.CIDRefPercentage[key] = 100
-			localdata.CIDRefStatus[key] = true
-			localdata.Lock.Unlock()
-			keyCount++
-			if keyCount == mapLength {
-				localdata.Lock.Lock()
-				localdata.PeerSize[name] = peersize
-				fmt.Println("Synced: ", name)
-				fmt.Println("PeerSize: ", peersize)
-				localdata.NodesStatus[name] = "Synced"
-				localdata.Lock.Unlock()
-				return
-			}
-		}(index, key)
-		index++
+		}(key, i)
 	}
+
 	wg.Wait()
+
+	localdata.Lock.Lock()
+	localdata.CIDRefStatus[name] = true
+	peersize := totalSize
+	localdata.PeerSize[name] = peersize
+	localdata.Lock.Unlock()
+
+	logrus.Infof("Finished syncing with node %s. Total size: %d", name, peersize)
 }
 
 func FileSize(cid string) (int, error) {
 	if !checkIPFSConnection() {
 		return 0, fmt.Errorf("IPFS node is currently unavailable")
 	}
-
-	objectStats, err := Shell.ObjectStat(cid)
+	stat, err := Shell.ObjectStat(cid)
 	if err != nil {
-		return 0, fmt.Errorf("error retrieving object stats: %v", err)
+		return 0, fmt.Errorf("error getting stats for CID %s: %v", cid, err)
 	}
-
-	return objectStats.CumulativeSize, nil
+	return stat.CumulativeSize, nil
 }
 
 func SaveRefs(cids []string) {
-	if !checkIPFSConnection() {
-		log.Println("Cannot save refs: IPFS is currently unavailable")
-		return
-	}
-
-	cidsMap := make(map[string]interface{})
-	for _, cid := range cids {
-		cidsMap[cid] = nil
-	}
+	logrus.Infof("Saving refs for %d CIDs...", len(cids))
 	var wg sync.WaitGroup
-	refCounts := make([]int, len(cidsMap))
-	completed := make([]bool, len(cidsMap))
-	sizes := make([]int, len(cidsMap))
+	percentage := 0
 
-	printProgress := func(i int, key string) {
-		var percentage float64
-		var percentageInt int
-		if completed[i] {
-			localdata.Lock.Lock()
-			localdata.CIDRefPercentage[key] = 100
-			localdata.CIDRefStatus[key] = true
-			localdata.Lock.Unlock()
-			percentage = 100.0
-		} else if sizes[i] > 0 {
-			percentage = float64(refCounts[i]*256*1024) / float64(sizes[i]) * 100
-			percentageInt = int(percentage)
-			localdata.Lock.Lock()
-			cIDRefPercentage := localdata.CIDRefPercentage[key]
-			localdata.Lock.Unlock()
-			if percentageInt+1 > cIDRefPercentage {
-				localdata.Lock.Lock()
-				localdata.CIDRefPercentage[key] = percentageInt
-				localdata.CIDRefStatus[key] = false
-				localdata.Lock.Unlock()
-			}
-		}
-		fmt.Printf("CID: %s has %d references so far (%.2f%%)\n", key, refCounts[i], percentage)
-	}
-
-	index := 0
-	for key := range cidsMap {
+	for i, key := range cids {
 		wg.Add(1)
-		go func(i int, key string) {
+		go func(key string, index int) {
 			defer wg.Done()
-			isPinnedInDB := IsPinnedInDB(key)
-			if !isPinnedInDB {
-				stat, err := Shell.ObjectStat(key)
+			if !IsPinnedInDB(key) {
+				savedRefs, err := Refs(key)
 				if err != nil {
-					//fmt.Printf("Error getting size: %v\n", err)
+					logrus.Warnf("Error getting refs for CID %s in SaveRefs: %v", key, err)
 					return
 				}
 				localdata.Lock.Lock()
-				localdata.CidSize[key] = stat.CumulativeSize
-				localdata.Lock.Unlock()
-				refs, err := Shell.Refs(key, true)
+				localdata.SavedRefs[key] = savedRefs
+				refsBytes, err := json.Marshal(savedRefs)
 				if err != nil {
-					fmt.Printf("Error: %v\n", err)
-					return
-				}
-				var refsSlice []string
-				for ref := range refs {
-					refsSlice = append(refsSlice, ref)
-					refCounts[i]++
-					printProgress(i, key)
-				}
-				localdata.Lock.Lock()
-				localdata.SavedRefs[key] = refsSlice
-				localdata.Lock.Unlock()
-				refsBytes, err := json.Marshal(refsSlice)
-				if err != nil {
-					log.Printf("Error: %v\n", err)
+					logrus.Errorf("Error marshaling refs for CID %s in SaveRefs: %v", key, err)
+					localdata.Lock.Unlock()
 					return
 				}
 				database.Save([]byte("refs"+key), refsBytes)
-				completed[i] = true
+				percentage = (index + 1) * 100 / len(cids)
+				localdata.CIDRefPercentage["self"] = percentage
+				localdata.Lock.Unlock()
 			}
-			localdata.Lock.Lock()
-			localdata.CIDRefPercentage[key] = 100
-			localdata.CIDRefStatus[key] = true
-			localdata.Lock.Unlock()
-		}(index, key)
-		index++
+		}(key, i)
 	}
 	wg.Wait()
+	logrus.Info("Finished saving refs.")
 }

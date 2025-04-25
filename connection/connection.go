@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"log"
 	"os"
 	"os/signal"
 	"proofofaccess/localdata"
@@ -13,6 +12,7 @@ import (
 	"time"
 
 	"github.com/gorilla/websocket"
+	"github.com/sirupsen/logrus"
 )
 
 const (
@@ -35,49 +35,55 @@ func CheckSynced(ctx context.Context) {
 		case <-ctx.Done():
 			return
 		default:
-			for _, peerName := range localdata.WsPeers {
-				fmt.Println("Checking if synced with", peerName)
-				if localdata.WsPeers[peerName] == peerName {
-					peerWs := localdata.WsClients[peerName]
-					fmt.Println("Checking if synced with2", peerName)
-					if IsConnectionOpen(peerWs) == false {
-						fmt.Println("Connection to validator", peerName, "lost")
+			localdata.Lock.Lock()
+			wsPeersCopy := make([]string, 0, len(localdata.WsPeers))
+			for peerName := range localdata.WsPeers {
+				wsPeersCopy = append(wsPeersCopy, peerName)
+			}
+			localdata.Lock.Unlock()
+
+			for _, peerName := range wsPeersCopy {
+				localdata.Lock.Lock()
+				isRegisteredPeer := localdata.WsPeers[peerName] == peerName
+				peerWs := localdata.WsClients[peerName]
+				pstartTime := localdata.PingTime[peerName]
+				localdata.Lock.Unlock()
+
+				if isRegisteredPeer {
+					if peerWs == nil || !IsConnectionOpen(peerWs) {
+						logrus.Warnf("WebSocket connection to peer %s lost or failed check.", peerName)
 						localdata.Lock.Lock()
-						localdata.WsPeers[peerName] = ""
-						localdata.WsClients[peerName] = nil
+						delete(localdata.WsPeers, peerName)
+						delete(localdata.WsClients, peerName)
 						localdata.NodesStatus[peerName] = "Disconnected"
-						localdata.Lock.Unlock()
 						newPeerNames := make([]string, 0, len(localdata.PeerNames)-1)
 						for _, pn := range localdata.PeerNames {
 							if pn != peerName {
 								newPeerNames = append(newPeerNames, pn)
-								fmt.Println("Removing", peerName, "from peerNames")
 							}
 						}
-						localdata.Lock.Lock()
 						localdata.PeerNames = newPeerNames
 						localdata.Lock.Unlock()
 
 					}
 				} else {
-					fmt.Println("Connection to validator", peerName, "lost")
-					// Get the start time from the seed
-					start := localdata.PingTime[peerName]
-					// Get the current time
-					elapsed := time.Since(start)
-					if elapsed.Seconds() > 121 {
-						peerN := localdata.PeerNames
-						newPeerNames := make([]string, 0, len(localdata.PeerNames)-1)
-						for _, pn := range peerN {
-							if pn != peerName {
-								newPeerNames = append(newPeerNames, pn)
+					if !pstartTime.IsZero() {
+						elapsed := time.Since(pstartTime)
+						if elapsed.Seconds() > 121 {
+							logrus.Warnf("Peer %s inactive (last ping %v ago), removing.", peerName, elapsed)
+							localdata.Lock.Lock()
+							peerN := localdata.PeerNames
+							newPeerNames := make([]string, 0, len(peerN)-1)
+							for _, pn := range peerN {
+								if pn != peerName {
+									newPeerNames = append(newPeerNames, pn)
+								}
 							}
+							localdata.PeerNames = newPeerNames
+							delete(localdata.WsPeers, peerName)
+							delete(localdata.PingTime, peerName)
+							localdata.Lock.Unlock()
 						}
-						fmt.Println("Removing", peerName, "from peerNames")
-						localdata.Lock.Lock()
-						localdata.PeerNames = newPeerNames
-						localdata.Lock.Unlock()
-						fmt.Println("Removing2", peerName, "from wsPeers")
 					}
 				}
 			}
@@ -87,32 +93,31 @@ func CheckSynced(ctx context.Context) {
 }
 
 func IsConnectionOpen(conn *websocket.Conn) bool {
-	fmt.Println("Checking if connection is open")
+	if conn == nil {
+		return false
+	}
 	var writeWait = 1 * time.Second
 
 	if err := conn.SetWriteDeadline(time.Now().Add(writeWait)); err != nil {
-		log.Println("SetWriteDeadline failed:", err)
+		logrus.Debugf("SetWriteDeadline failed for WS ping check: %v", err)
 		return false
 	}
 
-	// Write the ping message to the connection
 	if err := conn.WriteMessage(websocket.PingMessage, nil); err != nil {
-		log.Println("WriteMessage failed:", err)
+		logrus.Debugf("Write PingMessage failed for WS ping check: %v", err)
 		return false
 	}
 
-	// Reset the write deadline
 	if err := conn.SetWriteDeadline(time.Time{}); err != nil {
-		log.Println("Resetting WriteDeadline failed:", err)
+		logrus.Warnf("Resetting WriteDeadline failed after WS ping check: %v", err)
 		return false
 	}
-	fmt.Println("Connection is open")
 	return true
 }
 
 func StartWsClient(name string) {
 	if localdata.UseWS == false {
-		fmt.Println("Skipping WebSocket connection due to UseWS being false")
+		logrus.Info("Skipping WebSocket client connection: UseWS is false")
 		return
 	}
 
@@ -122,20 +127,26 @@ func StartWsClient(name string) {
 	for {
 		err := connectAndListen(name, interrupt)
 		if err != nil {
-			log.Printf("WebSocket error: %v", err)
-			time.Sleep(time.Second * 5) // Wait before attempting to reconnect
+			logrus.Errorf("WebSocket client error for %s: %v. Retrying in 5s...", name, err)
+			time.Sleep(time.Second * 5)
+		} else {
+			logrus.Infof("WebSocket client for %s disconnected cleanly.", name)
+			time.Sleep(time.Second * 1)
 		}
 	}
 }
 
 func connectAndListen(name string, interrupt <-chan os.Signal) error {
+	localdata.Lock.Lock()
 	u := localdata.ValidatorAddress[name] + "/messaging"
-	log.Printf("Connecting to %s", u)
+	localdata.Lock.Unlock()
+	logrus.Infof("Attempting to connect WebSocket client to validator %s at %s", name, u)
 
 	c, _, err := websocket.DefaultDialer.Dial(u, nil)
 	if err != nil {
-		return fmt.Errorf("dial: %v", err)
+		return fmt.Errorf("dial error for %s: %v", u, err)
 	}
+	logrus.Infof("WebSocket client connected to %s", u)
 	defer c.Close()
 
 	done := make(chan struct{})
@@ -148,7 +159,9 @@ func connectAndListen(name string, interrupt <-chan os.Signal) error {
 			_, message, err := c.ReadMessage()
 			if err != nil {
 				if websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway, websocket.CloseAbnormalClosure) {
-					log.Printf("read error: %v", err)
+					logrus.Errorf("WebSocket read error for %s: %v", name, err)
+				} else {
+					logrus.Warnf("WebSocket closed for %s: %v", name, err)
 				}
 				return
 			}
@@ -163,7 +176,11 @@ func connectAndListen(name string, interrupt <-chan os.Signal) error {
 	localdata.WsValidators[name] = c
 	localdata.Lock.Unlock()
 
-	salt, _ := proofcrypto.CreateRandomHash()
+	salt, err := proofcrypto.CreateRandomHash()
+	if err != nil {
+		logrus.Errorf("Error creating random hash for initial wsPing to %s: %v", name, err)
+		return err
+	}
 	wsPing(salt, name, c)
 
 	for {
@@ -171,14 +188,20 @@ func connectAndListen(name string, interrupt <-chan os.Signal) error {
 		case <-done:
 			return nil
 		case <-ticker.C:
-			c.SetWriteDeadline(time.Now().Add(writeWait))
+			err := c.SetWriteDeadline(time.Now().Add(writeWait))
+			if err != nil {
+				logrus.Errorf("WebSocket SetWriteDeadline error before ping for %s: %v", name, err)
+				return err
+			}
 			if err := c.WriteMessage(websocket.PingMessage, nil); err != nil {
+				logrus.Errorf("WebSocket write ping error for %s: %v", name, err)
 				return fmt.Errorf("write ping: %v", err)
 			}
 		case <-interrupt:
-			log.Println("Interrupt received, closing connection")
+			logrus.Info("Interrupt received, closing WebSocket connection for ", name)
 			err := c.WriteMessage(websocket.CloseMessage, websocket.FormatCloseMessage(websocket.CloseNormalClosure, ""))
 			if err != nil {
+				logrus.Errorf("WebSocket write close error for %s: %v", name, err)
 				return fmt.Errorf("write close: %v", err)
 			}
 			select {
@@ -191,7 +214,6 @@ func connectAndListen(name string, interrupt <-chan os.Signal) error {
 }
 
 func wsPing(hash string, name string, c *websocket.Conn) {
-	fmt.Println("Sending Ping")
 	data := map[string]string{
 		"type": "PingPongPing",
 		"hash": hash,
@@ -199,12 +221,11 @@ func wsPing(hash string, name string, c *websocket.Conn) {
 	}
 	jsonData, err := json.Marshal(data)
 	if err != nil {
-		fmt.Println("Error encoding JSON:", err)
+		logrus.Errorf("Error encoding wsPing JSON for %s: %v", name, err)
 		return
 	}
-	//fmt.Println("Client send: ", string(jsonData))
 	err = c.WriteMessage(websocket.TextMessage, jsonData)
 	if err != nil {
-		log.Printf("write ping: %v", err)
+		logrus.Errorf("Error writing wsPing message for %s: %v", name, err)
 	}
 }

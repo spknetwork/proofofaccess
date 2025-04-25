@@ -2,8 +2,8 @@ package messaging
 
 import (
 	"encoding/json"
-	"fmt"
 	"github.com/gorilla/websocket"
+	"github.com/sirupsen/logrus"
 	"proofofaccess/localdata"
 	"proofofaccess/pubsub"
 )
@@ -17,16 +17,22 @@ func SendSyncing(req Request, ws *websocket.Conn) {
 
 	jsonData, err := json.Marshal(data)
 	if err != nil {
-		fmt.Println("Error encoding JSON:", err)
+		logrus.Errorf("Error encoding Syncing JSON: %v", err)
 		return
 	}
 	if localdata.WsPeers[req.User] == req.User && localdata.NodeType == 1 {
 		WsMutex.Lock()
-		ws.WriteMessage(websocket.TextMessage, jsonData)
+		err = ws.WriteMessage(websocket.TextMessage, jsonData)
+		if err != nil {
+			logrus.Errorf("Error writing Syncing message to WebSocket for %s: %v", req.User, err)
+		}
 		WsMutex.Unlock()
 	} else if localdata.UseWS == true && localdata.NodeType == 2 {
 		WsMutex.Lock()
-		ws.WriteMessage(websocket.TextMessage, jsonData)
+		err = ws.WriteMessage(websocket.TextMessage, jsonData)
+		if err != nil {
+			logrus.Errorf("Error writing Syncing message to WebSocket validator for %s: %v", req.User, err)
+		}
 		WsMutex.Unlock()
 	} else {
 		pubsub.Publish(string(jsonData), req.User)
@@ -40,17 +46,22 @@ func SendSynced(req Request, ws *websocket.Conn) {
 
 	jsonData, err := json.Marshal(data)
 	if err != nil {
-		fmt.Println("Error encoding JSON:", err)
+		logrus.Errorf("Error encoding Synced JSON: %v", err)
 		return
 	}
 	if localdata.WsPeers[req.User] == req.User && localdata.NodeType == 1 {
-		fmt.Println("Sending Synced to " + req.User)
 		WsMutex.Lock()
-		ws.WriteMessage(websocket.TextMessage, jsonData)
+		err = ws.WriteMessage(websocket.TextMessage, jsonData)
+		if err != nil {
+			logrus.Errorf("Error writing Synced message to WebSocket for %s: %v", req.User, err)
+		}
 		WsMutex.Unlock()
 	} else if localdata.UseWS == true && localdata.NodeType == 2 {
 		WsMutex.Lock()
-		localdata.WsValidators[req.User].WriteMessage(websocket.TextMessage, jsonData)
+		err = localdata.WsValidators[req.User].WriteMessage(websocket.TextMessage, jsonData)
+		if err != nil {
+			logrus.Errorf("Error writing Synced message to WebSocket validator %s: %v", req.User, err)
+		}
 		WsMutex.Unlock()
 	} else {
 		pubsub.Publish(string(jsonData), req.User)
@@ -61,17 +72,14 @@ func ReceiveSyncing(req Request) {
 	localdata.Lock.Lock()
 	localdata.ValidatorsStatus[req.User] = "Syncing"
 	localdata.Lock.Unlock()
-	fmt.Println("Syncing with " + req.User)
 }
 func ReceiveSynced(req Request) {
 	localdata.Lock.Lock()
 	localdata.ValidatorNames = localdata.RemoveDuplicates(append(localdata.ValidatorNames, req.User))
 	localdata.ValidatorsStatus[req.User] = "Synced"
 	localdata.Lock.Unlock()
-	fmt.Println("Synced with " + req.User)
 }
 func SyncNode(req Request, ws *websocket.Conn) {
-	fmt.Println("Syncing with " + req.User)
 	peerName := req.User
 	localdata.Lock.Lock()
 	Nodes[req.User] = true
@@ -79,6 +87,5 @@ func SyncNode(req Request, ws *websocket.Conn) {
 	localdata.NodesStatus[req.User] = "Synced"
 	localdata.Lock.Unlock()
 	SendSynced(req, ws)
-	fmt.Println("Synced with " + req.User)
 	Nodes[req.User] = false
 }

@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"flag"
-	"fmt"
 	"os"
 	"os/signal"
 	"proofofaccess/Rewards"
@@ -67,19 +66,18 @@ func initialize(ctx context.Context) {
 	localdata.SetNodeName(*username)
 	localdata.NodeType = *nodeType
 	localdata.WsPort = *wsPort
+	log.Infof("Initializing node: %s (Type: %d)", *username, *nodeType)
 	database.Init(*nodeType)
 	ipfs.IpfsPeerID()
 	if *getHiveRewards {
-		fmt.Println("Getting Hive rewards")
+		log.Info("Getting Hive rewards...")
 		localdata.HiveRewarded = hive.GetHiveSent()
-		fmt.Println("Done getting Hive rewards")
 	}
 	if *getVids {
-		fmt.Println("Getting 3Speak videos")
+		log.Info("Getting 3Speak videos...")
 		Rewards.ThreeSpeak()
-		fmt.Println("Done getting 3Speak videos")
 		if *pinVideos {
-			fmt.Println("Pinning and unpinning videos")
+			log.Info("Pinning and unpinning videos")
 			go Rewards.PinVideos(*storageLimit)
 		}
 		go ipfs.SaveRefs(localdata.ThreeSpeakVideos)
@@ -91,32 +89,36 @@ func initialize(ctx context.Context) {
 		} else {
 			url = *honeycombApi
 		}
-		fmt.Println("Getting Honeycomb CIDs")
-		fmt.Println(url)
+		log.Infof("Getting Honeycomb CIDs from %s", url)
 		cids, err := honeycomb.GetCIDsFromAPI(url)
-		localdata.Lock.Lock()
-		localdata.HoneycombContractCIDs = cids
-		localdata.Lock.Unlock()
-		log.Error(err)
-		fmt.Println("Got Honeycomb CIDs")
-		// fmt.Println(cids)
-		go ipfs.SaveRefs(cids)
+		if err != nil {
+			log.Errorf("Error getting Honeycomb CIDs: %v", err)
+		} else {
+			localdata.Lock.Lock()
+			localdata.HoneycombContractCIDs = cids
+			localdata.Lock.Unlock()
+			go ipfs.SaveRefs(cids)
+		}
 	}
 	if *nodeType == 1 {
+		log.Info("Starting as Validation Node")
 		go messaging.PubsubHandler(ctx)
 		go connection.CheckSynced(ctx)
 		go Rewards.Update(ctx)
 	} else {
+		log.Info("Starting as Access Node")
 		go peers.FetchPins()
 	}
 	if *nodeType == 2 {
 		validators.GetValidators(*validatorsApi)
 		if *useWS {
 			localdata.UseWS = *useWS
+			log.Info("Connecting to validators via WebSocket")
 			for _, name := range localdata.ValidatorNames {
 				go connection.StartWsClient(name)
 			}
 		} else {
+			log.Info("Connecting to validators via PubSub")
 			go messaging.PubsubHandler(ctx)
 			go validators.ConnectToValidators(ctx, nodeType)
 		}
@@ -124,10 +126,12 @@ func initialize(ctx context.Context) {
 	go api.StartAPI(ctx)
 
 	if *runProofs {
+		log.Info("Starting proof running routines")
 		go Rewards.RunRewardProofs(ctx)
 		go Rewards.RewardPeers()
 	}
 
+	log.Info("Initialization complete")
 }
 
 func setupCloseHandler(cancel context.CancelFunc) {

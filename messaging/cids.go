@@ -2,8 +2,8 @@ package messaging
 
 import (
 	"encoding/json"
-	"fmt"
 	"github.com/gorilla/websocket"
+	"github.com/sirupsen/logrus"
 	"proofofaccess/ipfs"
 	"proofofaccess/localdata"
 	"proofofaccess/proofcrypto"
@@ -13,26 +13,28 @@ import (
 )
 
 func RequestCIDS(req Request, ws *websocket.Conn) {
-	fmt.Println("Requesting CIDS")
 	data := map[string]string{
 		"type": "RequestCIDS",
 		"user": localdata.GetNodeName(),
 	}
 	jsonData, err := json.Marshal(data)
-	fmt.Println("jsonData", string(jsonData))
 	if err != nil {
-		fmt.Println("Error encoding JSON:", err)
+		logrus.Errorf("Error encoding RequestCIDS JSON: %v", err)
 		return
 	}
 	if localdata.WsPeers[req.User] == req.User && localdata.NodeType == 1 {
 		WsMutex.Lock()
-		fmt.Println("Locking wsMutex")
-		ws.WriteMessage(websocket.TextMessage, jsonData)
-		fmt.Println("Sent RequestCIDS to client")
+		err = ws.WriteMessage(websocket.TextMessage, jsonData)
+		if err != nil {
+			logrus.Errorf("Error writing RequestCIDS to WebSocket for %s: %v", req.User, err)
+		}
 		WsMutex.Unlock()
 	} else if localdata.UseWS == true && localdata.NodeType == 2 {
 		WsMutex.Lock()
-		localdata.WsValidators[req.User].WriteMessage(websocket.TextMessage, jsonData)
+		err = localdata.WsValidators[req.User].WriteMessage(websocket.TextMessage, jsonData)
+		if err != nil {
+			logrus.Errorf("Error writing RequestCIDS to WebSocket validator %s: %v", req.User, err)
+		}
 		WsMutex.Unlock()
 	} else {
 		pubsub.Publish(string(jsonData), req.User)
@@ -40,18 +42,20 @@ func RequestCIDS(req Request, ws *websocket.Conn) {
 
 }
 func SendCIDS(name string, ws *websocket.Conn) {
-	allPins, _ := ipfs.Shell.Pins()
-	fmt.Println("Fetched pins")
+	allPins, err := ipfs.Shell.Pins()
+	if err != nil {
+		logrus.Errorf("Error fetching pins in SendCIDS: %v", err)
+		return
+	}
 	NewPins := make([]string, 0)
 	for key, pinInfo := range allPins {
 		if pinInfo.Type == "recursive" {
 			NewPins = append(NewPins, key)
 		}
 	}
-	fmt.Println("Sending CIDS")
 	pinsJson, err := json.Marshal(NewPins)
 	if err != nil {
-		fmt.Println(err)
+		logrus.Errorf("Error marshaling pins in SendCIDS: %v", err)
 		return
 	}
 
@@ -70,16 +74,17 @@ func SendCIDS(name string, ws *websocket.Conn) {
 
 		jsonData, err := json.Marshal(data)
 		if err != nil {
-			fmt.Println("Error encoding JSON:", err)
+			logrus.Errorf("Error encoding SendCIDS JSON chunk: %v", err)
 			return
 		}
 
 		if localdata.UseWS == true && localdata.NodeType == 2 {
-			fmt.Println("Sending CIDS to validation node", name)
 			WsMutex.Lock()
-			ws.WriteJSON(data)
+			err = ws.WriteJSON(data)
+			if err != nil {
+				logrus.Errorf("Error writing SendCIDS JSON to WebSocket for %s: %v", name, err)
+			}
 			WsMutex.Unlock()
-			fmt.Println("Sent CIDS to validation node")
 		} else {
 			pubsub.Publish(string(jsonData), name)
 		}

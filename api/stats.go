@@ -3,65 +3,95 @@ package api
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/gorilla/websocket"
 	"math"
 	"proofofaccess/localdata"
 	"strings"
+	"time"
+
+	"github.com/gorilla/websocket"
+	"github.com/sirupsen/logrus"
 )
 
 func stats(c *websocket.Conn, key string) {
 	NetworkStorage := 0
+	localdata.Lock.Lock()
 	if localdata.NodeType == 2 {
 		NetworkStorage = localdata.PeerSize[localdata.NodeName]
 	} else {
 		for _, peerName := range localdata.PeerNames {
-			fmt.Println("Peer: ", peerName)
-			fmt.Println("Size: ", localdata.PeerSize[peerName])
 			NetworkStorage = NetworkStorage + localdata.PeerSize[peerName]
 		}
 	}
-	peerSizes := make(map[string]string) // Create a new map to hold each peer's size
+	peerSizes := make(map[string]string)
 	peerSynced := make(map[string]string)
 	for _, peerName := range localdata.PeerNames {
 		peerSizes[peerName] = fmt.Sprintf("%d", localdata.PeerSize[peerName]/1024/1024/1024)
 		peerSynced[peerName] = fmt.Sprintf("%v", localdata.NodesStatus[peerName])
 	}
-	// fmt.Println("Network Storage: ", NetworkStorage)
-	// Print the Network Storage in GB
+	synced := localdata.Synced
+	peersCount := len(localdata.PeerNames)
+	validatorCount := len(localdata.ValidatorNames)
+	nodeName := localdata.NodeName
+	nodeType := localdata.NodeType
+	peerNames := make([]string, len(localdata.PeerNames))
+	copy(peerNames, localdata.PeerNames)
+	validatorNames := make([]string, len(localdata.ValidatorNames))
+	copy(validatorNames, localdata.ValidatorNames)
+	syncedPercentage := localdata.SyncedPercentage
+	peerLastActive := make(map[string]time.Time)
+	for k, v := range localdata.PeerLastActive {
+		peerLastActive[k] = v
+	}
+	peerProofs := make(map[string]int)
+	for k, v := range localdata.PeerProofs {
+		peerProofs[k] = v
+	}
+	hiveRewarded := make(map[string]int)
+	for k, v := range localdata.HiveRewarded {
+		hiveRewarded[k] = int(v)
+	}
+	peerCids := make(map[string][]string)
+	for k, v := range localdata.PeerCids {
+		peerCids[k] = append([]string(nil), v...)
+	}
+
+	localdata.Lock.Unlock()
+
 	NetworkStorage = NetworkStorage / 1024 / 1024 / 1024
-	// fmt.Println("Size: ", NetworkStorage, "GB")
-	// fmt.Println("NodeType: ", localdata.NodeType)
-	NodeType := ""
-	if localdata.NodeType == 1 {
-		NodeType = "Validator"
+	NodeTypeStr := ""
+	if nodeType == 1 {
+		NodeTypeStr = "Validator"
 	} else {
-		NodeType = "Storage"
+		NodeTypeStr = "Storage"
 	}
 	data := map[string]interface{}{
 		"Status": map[string]string{
-			"Sync":             fmt.Sprintf("%v", localdata.Synced),
-			"PeersCount":       fmt.Sprintf("%d", len(localdata.PeerNames)),
-			"ValidatorCount":   fmt.Sprintf("%d", len(localdata.ValidatorNames)),
-			"Node":             fmt.Sprintf(localdata.NodeName),
-			"Type":             fmt.Sprintf(NodeType),
-			"Peers":            strings.Join(localdata.PeerNames, ","),
-			"Validators":       strings.Join(localdata.ValidatorNames, ","),
+			"Sync":             fmt.Sprintf("%v", synced),
+			"PeersCount":       fmt.Sprintf("%d", peersCount),
+			"ValidatorCount":   fmt.Sprintf("%d", validatorCount),
+			"Node":             fmt.Sprintf(nodeName),
+			"Type":             fmt.Sprintf(NodeTypeStr),
+			"Peers":            strings.Join(peerNames, ","),
+			"Validators":       strings.Join(validatorNames, ","),
 			"NetworkStorage":   fmt.Sprintf("%d GB", NetworkStorage),
-			"SyncedPercentage": fmt.Sprintf("%f", math.Round(float64(localdata.SyncedPercentage))),
+			"SyncedPercentage": fmt.Sprintf("%f", math.Round(float64(syncedPercentage))),
 		},
 		"PeerSizes":       peerSizes,
-		"PeerLastActive":  localdata.PeerLastActive,
-		"PeerProofs":      localdata.PeerProofs,
+		"PeerLastActive":  peerLastActive,
+		"PeerProofs":      peerProofs,
 		"PeerSynced":      peerSynced,
-		"PeerHiveRewards": localdata.HiveRewarded,
-		"PeerCids":        localdata.PeerCids,
+		"PeerHiveRewards": hiveRewarded,
+		"PeerCids":        peerCids,
 	}
 	jsonData, err := json.Marshal(data)
 	if err != nil {
-		log.Printf("Error: %v", err)
+		logrus.Errorf("Error marshaling stats JSON: %v", err)
 		return
 	}
 
-	c.WriteMessage(websocket.TextMessage, jsonData)
+	err = c.WriteMessage(websocket.TextMessage, jsonData)
+	if err != nil {
+		logrus.Errorf("Error writing stats message to WebSocket: %v", err)
+	}
 
 }

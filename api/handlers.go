@@ -14,6 +14,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/gorilla/websocket"
+	"github.com/sirupsen/logrus"
 )
 
 var WsClients = make(map[string]*websocket.Conn)
@@ -27,7 +28,7 @@ type WSMessage struct {
 func getStatsHandler(c *gin.Context) {
 	conn := upgradeToWebSocket(c)
 	if conn == nil {
-		log.Error("Failed to upgrade to WebSocket")
+		logrus.Error("Failed to upgrade getStatsHandler to WebSocket")
 		return
 	}
 	defer closeWebSocket(conn)
@@ -36,7 +37,7 @@ func getStatsHandler(c *gin.Context) {
 	page := msg.Page
 	key := msg.User
 	if err != nil {
-		log.Println("Error parsing page number:", err)
+		logrus.Errorf("Error reading WebSocket message in getStatsHandler: %v", err)
 		return
 	}
 
@@ -47,11 +48,11 @@ func getStatsHandler(c *gin.Context) {
 
 	// Sort stats by date
 	sort.Slice(stats, func(i, j int) bool {
-		timeI, errI := stats[i].Time, err
-		timeJ, errJ := stats[j].Time, err
+		timeI, errI := stats[i].Time, error(nil)
+		timeJ, errJ := stats[j].Time, error(nil)
 
 		if errI != nil || errJ != nil {
-			log.Println("Error parsing time in Message struct")
+			logrus.Warn("Error parsing time in stats for sorting (this should not happen if type is time.Time)")
 			return false
 		}
 
@@ -61,7 +62,8 @@ func getStatsHandler(c *gin.Context) {
 	// Apply pagination
 	startIndex := (page - 1) * pageSize
 	if startIndex >= len(stats) {
-		log.Println("Error: page number is out of range")
+		logrus.Warnf("Page number %d out of range for stats (key: %s, total: %d)", page, key, len(stats))
+		sendWsResponse("Error", "Page number out of range", "0", conn)
 		return
 	}
 	endIndex := startIndex + pageSize
@@ -73,7 +75,7 @@ func getStatsHandler(c *gin.Context) {
 	// Convert pagedStats to JSON string
 	statsJson, err := json.Marshal(pagedStats)
 	if err != nil {
-		log.Println("Error encoding stats to JSON:", err)
+		logrus.Errorf("Error encoding paged stats to JSON: %v", err)
 		return
 	}
 
@@ -83,31 +85,28 @@ func getStatsHandler(c *gin.Context) {
 func getNetworkHandler(c *gin.Context) {
 	conn := upgradeToWebSocket(c)
 	if conn == nil {
-		log.Error("Failed to upgrade to WebSocket")
+		logrus.Error("Failed to upgrade getNetworkHandler to WebSocket")
 		return
 	}
-	//fmt.Println("Upgraded to websocket")
 	defer closeWebSocket(conn)
 	msg, err := readWebSocketMessage(conn)
 
 	page := msg.Page
 	if err != nil {
-		log.Println("Error parsing page number:", err)
+		logrus.Errorf("Error reading WebSocket message in getNetworkHandler: %v", err)
 		return
 	}
 
 	const pageSize = 4000 // define the number of results per page
-	fmt.Println("Getting network records")
-	// Fetch stats from the database
 	stats := database.GetNetwork()
 
 	// Sort stats by date
 	sort.Slice(stats, func(i, j int) bool {
-		timeI, errI := stats[i].Date, err
-		timeJ, errJ := stats[j].Date, err
+		timeI, errI := stats[i].Date, error(nil)
+		timeJ, errJ := stats[j].Date, error(nil)
 
 		if errI != nil || errJ != nil {
-			log.Println("Error parsing time in Message struct")
+			logrus.Warn("Error parsing time in network stats for sorting (this should not happen if type is time.Time)")
 			return false
 		}
 
@@ -117,7 +116,8 @@ func getNetworkHandler(c *gin.Context) {
 	// Apply pagination
 	startIndex := (page - 1) * pageSize
 	if startIndex >= len(stats) {
-		log.Println("Error: page number is out of range")
+		logrus.Warnf("Page number %d out of range for network stats (total: %d)", page, len(stats))
+		sendWsResponse("Error", "Page number out of range", "0", conn)
 		return
 	}
 	endIndex := startIndex + pageSize
@@ -129,7 +129,7 @@ func getNetworkHandler(c *gin.Context) {
 	// Convert pagedStats to JSON string
 	statsJson, err := json.Marshal(pagedStats)
 	if err != nil {
-		log.Println("Error encoding stats to JSON:", err)
+		logrus.Errorf("Error encoding paged network stats to JSON: %v", err)
 		return
 	}
 
@@ -137,14 +137,10 @@ func getNetworkHandler(c *gin.Context) {
 }
 
 func handleValidate(c *gin.Context) {
-	//log.Info("Entering handleValidate")
 	conn := upgradeToWebSocket(c)
 	if conn == nil {
-		log.Error("Failed to upgrade to WebSocket")
 		return
 	}
-	//fmt.Println("Upgraded to websocket")
-
 	defer closeWebSocket(conn)
 
 	msg, err := readWebSocketMessage(conn)
@@ -152,70 +148,151 @@ func handleValidate(c *gin.Context) {
 		return
 	}
 
-	//peerID, err := getPeerID(msg, conn)
-	//if err != nil {
-	//	return
-	//}
+	// --- Peer Discovery/Connection ---
+	peerID, err := getPeerID(msg, conn)
+	if err != nil {
+		return
+	}
+	err = connectToPeer(peerID, conn, msg) // Ping check
+	if err != nil {
+		return
+	}
 
-	//err = connectToPeer(peerID, conn, msg)
-	//if err != nil {
-	//	return
-	//}
-
+	// --- Prepare Proof Request ---
 	salt := msg.SALT
 	if salt == "" {
 		salt, err = createRandomHash(conn)
 		if err != nil {
 			return
 		}
-	} else {
-		salt = salt + msg.CID + msg.Name
 	}
+	CID := msg.CID
+	targetName := msg.Name // Get target name from message
 
-	proofJson, err := createProofRequest(salt, msg.CID, conn, msg.Name)
+	// Set initial status to Pending (createProofRequest does this indirectly via SetStatus)
+	proofJson, err := createProofRequest(salt, CID, conn, targetName)
 	if err != nil {
 		return
 	}
 
-	err = sendProofRequest(salt, proofJson, msg.Name, conn)
+	// --- Send Request & Start Consensus Timer ---
+	// Pass CID to sendProofRequest
+	err = sendProofRequest(salt, CID, proofJson, targetName, conn) // Saves request time using CID+salt
 	if err != nil {
 		return
 	}
 
-	cid := msg.CID
-	status, elapsed, err := waitForProofStatus(salt, cid, conn)
-	if err != nil {
+	startTime := localdata.GetTime(CID, salt) // Retrieve the time request was sent
+	if startTime.IsZero() {
+		logrus.Errorf("Failed to retrieve start time for CID %s, salt %s after sending request.", CID, salt)
+		sendWsResponse(wsError, "Internal error: Cannot track request time", "0", conn)
 		return
 	}
-	sendWsResponse(status, status, formatElapsed(elapsed), conn)
-	log.Info("Exiting handleValidate")
+
+	// Define timeout duration (should be consistent)
+	validationTimeoutDuration := 10 * time.Second // e.g., 10 seconds
+
+	// Mark that consensus *should* run for this key, but hasn't started yet
+	messaging.ConsensusProcessingMutex.Lock() // Use exported mutex
+	messaging.ConsensusProcessing[CID+salt] = false
+	messaging.ConsensusProcessingMutex.Unlock()
+
+	logrus.Infof("Proof request sent for CID %s, salt %s to %s. Starting %v timer for consensus.", CID, salt, targetName, validationTimeoutDuration)
+	time.AfterFunc(validationTimeoutDuration, func() {
+		// This function will run after the timeout duration
+		// Pass targetName to ProcessProofConsensus (exported function)
+		messaging.ProcessProofConsensus(CID, salt, targetName, startTime)
+	})
+
+	// --- Wait for and Report Final Status (Polling) ---
+	sendWsResponse("Processing", "Waiting for validation consensus", "0", conn)
+	pollTicker := time.NewTicker(1 * time.Second)
+	defer pollTicker.Stop()
+	// Wait slightly longer than the validation timeout for consensus function to complete
+	pollTimeout := time.After(validationTimeoutDuration + 3*time.Second) // Increased buffer slightly
+
+	finalStatus := "Timeout"       // Default status if polling times out
+	var finalElapsed time.Duration // We may not have a meaningful single elapsed time now
+
+	for {
+		select {
+		case <-pollTicker.C:
+			// Check the status record (keyed by seed only)
+			statusMsg := localdata.GetStatus(salt)
+			// Check for non-empty, non-pending status
+			if statusMsg.Status != "" && statusMsg.Status != "Pending" {
+				// Consensus process has finished and set the status
+				finalStatus = statusMsg.Status
+				// Elapsed time from the status record might not be relevant for consensus. Report 0?
+				logrus.Infof("Consensus result received for salt %s: %s", salt, finalStatus)
+				goto reportResult // Exit loop
+			}
+		case <-pollTimeout:
+			logrus.Warnf("Polling timeout waiting for consensus result for salt %s", salt)
+			// Check status one last time in case it finished right at the timeout
+			statusMsg := localdata.GetStatus(salt)
+			if statusMsg.Status != "" && statusMsg.Status != "Pending" {
+				finalStatus = statusMsg.Status
+			} else {
+				// Consensus didn't finish or set status in time.
+				finalStatus = "Timeout"                   // Or "Invalid"
+				messaging.ConsensusProcessingMutex.Lock() // Use exported mutex
+				processing := messaging.ConsensusProcessing[CID+salt]
+				messaging.ConsensusProcessingMutex.Unlock()
+				if !processing {
+					logrus.Warnf("Consensus for %s not started by timeout, triggering manually.", CID+salt)
+					// Call exported function
+					go messaging.ProcessProofConsensus(CID, salt, targetName, startTime) // Run in background
+					time.Sleep(100 * time.Millisecond)                                   // Small delay
+					statusMsg = localdata.GetStatus(salt)                                // Check again
+					if statusMsg.Status != "" && statusMsg.Status != "Pending" {
+						finalStatus = statusMsg.Status
+					}
+				}
+
+			}
+			goto reportResult // Exit loop
+		}
+	}
+
+reportResult:
+	// Report the final status determined by consensus or timeout
+	sendWsResponse(finalStatus, finalStatus, formatElapsed(finalElapsed), conn)
 }
 
 func handleMessaging(c *gin.Context) {
-	//fmt.Println("Entering handleMessaging")
-	//fmt.Println("Upgrading to websocket")
 	ws := upgradeToWebSocket(c)
 	if ws == nil {
-		log.Error("Failed to upgrade to WebSocket")
+		logrus.Error("Failed to upgrade handleMessaging to WebSocket")
 		return
 	}
-	//fmt.Println("Upgraded to websocket")
 
 	defer ws.Close()
 
+	clientUser := ""
 	for {
 		var msg messaging.Request
 		err := ws.ReadJSON(&msg)
 		if err != nil {
-			log.Printf("Error: %v", err)
-			if _, ok := localdata.WsClients[msg.User]; ok {
-				delete(localdata.WsClients, msg.User)
+			if websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway, websocket.CloseAbnormalClosure) {
+				logrus.Errorf("Error reading JSON from WebSocket: %v", err)
+			} else {
+				logrus.Warnf("WebSocket closed for user %s: %v", clientUser, err)
+			}
+			if clientUser != "" {
+				if _, ok := localdata.WsClients[clientUser]; ok {
+					delete(localdata.WsClients, clientUser)
+				}
 			}
 			break
 		}
-		// Add client to the clients map
+
+		if clientUser == "" && msg.User != "" {
+			clientUser = msg.User
+		}
+
 		if localdata.WsPeers[msg.User] != msg.User || localdata.WsClients[msg.User] != ws {
-			fmt.Println("Adding client to the clients map")
+			logrus.Debugf("Registering WebSocket client: %s", msg.User)
 			localdata.Lock.Lock()
 			localdata.WsClients[msg.User] = ws
 			localdata.WsPeers[msg.User] = msg.User
@@ -223,8 +300,8 @@ func handleMessaging(c *gin.Context) {
 		}
 		jsonData, err := json.Marshal(msg)
 		if err != nil {
-			fmt.Println("Error encoding JSON:", err)
-			return
+			logrus.Errorf("Error encoding received message back to JSON: %v", err)
+			continue
 		}
 		go messaging.HandleMessage(string(jsonData), ws)
 	}
@@ -233,7 +310,7 @@ func handleMessaging(c *gin.Context) {
 func handleShutdown(c *gin.Context) {
 	if localdata.NodeType != 1 {
 
-		log.Info("Shutdown request received. Preparing to shut down the application...")
+		logrus.Info("Shutdown request received via API. Preparing to shut down the application...")
 
 		// Respond to the client
 		c.JSON(http.StatusOK, gin.H{
@@ -243,10 +320,15 @@ func handleShutdown(c *gin.Context) {
 		// Use a goroutine to shut down the application after responding to the client
 		go func() {
 			// Wait a bit to make sure the response can be sent before the application shuts down
-			time.Sleep(5 * time.Second)
-			log.Info("Shutting down the application...")
+			time.Sleep(1 * time.Second)
+			logrus.Info("Shutting down the application now...")
 			os.Exit(0)
 		}()
+	} else {
+		logrus.Warn("Shutdown request received via API, but ignored (Node Type is 1)")
+		c.JSON(http.StatusForbidden, gin.H{
+			"message": "Shutdown is not allowed for this node type.",
+		})
 	}
 }
 
@@ -254,11 +336,10 @@ func handleStats(c *gin.Context) {
 	conn := upgradeToWebSocket(c)
 	key := c.Query("username")
 	if conn == nil {
-		log.Error("Failed to upgrade to WebSocket")
+		logrus.Error("Failed to upgrade to WebSocket")
 		return
 	}
 	defer closeWebSocket(conn)
-	//log.Info("Entering handleStats")
 	stats(conn, key)
 	return
 }
@@ -311,4 +392,9 @@ func getIP(domain string) (string, error) {
 		return ips[0].String(), nil
 	}
 	return "", fmt.Errorf("No IP found for domain: %s", domain)
+}
+
+// Definition for formatElapsed if used within this file
+func formatElapsed(elapsed time.Duration) string {
+	return fmt.Sprintf("%dms", elapsed.Milliseconds())
 }

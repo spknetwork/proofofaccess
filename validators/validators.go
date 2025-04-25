@@ -11,6 +11,8 @@ import (
 	"proofofaccess/proofcrypto"
 	"strings"
 	"time"
+
+	"github.com/sirupsen/logrus"
 )
 
 type Service struct {
@@ -22,27 +24,31 @@ type Services struct {
 	Services []map[string]Service `json:"services"`
 }
 
-func GetValidators(validators string) {
-	resp, err := http.Get(validators)
+func GetValidators(validatorsUrl string) {
+	logrus.Infof("Fetching validators from: %s", validatorsUrl)
+	resp, err := http.Get(validatorsUrl)
 	if err != nil {
-		fmt.Printf("Error fetching data: %s\n", err)
+		logrus.Errorf("Error fetching validators from %s: %v", validatorsUrl, err)
 		return
 	}
 	defer resp.Body.Close()
 
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
-		fmt.Printf("Error reading response body: %s\n", err)
+		logrus.Errorf("Error reading validator response body from %s: %v", validatorsUrl, err)
 		return
 	}
 
 	var services Services
 	err = json.Unmarshal(body, &services)
 	if err != nil {
-		fmt.Printf("Error unmarshalling JSON: %s\n", err)
+		logrus.Errorf("Error unmarshalling validator JSON from %s: %v", validatorsUrl, err)
 		return
 	}
 
+	var loadedValidators []string // Collect data to log outside lock
+	localdata.Lock.Lock()
+	// defer localdata.Lock.Unlock() // Unlock manually before logging
 	for _, serviceMap := range services.Services {
 		for _, service := range serviceMap {
 			if strings.HasPrefix(service.Domain, "https://") {
@@ -53,10 +59,20 @@ func GetValidators(validators string) {
 			}
 			localdata.ValidatorNames = append(localdata.ValidatorNames, service.NodeName)
 			localdata.ValidatorAddress[service.NodeName] = service.Domain
-			fmt.Println("Service:", service)
+			// logrus.Debugf("Loaded validator: %s (%s)", service.NodeName, service.Domain) // Log outside lock
+			loadedValidators = append(loadedValidators, fmt.Sprintf("%s (%s)", service.NodeName, service.Domain)) // Collect info
 		}
 	}
+	// Deduplicate before releasing lock
+	localdata.ValidatorNames = localdata.RemoveDuplicates(localdata.ValidatorNames)
+	localdata.Lock.Unlock()
+
+	// Log collected info outside the lock
+	if len(loadedValidators) > 0 {
+		logrus.Debugf("Loaded validators: %s", strings.Join(loadedValidators, ", "))
+	}
 }
+
 func ConnectToValidators(ctx context.Context, nodeType *int) {
 	for {
 		select {
@@ -64,12 +80,19 @@ func ConnectToValidators(ctx context.Context, nodeType *int) {
 			return
 		default:
 			if *nodeType == 2 {
-				fmt.Println("Connecting to validators")
-				for _, name := range localdata.ValidatorNames {
+				localdata.Lock.Lock()
+				validatorNamesCopy := make([]string, len(localdata.ValidatorNames))
+				copy(validatorNamesCopy, localdata.ValidatorNames)
+				localdata.Lock.Unlock()
+
+				for _, name := range validatorNamesCopy {
 					if localdata.GetNodeName() != name {
-						fmt.Println("Connecting to validator: ", name)
-						salt, _ := proofcrypto.CreateRandomHash()
-						messaging.SendPing(salt, name, localdata.WsValidators[name])
+						salt, err := proofcrypto.CreateRandomHash()
+						if err != nil {
+							logrus.Errorf("Error creating random hash for ping to %s: %v", name, err)
+							continue
+						}
+						messaging.SendPing(salt, name, nil)
 					}
 				}
 				time.Sleep(120 * time.Second)

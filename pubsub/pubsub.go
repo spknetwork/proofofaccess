@@ -2,10 +2,10 @@ package pubsub
 
 import (
 	"context"
-	"fmt"
 	poaipfs "proofofaccess/ipfs"
 
 	ipfs "github.com/ipfs/go-ipfs-api"
+	"github.com/sirupsen/logrus"
 )
 
 // Subscribe to a topic
@@ -14,7 +14,7 @@ func Subscribe(username string) (*ipfs.PubSubSubscription, error) {
 	defer cancel()
 	sub, err := poaipfs.Shell.PubSubSubscribe(username)
 	if err != nil {
-		fmt.Println("Error subscribing:", err)
+		logrus.Errorf("Error subscribing to PubSub topic %s: %v", username, err)
 		return nil, err
 	}
 	return sub, nil
@@ -24,20 +24,20 @@ func Subscribe(username string) (*ipfs.PubSubSubscription, error) {
 func Read(sub *ipfs.PubSubSubscription) (string, error) {
 	msg, err := sub.Next()
 	if err != nil {
-		fmt.Println("Error receiving message:", err)
+		logrus.Errorf("Error receiving PubSub message: %v", err)
 		return "", err
 	}
-	fmt.Println("Message from: ", msg.From.String())
+	logrus.Debugf("Received PubSub message from %s", msg.From.String())
 	return string(msg.Data), nil
 }
 
 // Publish a message to a topic
 func Publish(message string, user string) error {
-	//fmt.Println("Publishing message:", message, user)
 	err := poaipfs.Shell.PubSubPublish(user, message)
 	if err != nil {
-		//fmt.Println("Error publishing message:", err)
+		logrus.Errorf("Error publishing PubSub message to %s: %v", user, err)
 		return err
 	}
+	logrus.Debugf("Published PubSub message to %s", user)
 	return nil
 }
