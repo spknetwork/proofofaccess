@@ -9,6 +9,8 @@ import (
 	"net/http"
 	"strconv"
 	"time"
+
+	log "github.com/sirupsen/logrus"
 )
 
 var Endpoint = "https://api.hive.blog"
@@ -20,7 +22,7 @@ func GetIpfsID(user string) (string, error) {
 	// Create a new HTTP request with the payload
 	req, err := http.NewRequest("POST", Endpoint, bytes.NewBuffer(payload))
 	if err != nil {
-		fmt.Println("Error creating request:", err)
+		log.Errorf("Error creating request: %v", err)
 		return "", err
 	}
 
@@ -31,7 +33,7 @@ func GetIpfsID(user string) (string, error) {
 	client := &http.Client{}
 	resp, err := client.Do(req)
 	if err != nil {
-		fmt.Println("Error sending request:", err)
+		log.Errorf("Error sending request: %v", err)
 		return "", err
 	}
 	defer resp.Body.Close()
@@ -39,7 +41,7 @@ func GetIpfsID(user string) (string, error) {
 	// Read the response body
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
-		fmt.Println("Error reading response:", err)
+		log.Errorf("Error reading response: %v", err)
 		return "", err
 	}
 
@@ -47,33 +49,44 @@ func GetIpfsID(user string) (string, error) {
 	var data map[string]interface{}
 	err = json.Unmarshal(body, &data)
 	if err != nil {
-		fmt.Println("Error unmarshalling response:", err)
+		log.Errorf("Error unmarshalling response: %v", err)
 		return "", err
 	}
 
 	// Extract the posting JSON metadata as a JSON object
 	var result map[string]interface{}
-	if data["result"].([]interface{})[0].(map[string]interface{}) != nil {
-		result = data["result"].([]interface{})[0].(map[string]interface{})
+	resultsArray, ok := data["result"].([]interface{})
+	if !ok || len(resultsArray) == 0 {
+		log.Errorf("Error: 'result' field is not an array or is empty in response for user %s", user)
+		return "", fmt.Errorf("invalid response format: 'result' field missing or empty")
+	}
+	result, ok = resultsArray[0].(map[string]interface{})
+	if !ok || result == nil {
+		log.Errorf("Error: first element in 'result' is not an object or is nil for user %s", user)
+		return "", fmt.Errorf("invalid response format: first result item is not an object")
 	}
 
-	postingMetadataStr := result["posting_json_metadata"].(string)
+	postingMetadataStr, ok := result["posting_json_metadata"].(string)
+	if !ok || postingMetadataStr == "" {
+		log.Warnf("User %s has no posting_json_metadata or it's empty", user)
+		return "", fmt.Errorf("posting_json_metadata not found or empty for user %s", user)
+	}
 	var postingMetadata map[string]interface{}
 	err = json.Unmarshal([]byte(postingMetadataStr), &postingMetadata)
 	if err != nil {
-		fmt.Println("Error unmarshalling posting JSON metadata:", err)
+		log.Errorf("Error unmarshalling posting JSON metadata for user %s: %v", user, err)
 		return "", err
 	}
 
 	// Check if the ipfs_node_id field is present in the metadata
 	ipfsNodeID, ok := postingMetadata["peerId"].(string)
 	if !ok {
-		fmt.Println("Error: profile field not found in posting JSON metadata")
-		return "", err
+		log.Warnf("Error: 'peerId' field not found in posting JSON metadata for user %s", user)
+		return "", fmt.Errorf("peerId field not found in posting JSON metadata for user %s", user)
 	}
 
 	// Print the IPFS node ID to the console and return it
-	fmt.Println("IPFS node ID for", user, ":", ipfsNodeID)
+	log.Infof("IPFS node ID for %s: %s", user, ipfsNodeID)
 	return ipfsNodeID, nil
 }
 
@@ -144,32 +157,48 @@ func GetHiveSent() map[string]float64 {
 
 	for {
 		history, err := fetchHistory(startIndex)
-		if err != nil || len(history) == 0 {
+		if err != nil {
+			log.Errorf("Error fetching history starting at %d: %v", startIndex, err)
 			break
 		}
-		fmt.Println("Fetched", len(history), "entries")
+		if len(history) == 0 {
+			log.Info("No more history entries found.")
+			break
+		}
+		log.Debugf("Fetched %d history entries starting at index %d", len(history), startIndex)
 		for _, resultSlice := range history {
 			if len(resultSlice) < 2 {
+				log.Warnf("Skipping history entry with unexpected length: %d", len(resultSlice))
 				continue
 			}
 
 			transactionData, ok := resultSlice[1].(map[string]interface{})
 			if !ok {
+				log.Warn("Skipping history entry where second element is not a map")
 				continue
 			}
 
-			transactionBytes, _ := json.Marshal(transactionData)
+			transactionBytes, err := json.Marshal(transactionData)
+			if err != nil {
+				log.Warnf("Error marshaling transaction data: %v", err)
+				continue
+			}
 			var transaction TransactionEntry
 			err = json.Unmarshal(transactionBytes, &transaction)
 			if err != nil {
+				log.Warnf("Error unmarshaling transaction entry: %v", err)
 				continue
 			}
 
 			if transaction.Op.Type == "transfer_operation" {
 				transferData := transaction.Op.Value
 				if transferData.From == accountToCheck && transferData.To != accountToCheck {
-					fmt.Println(transferData.To, transferData.Amount.Amount)
-					amount, _ := strconv.ParseFloat(transferData.Amount.Amount, 64)
+					log.Debugf("Processing transfer: To: %s, Amount: %s", transferData.To, transferData.Amount.Amount)
+					amount, err := strconv.ParseFloat(transferData.Amount.Amount, 64)
+					if err != nil {
+						log.Warnf("Error parsing transfer amount '%s': %v", transferData.Amount.Amount, err)
+						continue
+					}
 					amount /= math.Pow(10, float64(transferData.Amount.Precision))
 					sentAmounts[transferData.To] += amount
 				}
@@ -182,10 +211,19 @@ func GetHiveSent() map[string]float64 {
 		if len(history[0]) > 0 {
 			if index, ok := history[0][0].(float64); ok {
 				startIndex = int(index) - 1
+				if startIndex < 0 {
+					log.Warn("Calculated negative start index, stopping history fetch.")
+					break
+				}
+			} else {
+				log.Warn("Could not determine next start index from history entry.")
+				break
 			}
+		} else {
+			log.Warn("First history entry is empty, cannot determine next start index.")
+			break
 		}
-
 	}
-
+	log.Infof("Finished fetching hive sent history for %s.", accountToCheck)
 	return sentAmounts
 }

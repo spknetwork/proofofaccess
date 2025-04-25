@@ -2,11 +2,12 @@ package validation
 
 import (
 	"encoding/json"
-	"fmt"
 	"proofofaccess/database"
 	"proofofaccess/ipfs"
 	"proofofaccess/localdata"
 	"proofofaccess/proofcrypto"
+
+	log "github.com/sirupsen/logrus"
 )
 
 const Layout = "2006-01-02 15:04:05.999999 -0700 MST m=+0.000000000"
@@ -34,17 +35,17 @@ func AppendHashToFile(hash string, CID string) string {
 func CreatProofHash(hash string, CID string) string {
 	// Get all the file blocks CIDs from the Target Files CID
 	//fmt.Println("CID: ", CID)
-	fmt.Println("Proof CID: ", CID)
+	log.Debug("Proof CID: ", CID)
 	refsBytes := database.Read([]byte("refs" + CID))
 	//fmt.Println("Refs Bytes: ", refsBytes)
 	var cids []string
 	if err := json.Unmarshal(refsBytes, &cids); err != nil {
-		fmt.Printf("Error while unmarshaling refs: %v\n", err)
+		log.Errorf("Error while unmarshaling refs: %v\n", err)
 		return ""
 	}
 	// Get the length of the CIDs
 	length := len(cids)
-	fmt.Println("length", length)
+	log.Debug("length", length)
 	// Create the file contents
 	proofHash := ""
 	// Get the seed from the hash
@@ -66,7 +67,7 @@ func CreatProofHash(hash string, CID string) string {
 	}
 	// Create the proof hash
 	proofHash = proofcrypto.HashFile(proofHash)
-	fmt.Println("Proof Hash: ", proofHash)
+	log.Debug("Proof Hash: ", proofHash)
 	return proofHash
 }
 
@@ -82,7 +83,7 @@ func ProofRequestJson(hash string, CID string) ([]byte, error) {
 	}
 	requestProofJson, err := json.Marshal(requestProof)
 	if err != nil {
-		fmt.Println(err)
+		log.Error(err)
 		return nil, err
 	}
 	return requestProofJson, nil

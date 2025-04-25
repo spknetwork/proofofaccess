@@ -3,12 +3,10 @@ package database
 import (
 	"encoding/json"
 	"errors"
-	"fmt"
-	"log"
-	"strings"
 	"time"
 
 	"github.com/dgraph-io/badger"
+	log "github.com/sirupsen/logrus"
 )
 
 type Message struct {
@@ -46,17 +44,20 @@ func Init(nodeType int) {
 	DB, err = badger.Open(opts)
 	if err != nil {
 		// If the error indicates that value log truncation is needed, try opening the database with truncation enabled
-		if err == badger.ErrTruncateNeeded {
-			opts.Truncate = true // Enable value log truncation on recovery
+		if errors.Is(err, badger.ErrTruncateNeeded) {
+			log.Warn("Database requires truncation. Opening with truncation enabled.")
+			opts.Truncate = true
 			DB, err = badger.Open(opts)
 			if err != nil {
-				log.Fatal(err)
+				log.Fatalf("Failed to open database even with truncation: %v", err)
 			} else {
-				log.Println("Database opened with value log truncation")
+				log.Info("Database opened with value log truncation")
 			}
 		} else {
-			log.Fatal(err)
+			log.Fatalf("Failed to open database: %v", err)
 		}
+	} else {
+		log.Info("Database opened successfully.")
 	}
 }
 
@@ -82,28 +83,30 @@ func Delete(key []byte) {
 	}
 
 	Lock = true
+	defer func() { Lock = false }()
+
 	if err := checkDatabaseOpen(); err != nil {
-		log.Fatal(err)
+		log.Fatalf("Database not open: %v", err)
 	}
 
-	fmt.Println("Deleting value")
+	log.Debugf("Deleting key: %s", string(key))
 	err := DB.Update(func(txn *badger.Txn) error {
-		err := txn.Delete([]byte(key))
+		err := txn.Delete(key)
 		if err != nil {
-			if err == badger.ErrKeyNotFound {
-				fmt.Println("Key not found")
+			if errors.Is(err, badger.ErrKeyNotFound) {
+				log.Warnf("Key not found during delete: %s", string(key))
+				return nil
 			} else {
-				log.Panic(err)
+				log.Panicf("Failed to delete key %s: %v", string(key), err)
 			}
 		}
-		Lock = false
-		return nil
+		return err
 	})
-	fmt.Println("Value deleted")
-	if err != nil {
-		fmt.Printf("Error deleting value: %v\n", err)
-		Lock = false
-		return
+
+	if err == nil {
+		log.Debugf("Key deleted successfully: %s", string(key))
+	} else if !errors.Is(err, badger.ErrKeyNotFound) {
+		log.Errorf("Error deleting key %s: %v", string(key), err)
 	}
 }
 
@@ -111,56 +114,58 @@ func Delete(key []byte) {
 // Save the data to the database
 func Save(key []byte, value []byte) {
 	if err := checkDatabaseOpen(); err != nil {
-		log.Fatal(err)
+		log.Fatalf("Database not open: %v", err)
 	}
-	fmt.Println("Saving data to database")
+	log.Debugf("Saving data to database, key: %s", string(key))
 	for Lock {
 		time.Sleep(10 * time.Millisecond)
 	}
 
 	Lock = true
+	defer func() { Lock = false }()
+
 	txn := DB.NewTransaction(true)
 	defer txn.Discard()
 
 	err := txn.Set(key, value)
 	if err != nil {
-		log.Panic(err)
+		log.Panicf("Failed to set key %s during save: %v", string(key), err)
 	}
 
 	err = txn.Commit()
 	if err != nil {
-		log.Panic(err)
+		log.Panicf("Failed to commit transaction for key %s: %v", string(key), err)
 	}
-	Lock = false
-	return
+	log.Debugf("Data saved successfully for key: %s", string(key))
 }
 
 // Update
 // Update the value associated with a key
 func Update(key []byte, value []byte) {
 	if err := checkDatabaseOpen(); err != nil {
-		fmt.Println("Error checking database open")
-		log.Fatal(err)
+		log.Errorf("Error checking database open: %v", err)
+		log.Fatalf("Database not open: %v", err)
 	}
 
-	// fmt.Println("Updating value")
+	log.Debugf("Updating key: %s", string(key))
 	for Lock {
 		time.Sleep(10 * time.Millisecond)
 	}
 	Lock = true
+	defer func() { Lock = false }()
+
 	err := DB.Update(func(txn *badger.Txn) error {
-		err := txn.Set([]byte(key), []byte(value))
+		err := txn.Set(key, value)
 		if err != nil {
-			log.Panic(err)
+			log.Panicf("Failed to set key %s during update: %v", string(key), err)
 		}
-		Lock = false
-		return nil
+		return err
 	})
-	// fmt.Println("Value updated")
+
 	if err != nil {
-		fmt.Printf("Error updating value: %v\n", err)
-		Lock = false
-		return
+		log.Errorf("Error updating key %s: %v", string(key), err)
+	} else {
+		log.Debugf("Key updated successfully: %s", string(key))
 	}
 }
 
@@ -173,28 +178,28 @@ func Read(key []byte) []byte {
 		}
 	}
 	Lock = true
+	defer func() { Lock = false }()
+
 	if err := checkDatabaseOpen(); err != nil {
-		log.Fatal(err)
+		log.Fatalf("Database not open: %v", err)
 	}
-	//fmt.Println("Reading data from database")
+	log.Debugf("Reading key: %s", string(key))
 	txn := DB.NewTransaction(false)
 	defer txn.Discard()
 
 	item, err := txn.Get(key)
 
 	if err != nil {
-		if err == badger.ErrKeyNotFound {
-			//fmt.Printf("Key not found: %v\n", err)
-			Lock = false
+		if errors.Is(err, badger.ErrKeyNotFound) {
+			log.Debugf("Key not found: %s", string(key))
 			return nil
 		}
-		log.Panic(err)
+		log.Panicf("Failed to get key %s: %v", string(key), err)
 	}
 	val, err := item.ValueCopy(nil)
 	if err != nil {
-		log.Panic(err)
+		log.Panicf("Failed to copy value for key %s: %v", string(key), err)
 	}
-	Lock = false
 	return val
 }
 
@@ -202,7 +207,7 @@ func Read(key []byte) []byte {
 // Get the time value associated with a key
 func GetTime(key []byte) time.Time {
 	if err := checkDatabaseOpen(); err != nil {
-		log.Fatal(err)
+		log.Fatalf("Database not open: %v", err)
 	}
 
 	val := Read(key)
@@ -211,7 +216,7 @@ func GetTime(key []byte) time.Time {
 	}
 	t, err := time.Parse(time.RFC3339Nano, string(val))
 	if err != nil {
-		log.Panic(err)
+		log.Panicf("Failed to parse time for key %s: %v", string(key), err)
 	}
 	return t
 }
@@ -220,16 +225,17 @@ func GetTime(key []byte) time.Time {
 // Set the time value associated with a key
 func SetTime(key []byte, t time.Time) {
 	if err := checkDatabaseOpen(); err != nil {
-		log.Fatal(err)
+		log.Fatalf("Database not open: %v", err)
 	}
-
+	log.Debugf("Setting time for key: %s", string(key))
 	Save(key, []byte(t.Format(time.RFC3339Nano)))
 }
 
 func GetStats(user string) []Message {
 	if err := checkDatabaseOpen(); err != nil {
-		log.Fatal(err)
+		log.Fatalf("Database not open: %v", err)
 	}
+	log.Debugf("Getting stats for user: %s", user)
 
 	var messages []Message
 
@@ -246,68 +252,62 @@ func GetStats(user string) []Message {
 			k := item.Key()
 			v, err := item.ValueCopy(nil)
 			if err != nil {
+				log.Errorf("Error copying value for key %s: %v", string(k), err)
 				return err
 			}
 
-			if strings.HasPrefix(string(k), "Stats") {
-				var message Message
-				var raw map[string]interface{}
-				err := json.Unmarshal(v, &raw)
+			var message Message
+			var raw map[string]interface{}
+			err = json.Unmarshal(v, &raw)
+			if err != nil {
+				log.Warnf("Error decoding JSON for key %s: %v", string(k), err)
+				continue
+			}
+
+			name, ok := raw["name"].(string)
+			if !ok {
+				log.Warnf("Missing or invalid 'name' field for key %s", string(k))
+				continue
+			}
+
+			if user == "" || user == name {
+				if user != "" {
+					log.Debugf("Found stats for user %s, key: %s", user, string(k))
+				}
+				cid, _ := raw["CID"].(string)
+				seed, _ := raw["seed"].(string)
+				status, _ := raw["status"].(string)
+				elapsed, _ := raw["elapsed"].(string)
+				timeStr, _ := raw["time"].(string)
+
+				message.CID = cid
+				message.Seed = seed
+				message.Status = status
+				message.Name = name
+				message.Elapsed = elapsed
+
+				t, err := time.Parse(time.RFC3339Nano, timeStr)
 				if err != nil {
-					log.Println("Error decoding JSON:", err)
+					log.Warnf("Error parsing time for key %s: %v", string(k), err)
 					continue
 				}
-				if user == "" {
-					message.CID = raw["CID"].(string)
-					message.Seed = raw["seed"].(string)
-					message.Status = raw["status"].(string)
-					message.Name = raw["name"].(string)
-					message.Elapsed = raw["elapsed"].(string)
-
-					// Parse time string to time.Time
-					t, err := time.Parse(time.RFC3339Nano, raw["time"].(string))
-					if err != nil {
-						log.Println("Error parsing time:", err)
-						continue
-					}
-					message.Time = t
-					messages = append(messages, message)
-
-				} else if user == raw["name"].(string) {
-					fmt.Println("Found user", user)
-					message.CID = raw["CID"].(string)
-					message.Seed = raw["seed"].(string)
-					message.Status = raw["status"].(string)
-					message.Name = raw["name"].(string)
-					message.Elapsed = raw["elapsed"].(string)
-
-					// Parse time string to time.Time
-					t, err := time.Parse(time.RFC3339Nano, raw["time"].(string))
-					if err != nil {
-						log.Println("Error parsing time:", err)
-						continue
-					}
-					message.Time = t
-					messages = append(messages, message)
-
-				}
-
+				message.Time = t
+				messages = append(messages, message)
 			}
 		}
-
 		return nil
 	})
 	if err != nil {
-		log.Printf("Error reading all stats: %v\n", err)
+		log.Errorf("Error reading stats from database: %v", err)
 	}
-
+	log.Debugf("Finished getting stats for user: %s, found %d records", user, len(messages))
 	return messages
 }
 func GetNetwork() []NetworkRecord {
 	if err := checkDatabaseOpen(); err != nil {
-		log.Fatal(err)
+		log.Fatalf("Database not open: %v", err)
 	}
-	fmt.Println("Getting network records")
+	log.Info("Getting network records")
 	var messages []NetworkRecord
 
 	err := DB.View(func(txn *badger.Txn) error {
@@ -323,61 +323,60 @@ func GetNetwork() []NetworkRecord {
 			k := item.Key()
 			v, err := item.ValueCopy(nil)
 			if err != nil {
+				log.Errorf("Error copying value for network key %s: %v", string(k), err)
 				return err
 			}
 
-			if strings.HasPrefix(string(k), "Network") {
-				var message NetworkRecord
-				var raw map[string]interface{}
-				err := json.Unmarshal(v, &raw)
-				if err != nil {
-					log.Println("Error decoding JSON:", err)
-					continue
-				}
-
-				if peerValue, ok := raw["Peers"].(float64); ok {
-					message.Peers = peerValue
-				} else {
-					log.Println("Unexpected type or missing value for Peers")
-					continue
-				}
-
-				if nsValue, ok := raw["NetworkStorage"].(float64); ok {
-					message.NetworkStorage = nsValue
-				} else {
-					log.Println("Unexpected type or missing value for NetworkStorage")
-					continue
-				}
-
-				dateValue, exists := raw["date"]
-				if !exists || dateValue == nil {
-					log.Println("Date key not present or has nil value")
-					continue
-				}
-
-				dateString, ok := dateValue.(string)
-				if !ok {
-					log.Println("Date value is not a string")
-					continue
-				}
-
-				t, err := time.Parse(time.RFC3339Nano, dateString)
-				if err != nil {
-					log.Println("Error parsing time:", err)
-					continue
-				}
-				message.Date = t
-
-				messages = append(messages, message)
+			var message NetworkRecord
+			var raw map[string]interface{}
+			err = json.Unmarshal(v, &raw)
+			if err != nil {
+				log.Warnf("Error decoding JSON for network key %s: %v", string(k), err)
+				continue
 			}
+
+			peerValue, ok := raw["Peers"].(float64)
+			if !ok {
+				log.Warnf("Unexpected type or missing value for Peers in key %s", string(k))
+				continue
+			}
+			message.Peers = peerValue
+
+			nsValue, ok := raw["NetworkStorage"].(float64)
+			if !ok {
+				log.Warnf("Unexpected type or missing value for NetworkStorage in key %s", string(k))
+				continue
+			}
+			message.NetworkStorage = nsValue
+
+			dateValue, exists := raw["date"]
+			if !exists || dateValue == nil {
+				log.Warnf("Date key not present or has nil value in key %s", string(k))
+				continue
+			}
+
+			dateString, ok := dateValue.(string)
+			if !ok {
+				log.Warnf("Date value is not a string in key %s", string(k))
+				continue
+			}
+
+			t, err := time.Parse(time.RFC3339Nano, dateString)
+			if err != nil {
+				log.Warnf("Error parsing time for network key %s: %v", string(k), err)
+				continue
+			}
+			message.Date = t
+
+			messages = append(messages, message)
 		}
 
 		return nil
 	})
 	if err != nil {
-		log.Printf("Error reading all stats: %v\n", err)
+		log.Errorf("Error reading network records from database: %v", err)
 	}
-	fmt.Println("Returning network records")
-	fmt.Println(messages)
+	log.Infof("Returning %d network records", len(messages))
+	log.Debugf("Network records: %+v", messages)
 	return messages
 }

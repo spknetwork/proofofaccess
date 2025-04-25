@@ -5,13 +5,15 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/gorilla/websocket"
 	"net/http"
 	"net/url"
 	"proofofaccess/ipfs"
 	"proofofaccess/localdata"
 	"sync"
 	"time"
+
+	"github.com/gorilla/websocket"
+	log "github.com/sirupsen/logrus"
 )
 
 type APIResponse struct {
@@ -57,7 +59,7 @@ func RunProofs(cids []string) error {
 						localdata.Lock.Unlock()
 						for _, peerHash := range peers {
 							if peerHash == cid {
-								fmt.Println("Running proof for peer: " + peer + " and CID: " + cid)
+								log.Infof("Running proof for peer: %s and CID: %s", peer, cid)
 								go RunProof(peer, cid)
 								time.Sleep(8 * time.Second)
 							}
@@ -109,24 +111,24 @@ func RewardPeers() {
 
 				reqBody, err := json.Marshal(transfer)
 				if err != nil {
-					fmt.Println("Error marshaling request body:", err)
+					log.Errorf("Error marshaling request body: %v", err)
 					continue
 				}
 
 				// Making the POST request
 				resp, err := http.Post("http://localhost:3000/send-hive", "application/json", bytes.NewBuffer(reqBody))
 				if err != nil {
-					fmt.Println("Error sending hive:", err)
+					log.Errorf("Error sending hive: %v", err)
 					continue
 				}
 				defer resp.Body.Close()
 
 				if resp.StatusCode != http.StatusOK {
-					fmt.Println("Non-OK HTTP status:", resp.StatusCode)
+					log.Warnf("Non-OK HTTP status: %d", resp.StatusCode)
 					continue
 				}
 				localdata.HiveRewarded[peer] = localdata.HiveRewarded[peer] + 0.050
-				fmt.Println("Rewarded hive to peer: " + peer)
+				log.Infof("Rewarded hive to peer: %s", peer)
 			}
 			localdata.Lock.Unlock()
 		}
@@ -170,7 +172,7 @@ func runProofAPI(peer string, cid string) (*Proof, error) {
 
 		// Stop processing when receiving a "Valid" message, but keep the connection open to receive other messages.
 		if proofMessage.Status == "Valid" {
-			fmt.Println("Valid")
+			log.Info("Valid")
 			break
 		}
 
@@ -205,7 +207,7 @@ func RunRewardProofs(ctx context.Context) {
 		case <-ctx.Done():
 			return
 		default:
-			fmt.Println("Running proofs...")
+			log.Info("Running proofs...")
 			localdata.Lock.Lock()
 			cids := localdata.ThreeSpeakVideos
 			localdata.Lock.Unlock()

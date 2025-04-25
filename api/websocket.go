@@ -7,6 +7,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/gorilla/websocket"
+	"github.com/sirupsen/logrus"
 )
 
 type ExampleResponse struct {
@@ -38,7 +39,7 @@ func upgradeToWebSocket(c *gin.Context) *websocket.Conn {
 	conn, err := upgrader.Upgrade(c.Writer, c.Request, nil)
 	//fmt.Println("upgradeToWebSocket")
 	if err != nil {
-		log.Error(err)
+		logrus.Error(err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to upgrade connection"})
 		return nil
 	}
@@ -58,7 +59,7 @@ func closeWebSocket(conn *websocket.Conn) {
 func readWebSocketMessage(conn *websocket.Conn) (*message, error) {
 	var msg message
 	if err := conn.ReadJSON(&msg); err != nil {
-		log.Error(err)
+		logrus.Error(err)
 		sendWsResponse(wsError, "Failed to read JSON from WebSocket connection", "0", conn)
 		return nil, err
 	}
@@ -76,7 +77,7 @@ func sendWsResponse(status string, message string, elapsed string, conn *websock
 	})
 	localdata.Lock.Unlock()
 	if err != nil {
-		log.Println("Error writing JSON to websocket:", err)
+		logrus.Error("Error writing JSON to websocket:", err)
 	}
 }
 
