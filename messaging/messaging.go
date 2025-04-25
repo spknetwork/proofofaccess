@@ -176,6 +176,11 @@ func PingPongPong(req Request, ws *websocket.Conn) {
 		return
 	}
 	if localdata.WsPeers[req.User] == req.User && localdata.NodeType == 1 {
+		if ws == nil {
+			logrus.Debugf("PingPongPong received for peer %s via PubSub (no WebSocket), publishing response", req.User)
+			pubsub.Publish(string(jsonData), req.User)
+			return
+		}
 		localdata.Lock.Lock()
 		localdata.PeerLastActive[req.User] = time.Now()
 		localdata.Lock.Unlock()
@@ -191,7 +196,6 @@ func PingPongPong(req Request, ws *websocket.Conn) {
 			err := conn.WriteMessage(websocket.TextMessage, jsonData)
 			if err != nil {
 				logrus.Debugf("Error writing PingPongPong message to WebSocket validator %s: %v", req.User, err)
-				// Remove invalid connections from the map to prevent further errors
 				localdata.Lock.Lock()
 				delete(localdata.WsValidators, req.User)
 				localdata.Lock.Unlock()
