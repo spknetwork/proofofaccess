@@ -4,14 +4,12 @@ import (
 	"context"
 	poaipfs "proofofaccess/ipfs"
 
-	ipfs "github.com/ipfs/go-ipfs-api"
+	iface "github.com/ipfs/kubo/core/coreiface"
 	"github.com/sirupsen/logrus"
 )
 
 // Subscribe to a topic
-func Subscribe(username string) (*ipfs.PubSubSubscription, error) {
-	_, cancel := context.WithCancel(context.Background())
-	defer cancel()
+func Subscribe(username string) (iface.PubSubSubscription, error) {
 	sub, err := poaipfs.Shell.PubSubSubscribe(username)
 	if err != nil {
 		logrus.Errorf("Error subscribing to PubSub topic %s: %v", username, err)
@@ -21,14 +19,14 @@ func Subscribe(username string) (*ipfs.PubSubSubscription, error) {
 }
 
 // Read the message from the subscription
-func Read(sub *ipfs.PubSubSubscription) (string, error) {
-	msg, err := sub.Next()
+func Read(sub iface.PubSubSubscription) (string, error) {
+	msg, err := sub.Next(context.Background())
 	if err != nil {
 		logrus.Errorf("Error receiving PubSub message: %v", err)
 		return "", err
 	}
-	logrus.Debugf("Received PubSub message from %s", msg.From.String())
-	return string(msg.Data), nil
+	logrus.Debugf("Received PubSub message from %s", msg.From().String())
+	return string(msg.Data()), nil
 }
 
 // Publish a message to a topic

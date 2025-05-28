@@ -89,8 +89,10 @@ func Refs(CID string) ([]string, error) {
 		return nil, fmt.Errorf("IPFS node is currently unavailable")
 	}
 
+	logrus.Debugf("Calling IPFS Refs command for CID: %s", CID)
 	cids, err := Shell.Refs(CID, true)
 	if err != nil {
+		logrus.Errorf("Error in IPFS Refs command for CID %s: %v", CID, err)
 		return nil, fmt.Errorf("error getting refs: %v", err)
 	}
 
@@ -108,6 +110,7 @@ func IsPinned(cid string) bool {
 		return false
 	}
 
+	logrus.Debugf("Checking if CID %s is pinned", cid)
 	localdata.Lock.Lock()
 	_, ok := localdata.SavedRefs[cid]
 	localdata.Lock.Unlock()
@@ -124,13 +127,22 @@ func IpfsPingNode(peerID string) error {
 		return fmt.Errorf("IPFS node is currently unavailable")
 	}
 
-	_, err := Shell.Request("routing", "findpeer", peerID).Send(context.Background())
+	logrus.Debugf("Calling IPFS swarm connect command for peer %s", peerID)
+	// Use a more reliable method to check peer connectivity
+	// The previous approach using routing/findpeer causes "nil Run function" errors
+	resp, err := Shell.Request("swarm", "connect", "/p2p/"+peerID).Send(context.Background())
 	if err != nil {
-		return fmt.Errorf("error finding peer %s via routing findpeer: %w", peerID, err)
+		logrus.Errorf("Error in IPFS swarm connect command for peer %s: %v", peerID, err)
+		return fmt.Errorf("error connecting to peer %s via swarm connect: %w", peerID, err)
+	}
+	defer resp.Close()
+
+	if resp.Error != nil {
+		logrus.Errorf("IPFS swarm connect command failed for peer %s: %v", peerID, resp.Error)
+		return fmt.Errorf("swarm connect command failed for %s: %w", peerID, resp.Error)
 	}
 
-	logrus.Debugf("Successfully found peer %s via routing findpeer", peerID)
-
+	logrus.Debugf("Successfully connected to peer %s via swarm connect", peerID)
 	return nil
 }
 
@@ -153,38 +165,45 @@ func GetIPFromPeerID(peerIDStr string) (string, error) {
 		return "", fmt.Errorf("IPFS node is currently unavailable")
 	}
 
-	res, err := Shell.Request("routing", "findpeer", peerIDStr).Send(context.Background())
+	logrus.Debugf("Calling IPFS swarm peers command to find IP for peer %s", peerIDStr)
+	// Use swarm peers command instead of routing findpeer to avoid "nil Run function" errors
+	res, err := Shell.Request("swarm", "peers").Send(context.Background())
 	if err != nil {
-		return "", fmt.Errorf("failed to find peer %s via routing findpeer: %w", peerIDStr, err)
+		logrus.Errorf("Error in IPFS swarm peers command: %v", err)
+		return "", fmt.Errorf("failed to get swarm peers: %w", err)
 	}
 	defer res.Close()
 
 	if res.Error != nil {
-		return "", fmt.Errorf("routing findpeer command failed for %s: %w", peerIDStr, res.Error)
+		logrus.Errorf("IPFS swarm peers command failed: %v", res.Error)
+		return "", fmt.Errorf("swarm peers command failed: %w", res.Error)
 	}
 
 	outputBytes, err := ioutil.ReadAll(res.Output)
 	if err != nil {
-		return "", fmt.Errorf("failed to read routing findpeer response for %s: %w", peerIDStr, err)
+		return "", fmt.Errorf("failed to read swarm peers response: %w", err)
 	}
 
 	var addresses []multiaddr.Multiaddr
 	scanner := bufio.NewScanner(bytes.NewReader(outputBytes))
 	for scanner.Scan() {
 		line := scanner.Text()
-		addr, err := multiaddr.NewMultiaddr(line)
-		if err != nil {
-			logrus.Warnf("Could not parse address '%s' from routing findpeer output for %s: %v", line, peerIDStr, err)
-			continue
+		// Only process addresses that contain the peer ID we're looking for
+		if strings.Contains(line, peerIDStr) {
+			addr, err := multiaddr.NewMultiaddr(line)
+			if err != nil {
+				logrus.Warnf("Could not parse address '%s' from swarm peers output: %v", line, err)
+				continue
+			}
+			addresses = append(addresses, addr)
 		}
-		addresses = append(addresses, addr)
 	}
 	if err := scanner.Err(); err != nil {
-		return "", fmt.Errorf("error scanning routing findpeer response for %s: %w", peerIDStr, err)
+		return "", fmt.Errorf("error scanning swarm peers response: %w", err)
 	}
 
 	if len(addresses) == 0 {
-		return "", fmt.Errorf("no parsable addresses found in routing findpeer response for peer ID: %s", peerIDStr)
+		return "", fmt.Errorf("peer ID %s not found in swarm peers", peerIDStr)
 	}
 
 	var publicIP string
@@ -204,6 +223,8 @@ func GetIPFromPeerID(peerIDStr string) (string, error) {
 	}
 
 	if publicIP == "" {
+		// If no public IP was found in the direct connections,
+		// we can't determine the IP address from the peer ID
 		return "", fmt.Errorf("no public IP address found for peer ID: %s", peerIDStr)
 	}
 	logrus.Debugf("Found public IP %s for Peer ID %s", publicIP, peerIDStr)

@@ -146,14 +146,14 @@ func SendPing(hash string, user string, ws *websocket.Conn) {
 		return
 	}
 	localdata.PingTime[user] = time.Now()
-	if localdata.WsPeers[user] == user && localdata.NodeType == 1 {
-		WsMutex.Lock()
-		err = ws.WriteMessage(websocket.TextMessage, jsonData)
-		if err != nil {
-			logrus.Errorf("Error writing Ping message to WebSocket for %s: %v", user, err)
-		}
-		WsMutex.Unlock()
+
+	// Fix: Validator should use PubSub to send pings to storage nodes
+	if localdata.NodeType == 1 {
+		// Validator sending ping to storage node - always use PubSub
+		logrus.Debugf("Validator sending ping to storage node %s via PubSub", user)
+		pubsub.Publish(string(jsonData), user)
 	} else if localdata.UseWS && localdata.NodeType == 2 {
+		// Storage node sending ping to validator - use WebSocket
 		WsMutex.Lock()
 		err = localdata.WsValidators[user].WriteMessage(websocket.TextMessage, jsonData)
 		if err != nil {
@@ -161,6 +161,7 @@ func SendPing(hash string, user string, ws *websocket.Conn) {
 		}
 		WsMutex.Unlock()
 	} else {
+		// Fallback to PubSub
 		pubsub.Publish(string(jsonData), user)
 	}
 }

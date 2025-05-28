@@ -1,6 +1,7 @@
 package peers
 
 import (
+	"context"
 	"encoding/json"
 	"proofofaccess/database"
 	"proofofaccess/ipfs"
@@ -9,6 +10,7 @@ import (
 	"sync"
 	"time"
 
+	icore "github.com/ipfs/kubo/core/coreiface/pin"
 	"github.com/sirupsen/logrus"
 )
 
@@ -23,7 +25,7 @@ func FetchPins() {
 	localdata.Lock.Unlock()
 
 	logrus.Debug("Fetching pins...")
-	allPins, err := ipfs.Shell.Pins()
+	allPins, err := ipfs.Shell.Pins(context.Background())
 	if err != nil {
 		logrus.Errorf("Error fetching pins: %v", err)
 		return
@@ -32,14 +34,13 @@ func FetchPins() {
 	for _, cid := range messaging.PinFileCids {
 		delete(allPins, cid)
 	}
-	ipfs.AllPins = allPins
 
 	localdata.Lock.Lock()
 	NewPins = make(map[string]interface{})
 	localdata.Lock.Unlock()
 
 	for key, pinInfo := range allPins {
-		if pinInfo.Type == "recursive" {
+		if pinInfo.Type == icore.Recursive {
 			localdata.Lock.Lock()
 			NewPins[key] = key
 			localdata.Lock.Unlock()
@@ -108,7 +109,7 @@ func getPeerPins() {
 	localdata.Lock.Unlock()
 
 	logrus.Debug("Fetching pins...")
-	allPins, err := ipfs.Shell.Pins()
+	allPins, err := ipfs.Shell.Pins(context.Background())
 	if err != nil {
 		logrus.Errorf("Error fetching pins: %v", err)
 		return
@@ -117,14 +118,13 @@ func getPeerPins() {
 	for _, cid := range messaging.PinFileCids {
 		delete(allPins, cid)
 	}
-	ipfs.AllPins = allPins
 
 	localdata.Lock.Lock()
 	NewPins = make(map[string]interface{})
 	localdata.Lock.Unlock()
 
 	for key, pinInfo := range allPins {
-		if pinInfo.Type == "recursive" {
+		if pinInfo.Type == icore.Recursive {
 			localdata.Lock.Lock()
 			NewPins[key] = key
 			localdata.Lock.Unlock()

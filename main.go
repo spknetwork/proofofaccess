@@ -19,7 +19,7 @@ import (
 	"sync"
 	"syscall"
 
-	shell "github.com/ipfs/go-ipfs-api"
+	shell "github.com/ipfs/kubo/client/rpc"
 	"github.com/sirupsen/logrus"
 )
 
