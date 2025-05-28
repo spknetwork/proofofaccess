@@ -19,7 +19,7 @@ import (
 	"sync"
 	"syscall"
 
-	shell "github.com/ipfs/kubo/client/rpc"
+	shell "github.com/ipfs/go-ipfs-api"
 	"github.com/sirupsen/logrus"
 )
 
@@ -36,7 +36,7 @@ var (
 	getHiveRewards = flag.Bool("getHive", false, "Get Hive rewards")
 	useHoneycomb   = flag.Bool("honeycomb", false, "Use honeycomb")
 	honeycombApi   = flag.String("url", "", "Honeycomb API URL")
-	validatorsApi  = flag.String("validators", "http://localhost:3001/services/VAL", "Validators URL")
+	validatorsApi  = flag.String("validators", "https://spktest.dlux.io/services/VAL", "Validators URL")
 	threeSpeakNode = flag.Bool("threeSpeak", false, "3Speak node")
 	CID, Hash      string
 	log            = logrus.New()
