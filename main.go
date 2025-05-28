@@ -18,6 +18,7 @@ import (
 	"proofofaccess/validators"
 	"sync"
 	"syscall"
+	"time"
 
 	shell "github.com/ipfs/go-ipfs-api"
 	"github.com/sirupsen/logrus"
@@ -48,6 +49,21 @@ func main() {
 	flag.Parse()
 	log.SetLevel(logrus.WarnLevel)
 	ipfs.Shell = shell.NewShell("localhost:" + *ipfsPort)
+
+	// Wait for IPFS to be ready before proceeding
+	log.Info("Waiting for IPFS connection...")
+	for i := 0; i < 30; i++ { // Try for 30 seconds
+		if ipfs.Shell.IsUp() {
+			log.Info("IPFS connection established")
+			break
+		}
+		if i == 29 {
+			log.Fatal("Failed to connect to IPFS after 30 seconds. Please ensure IPFS daemon is running on localhost:" + *ipfsPort)
+		}
+		log.Debugf("IPFS not ready, retrying in 1 second... (attempt %d/30)", i+1)
+		time.Sleep(1 * time.Second)
+	}
+
 	ctx, cancel := context.WithCancel(context.Background())
 
 	setupCloseHandler(cancel)
@@ -60,8 +76,8 @@ func main() {
 	if err := database.Close(); err != nil {
 		log.Error("Error closing the database: ", err)
 	}
-
 }
+
 func initialize(ctx context.Context) {
 	localdata.SetNodeName(*username)
 	localdata.NodeType = *nodeType
