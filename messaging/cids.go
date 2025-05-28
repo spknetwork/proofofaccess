@@ -1,7 +1,6 @@
 package messaging
 
 import (
-	"context"
 	"encoding/json"
 	"proofofaccess/ipfs"
 	"proofofaccess/localdata"
@@ -11,7 +10,6 @@ import (
 	"strings"
 
 	"github.com/gorilla/websocket"
-	icore "github.com/ipfs/kubo/core/coreiface/pin"
 	"github.com/sirupsen/logrus"
 )
 
@@ -45,14 +43,14 @@ func RequestCIDS(req Request, ws *websocket.Conn) {
 
 }
 func SendCIDS(name string, ws *websocket.Conn) {
-	allPins, err := ipfs.Shell.Pins(context.Background())
+	allPins, err := ipfs.Shell.Pins()
 	if err != nil {
 		logrus.Errorf("Error fetching pins in SendCIDS: %v", err)
 		return
 	}
 	NewPins := make([]string, 0)
 	for key, pinInfo := range allPins {
-		if pinInfo.Type == icore.Recursive {
+		if pinInfo.Type == "recursive" {
 			NewPins = append(NewPins, key)
 		}
 	}
