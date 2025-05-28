@@ -1,7 +1,6 @@
 package Rewards
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
@@ -10,7 +9,6 @@ import (
 	"proofofaccess/localdata"
 	"strings"
 
-	icore "github.com/ipfs/kubo/core/coreiface/pin"
 	"github.com/sirupsen/logrus"
 )
 
@@ -70,7 +68,7 @@ func PinVideos(gb int) error {
 	}
 	localdata.Lock.Unlock()
 
-	allPinsData, err := sh.Pins(context.Background())
+	allPinsData, err := sh.Pins()
 	if err != nil {
 		logrus.Errorf("Error fetching current pins: %v", err)
 		return err
@@ -82,9 +80,9 @@ func PinVideos(gb int) error {
 	}
 
 	for cid, pinInfo := range allPinsData {
-		if pinInfo.Type == icore.Recursive {
+		if pinInfo.Type == "recursive" {
 			if videoMap[cid] {
-				stat, err := sh.ObjectStat(context.Background(), cid)
+				stat, err := sh.ObjectStat(cid)
 				if err != nil {
 					logrus.Warnf("Error getting stats for currently pinned CID %s: %v", cid, err)
 					continue
@@ -93,7 +91,7 @@ func PinVideos(gb int) error {
 				totalPinned += size
 			} else {
 				logrus.Debugf("Unpinning CID not in 3Speak list: %s", cid)
-				if err := sh.Unpin(context.Background(), cid); err != nil {
+				if err := sh.Unpin(cid); err != nil {
 					logrus.Errorf("Error unpinning CID %s: %v", cid, err)
 					continue
 				}
@@ -113,7 +111,7 @@ func PinVideos(gb int) error {
 			break
 		}
 		if _, pinned := allPins[cid]; !pinned {
-			stat, err := sh.ObjectStat(context.Background(), cid)
+			stat, err := sh.ObjectStat(cid)
 			if err != nil {
 				logrus.Warnf("Error getting stats for potential pin CID %s: %v", cid, err)
 				continue
@@ -122,7 +120,7 @@ func PinVideos(gb int) error {
 			size := int64(stat.CumulativeSize)
 			if totalPinned+size <= limit {
 				logrus.Debugf("Pinning CID %s (Size: %d bytes)", cid, size)
-				if err := sh.Pin(context.Background(), cid); err != nil {
+				if err := sh.Pin(cid); err != nil {
 					logrus.Errorf("Failed to pin CID %s: %v", cid, err)
 					continue
 				}
