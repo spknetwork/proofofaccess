@@ -64,6 +64,14 @@ func HandleProofOfAccess(req Request, ws *websocket.Conn) {
 	CID := req.CID
 	seed := req.Seed
 
+	// Add detailed logging for proof response reception
+	logrus.Infof("=== Validator received proof response ===")
+	logrus.Infof("  From: %s", req.User)
+	logrus.Infof("  CID: %s", CID)
+	logrus.Infof("  Seed: %s", seed)
+	logrus.Infof("  Hash: %s", req.Hash)
+	logrus.Infof("  Received at: %s", receivedTime.Format("15:04:05.000"))
+
 	if CID == "" || seed == "" {
 		logrus.Errorf("Received ProofOfAccess message with missing CID (%s) or Seed (%s) from %s", CID, seed, req.User)
 		return
@@ -99,8 +107,10 @@ func HandleProofOfAccess(req Request, ws *websocket.Conn) {
 
 	pendingProofsMutex.Lock()
 	pendingProofs[key] = append(pendingProofs[key], response)
-	logrus.Debugf("Collected proof response for key %s from %s. Elapsed: %v. Hash: %s. Total collected: %d", key, req.User, elapsed, req.Hash, len(pendingProofs[key]))
+	logrus.Infof("Collected proof response for key %s from %s. Elapsed: %v. Hash: %s. Total collected: %d", key, req.User, elapsed, req.Hash, len(pendingProofs[key]))
 	pendingProofsMutex.Unlock()
+
+	logrus.Infof("=== Proof response processing complete for %s ===", req.User)
 }
 
 // processProofConsensus is called after the timeout when waiting for proofs.
@@ -238,7 +248,13 @@ func ProcessProofConsensus(cid string, seed string, targetName string, startTime
 // SendProof
 // This is the function that sends the proof of access to the validation node
 func SendProof(req Request, validationHash string, salt string, user string, ws *websocket.Conn) {
-	logrus.Debugf("Sending proof response: Hash=%s, Salt=%s, From=%s, To=%s", validationHash, salt, user, req.User)
+	logrus.Infof("=== Storage node sending proof response ===")
+	logrus.Infof("  To: %s", req.User)
+	logrus.Infof("  From: %s", user)
+	logrus.Infof("  CID: %s", req.CID)
+	logrus.Infof("  Salt: %s", salt)
+	logrus.Infof("  Hash: %s", validationHash)
+	logrus.Infof("  Timestamp: %s", time.Now().Format("15:04:05.000"))
 
 	data := map[string]string{
 		"type": TypeProofOfAccess,
@@ -258,35 +274,35 @@ func SendProof(req Request, validationHash string, salt string, user string, ws 
 
 	// Try WebSocket for validator receiving response (only if WebSocket connection exists)
 	if wsPeers == req.User && nodeType == 1 && ws != nil {
-		logrus.Debugf("Sending proof response to validator %s via WebSocket", req.User)
+		logrus.Infof("Sending proof response to validator %s via WebSocket", req.User)
 		WsMutex.Lock()
 		err = ws.WriteMessage(websocket.TextMessage, jsonData)
 		if err != nil {
 			logrus.Errorf("Error writing ProofOfAccess message to WebSocket for %s: %v", req.User, err)
 			// Fall back to PubSub if WebSocket fails
-			logrus.Debugf("WebSocket failed, falling back to PubSub for %s", req.User)
+			logrus.Infof("WebSocket failed, falling back to PubSub for %s", req.User)
 			pubsub.Publish(string(jsonData), req.User)
 		}
 		WsMutex.Unlock()
 	} else if localdata.UseWS && nodeType == 2 && ws != nil {
 		// Try WebSocket for storage node sending response (only if WebSocket connection exists)
-		logrus.Debugf("Sending proof response to validator %s via WebSocket (storage node)", req.User)
+		logrus.Infof("Sending proof response to validator %s via WebSocket (storage node)", req.User)
 		WsMutex.Lock()
 		err = ws.WriteMessage(websocket.TextMessage, jsonData)
 		if err != nil {
 			logrus.Errorf("Error writing ProofOfAccess message to WebSocket validator %s: %v", req.User, err)
 			// Fall back to PubSub if WebSocket fails
-			logrus.Debugf("WebSocket failed, falling back to PubSub for %s", req.User)
+			logrus.Infof("WebSocket failed, falling back to PubSub for %s", req.User)
 			pubsub.Publish(string(jsonData), req.User)
 		}
 		WsMutex.Unlock()
 	} else {
 		// Use PubSub (either as fallback or primary method)
-		logrus.Debugf("Sending proof response to validator %s via PubSub", req.User)
+		logrus.Infof("Sending proof response to validator %s via PubSub", req.User)
 		pubsub.Publish(string(jsonData), req.User)
 	}
 
-	logrus.Debugf("Proof response sent successfully to %s", req.User)
+	logrus.Infof("=== Proof response sent successfully to %s ===", req.User)
 }
 
 // HandleRandomChallenge
