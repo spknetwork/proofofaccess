@@ -78,6 +78,7 @@ func HandleMessage(message string, ws *websocket.Conn) {
 		}
 	}
 	if req.Type == TypePingPongPong {
+		logrus.Debugf("Received PingPongPong from %s with hash %s", req.User, req.Hash)
 		Ping[req.Hash] = true
 	}
 	if req.Type == TypePingPongPing {
@@ -166,6 +167,7 @@ func SendPing(hash string, user string, ws *websocket.Conn) {
 	}
 }
 func PingPongPong(req Request, ws *websocket.Conn) {
+	logrus.Debugf("Received PingPongPing from %s with hash %s", req.User, req.Hash)
 	data := map[string]string{
 		"type": TypePingPongPong,
 		"hash": req.Hash,
@@ -176,9 +178,18 @@ func PingPongPong(req Request, ws *websocket.Conn) {
 		logrus.Errorf("Error encoding PingPongPong JSON: %v", err)
 		return
 	}
+
+	// Storage node responding to validator ping - always use PubSub
+	if localdata.NodeType == 2 {
+		logrus.Debugf("Storage node sending PingPongPong to validator %s via PubSub", req.User)
+		pubsub.Publish(string(jsonData), req.User)
+		return
+	}
+
+	// Validator responding to storage node ping
 	if localdata.WsPeers[req.User] == req.User && localdata.NodeType == 1 {
 		if ws == nil {
-			logrus.Debugf("PingPongPong received for peer %s via PubSub (no WebSocket), publishing response", req.User)
+			logrus.Debugf("Validator sending PingPongPong to peer %s via PubSub (no WebSocket)", req.User)
 			pubsub.Publish(string(jsonData), req.User)
 			return
 		}
@@ -191,21 +202,8 @@ func PingPongPong(req Request, ws *websocket.Conn) {
 			logrus.Errorf("Error writing PingPongPong message to WebSocket for %s: %v", req.User, err)
 		}
 		WsMutex.Unlock()
-	} else if localdata.UseWS && localdata.NodeType == 2 {
-		WsMutex.Lock()
-		if conn, ok := localdata.WsValidators[req.User]; ok && conn != nil {
-			err := conn.WriteMessage(websocket.TextMessage, jsonData)
-			if err != nil {
-				logrus.Debugf("Error writing PingPongPong message to WebSocket validator %s: %v", req.User, err)
-				localdata.Lock.Lock()
-				delete(localdata.WsValidators, req.User)
-				localdata.Lock.Unlock()
-			}
-		} else {
-			logrus.Debugf("No valid WebSocket connection to validator %s in PingPongPong", req.User)
-		}
-		WsMutex.Unlock()
 	} else {
+		logrus.Debugf("Sending PingPongPong to %s via PubSub (fallback)", req.User)
 		pubsub.Publish(string(jsonData), req.User)
 	}
 }
