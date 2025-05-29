@@ -111,6 +111,11 @@ func initialize(ctx context.Context) {
 
 	if *nodeType == 2 {
 		validators.GetValidators(*validatorsApi)
+
+		// Storage nodes should always subscribe to PubSub for message fallback
+		log.Info("Starting PubSub handler for message fallback")
+		go messaging.PubsubHandler(ctx)
+
 		if *useWS {
 			localdata.UseWS = *useWS
 			log.Info("Connecting to validators via WebSocket")
@@ -120,8 +125,7 @@ func initialize(ctx context.Context) {
 			// Start periodic validator refresh
 			go periodicValidatorRefresh(ctx)
 		} else {
-			log.Info("Connecting to validators via PubSub")
-			go messaging.PubsubHandler(ctx)
+			log.Info("Using PubSub only (WebSocket disabled)")
 			go validators.ConnectToValidators(ctx, nodeType)
 		}
 	}
