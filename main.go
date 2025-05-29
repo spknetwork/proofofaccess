@@ -32,7 +32,6 @@ var (
 	wsPort         = flag.String("WS_PORT", "8000", "Websocket port number")
 	useWS          = flag.Bool("useWS", false, "Use websocket")
 	getVids        = flag.Bool("getVids", false, "Fetch 3Speak videos for rewarding")
-	runProofs      = flag.Bool("runProofs", false, "Run proofs")
 	pinVideos      = flag.Bool("pinVideos", false, "Pin videos")
 	getHiveRewards = flag.Bool("getHive", false, "Get Hive rewards")
 	useHoneycomb   = flag.Bool("honeycomb", false, "Use honeycomb")
@@ -149,8 +148,8 @@ func initialize(ctx context.Context) {
 
 	go api.StartAPI(ctx)
 
-	if *runProofs && *nodeType == 1 {
-		log.Debug("Starting proof validation routines")
+	if *nodeType == 1 {
+		log.Info("Starting proof validation challenge coordinator")
 		go Rewards.RunValidationChallenges(ctx)
 	}
 
