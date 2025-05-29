@@ -167,6 +167,14 @@ func connectAndListen(name string, interrupt <-chan os.Signal) error {
 	logrus.Infof("WebSocket client connected to %s", u)
 	defer c.Close()
 
+	// Username verification
+	err = verifyUsername(c, name)
+	if err != nil {
+		logrus.Errorf("Username verification failed for %s: %v", name, err)
+		return fmt.Errorf("username verification failed for %s: %v", name, err)
+	}
+	logrus.Infof("Username verification successful for %s", name)
+
 	done := make(chan struct{})
 	go func() {
 		defer close(done)
@@ -229,6 +237,56 @@ func connectAndListen(name string, interrupt <-chan os.Signal) error {
 			return nil
 		}
 	}
+}
+
+// verifyUsername sends an identity request and waits for a response to verify the expected username
+func verifyUsername(conn *websocket.Conn, expectedUsername string) error {
+	// Send identity request
+	identityRequest := map[string]string{
+		"type": "IdentityRequest",
+		"user": localdata.GetNodeName(),
+	}
+
+	jsonData, err := json.Marshal(identityRequest)
+	if err != nil {
+		return fmt.Errorf("error encoding identity request: %v", err)
+	}
+
+	err = conn.WriteMessage(websocket.TextMessage, jsonData)
+	if err != nil {
+		return fmt.Errorf("error sending identity request: %v", err)
+	}
+
+	// Set read deadline for response
+	conn.SetReadDeadline(time.Now().Add(5 * time.Second))
+
+	// Wait for response
+	_, message, err := conn.ReadMessage()
+	if err != nil {
+		return fmt.Errorf("error reading identity response: %v", err)
+	}
+
+	// Parse response
+	var response map[string]interface{}
+	err = json.Unmarshal(message, &response)
+	if err != nil {
+		return fmt.Errorf("error parsing identity response: %v", err)
+	}
+
+	// Check if it's an identity response
+	if responseType, ok := response["type"].(string); !ok || responseType != "IdentityResponse" {
+		return fmt.Errorf("expected IdentityResponse, got: %v", responseType)
+	}
+
+	// Check username
+	if username, ok := response["user"].(string); !ok || username != expectedUsername {
+		return fmt.Errorf("username mismatch: expected %s, got %s", expectedUsername, username)
+	}
+
+	// Reset read deadline
+	conn.SetReadDeadline(time.Time{})
+
+	return nil
 }
 
 func wsPing(hash string, name string, c *websocket.Conn) {

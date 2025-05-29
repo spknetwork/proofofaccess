@@ -46,10 +46,6 @@ func stats(c *websocket.Conn, key string) {
 	for k, v := range localdata.PeerProofs {
 		peerProofs[k] = v
 	}
-	hiveRewarded := make(map[string]int)
-	for k, v := range localdata.HiveRewarded {
-		hiveRewarded[k] = int(v)
-	}
 
 	localdata.Lock.Unlock()
 
@@ -72,11 +68,10 @@ func stats(c *websocket.Conn, key string) {
 			"NetworkStorage":   fmt.Sprintf("%d GB", NetworkStorage),
 			"SyncedPercentage": fmt.Sprintf("%f", math.Round(float64(syncedPercentage))),
 		},
-		"PeerSizes":       peerSizes,
-		"PeerLastActive":  peerLastActive,
-		"PeerProofs":      peerProofs,
-		"PeerSynced":      peerSynced,
-		"PeerHiveRewards": hiveRewarded,
+		"PeerSizes":      peerSizes,
+		"PeerLastActive": peerLastActive,
+		"PeerProofs":     peerProofs,
+		"PeerSynced":     peerSynced,
 	}
 	jsonData, err := json.Marshal(data)
 	if err != nil {

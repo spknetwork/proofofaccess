@@ -94,7 +94,6 @@
                 <th>Last Active</th>
                 <th>Proof</th>
                 <th>Status</th>
-                <th>Hive Rewards</th>
             </tr>
             </thead>
             <tbody id="peer-tbody">
@@ -125,18 +124,12 @@
         var peerLastActive = stats.PeerLastActive;
         var peerProofs = stats.PeerProofs;
         var peerStatus = stats.PeerSynced;
-        var PeerHiveRewards = stats.PeerHiveRewards;
         var peerList = "";
 
         for (var peer in peerSizes) {
             var size = peerSizes[peer] || "N/A";
             var lastActive = peerLastActive[peer] || "N/A";
             var peerProof = peerProofs[peer] || "N/A";
-            var rawPeerHiveRewards = PeerHiveRewards[peer];
-            var peerHiveRewards = "N/A";
-            if (rawPeerHiveRewards !== undefined && !isNaN(rawPeerHiveRewards)) {
-                peerHiveRewards = parseFloat(rawPeerHiveRewards).toFixed(3);
-            }
 
             peerList += `<tr>
                 <td>${peer}</td>
@@ -144,7 +137,6 @@
                 <td>${lastActive}</td>
                 <td>${peerProof}/10</td>
                 <td>${peerStatus[peer]}</td>
-                <td>${peerHiveRewards}</td>
             </tr>`;
         }
 

@@ -65,6 +65,9 @@ func HandleMessage(message string, ws *websocket.Conn) {
 		if req.Type == "ChallengeResponse" {
 			go HandleChallengeResponse(req, ws)
 		}
+		if req.Type == "IdentityRequest" {
+			go HandleIdentityRequest(req, ws)
+		}
 	}
 
 	//Handle request for proof request from validation node
@@ -80,6 +83,9 @@ func HandleMessage(message string, ws *websocket.Conn) {
 			localdata.Lock.Lock()
 			localdata.Validators[validatorName] = true
 			localdata.Lock.Unlock()
+		}
+		if req.Type == "IdentityRequest" {
+			go HandleIdentityRequest(req, ws)
 		}
 	}
 	if req.Type == TypePingPongPong {
@@ -217,4 +223,29 @@ func PingPongPong(req Request, ws *websocket.Conn) {
 		logrus.Debugf("Sending PingPongPong to %s via PubSub (fallback)", req.User)
 		pubsub.Publish(string(jsonData), req.User)
 	}
+}
+
+// HandleIdentityRequest responds to identity verification requests
+func HandleIdentityRequest(req Request, ws *websocket.Conn) {
+	logrus.Debugf("Received identity request from %s", req.User)
+
+	// Respond with our identity
+	identityResponse := map[string]string{
+		"type": "IdentityResponse",
+		"user": localdata.GetNodeName(),
+	}
+
+	jsonData, err := json.Marshal(identityResponse)
+	if err != nil {
+		logrus.Errorf("Error encoding identity response: %v", err)
+		return
+	}
+
+	err = ws.WriteMessage(websocket.TextMessage, jsonData)
+	if err != nil {
+		logrus.Errorf("Error sending identity response to %s: %v", req.User, err)
+		return
+	}
+
+	logrus.Debugf("Sent identity response to %s", req.User)
 }

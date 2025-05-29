@@ -309,20 +309,11 @@ func selectRandomCIDForChallenge() string {
 	// Storage nodes can implement various strategies:
 	// 1. Random selection from pinned content
 	// 2. Blockchain-assigned content
-	// 3. Content from external APIs (3Speak, etc.)
+	// 3. Content from external APIs (Honeycomb, etc.)
 	// 4. Local configuration
 
 	localdata.Lock.Lock()
 	defer localdata.Lock.Unlock()
-
-	// For now, use any available content the storage node has
-	if len(localdata.ThreeSpeakVideos) > 0 {
-		// Pick a random 3Speak video if available
-		idx := time.Now().Nanosecond() % len(localdata.ThreeSpeakVideos)
-		selected := localdata.ThreeSpeakVideos[idx]
-		logrus.Debugf("Storage node selected 3Speak CID: %s", selected)
-		return selected
-	}
 
 	if len(localdata.HoneycombContractCIDs) > 0 {
 		// Pick a random Honeycomb CID if available

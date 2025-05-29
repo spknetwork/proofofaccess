@@ -47,11 +47,9 @@ var WsPort = "8000"
 var PeerSyncSeed = map[string]int{}
 var CIDRefStatus = map[string]bool{}
 var CIDRefPercentage = map[string]int{}
-var ThreeSpeakVideos = []string{}
 var Lock sync.Mutex
 var PeerProofs = map[string]int{}
 var PeerLastActive = map[string]time.Time{}
-var HiveRewarded = map[string]float64{}
 var PiningVideos = false
 var HoneycombContractCIDs = []string{}
 var CidSize = map[string]int{}

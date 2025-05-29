@@ -5,11 +5,9 @@ import (
 	"flag"
 	"os"
 	"os/signal"
-	"proofofaccess/Rewards"
 	"proofofaccess/api"
 	"proofofaccess/connection"
 	"proofofaccess/database"
-	"proofofaccess/hive"
 	"proofofaccess/honeycomb"
 	"proofofaccess/ipfs"
 	"proofofaccess/localdata"
@@ -25,22 +23,17 @@ import (
 )
 
 var (
-	nodeType       = flag.Int("node", 1, "Node type 1 = validation 2 = access")
-	storageLimit   = flag.Int("storageLimit", 1, "storageLimit in GB")
-	username       = flag.String("username", "", "Username")
-	ipfsPort       = flag.String("IPFS_PORT", "5001", "IPFS port number")
-	wsPort         = flag.String("WS_PORT", "8000", "Websocket port number")
-	useWS          = flag.Bool("useWS", true, "Use websocket")
-	getVids        = flag.Bool("getVids", false, "Fetch 3Speak videos for rewarding")
-	pinVideos      = flag.Bool("pinVideos", false, "Pin videos")
-	getHiveRewards = flag.Bool("getHive", false, "Get Hive rewards")
-	useHoneycomb   = flag.Bool("honeycomb", true, "Use honeycomb")
-	honeycombApi   = flag.String("url", "", "Honeycomb API URL")
-	validatorsApi  = flag.String("validators", "https://spktest.dlux.io/services/VAL", "Validators URL")
-	threeSpeakNode = flag.Bool("threeSpeak", false, "3Speak node")
-	CID, Hash      string
-	log            = logrus.New()
-	newPins        = false
+	nodeType      = flag.Int("node", 1, "Node type 1 = validation 2 = access")
+	storageLimit  = flag.Int("storageLimit", 1, "storageLimit in GB")
+	username      = flag.String("username", "", "Username")
+	ipfsPort      = flag.String("IPFS_PORT", "5001", "IPFS port number")
+	wsPort        = flag.String("WS_PORT", "8000", "Websocket port number")
+	useWS         = flag.Bool("useWS", true, "Use websocket")
+	honeycombApi  = flag.String("url", "", "Honeycomb API URL")
+	validatorsApi = flag.String("validators", "https://spktest.dlux.io/services/VAL", "Validators URL")
+	CID, Hash     string
+	log           = logrus.New()
+	newPins       = false
 )
 var mu sync.Mutex
 
@@ -88,36 +81,21 @@ func initialize(ctx context.Context) {
 		database.Init(*nodeType)
 		ipfs.IpfsPeerID()
 
-		if *getHiveRewards {
-			log.Debug("Getting Hive rewards...")
-			localdata.HiveRewarded = hive.GetHiveSent()
+		var url = ""
+		if *honeycombApi == "" {
+			url = "https://spktest.dlux.io/list-contracts"
+		} else {
+			url = *honeycombApi
 		}
-		if *getVids {
-			log.Debug("Getting 3Speak videos...")
-			Rewards.ThreeSpeak()
-			if *pinVideos {
-				log.Debug("Pinning and unpinning videos")
-				go Rewards.PinVideos(*storageLimit)
-			}
-			go ipfs.SaveRefs(localdata.ThreeSpeakVideos)
-		}
-		if *useHoneycomb {
-			var url = ""
-			if *honeycombApi == "" {
-				url = "https://spktest.dlux.io/list-contracts"
-			} else {
-				url = *honeycombApi
-			}
-			log.Infof("Getting Honeycomb CIDs from %s", url)
-			cids, err := honeycomb.GetCIDsFromAPI(url)
-			if err != nil {
-				log.Errorf("Error getting Honeycomb CIDs: %v", err)
-			} else {
-				localdata.Lock.Lock()
-				localdata.HoneycombContractCIDs = cids
-				localdata.Lock.Unlock()
-				go ipfs.SaveRefs(cids)
-			}
+		log.Infof("Getting Honeycomb CIDs from %s", url)
+		cids, err := honeycomb.GetCIDsFromAPI(url)
+		if err != nil {
+			log.Errorf("Error getting Honeycomb CIDs: %v", err)
+		} else {
+			localdata.Lock.Lock()
+			localdata.HoneycombContractCIDs = cids
+			localdata.Lock.Unlock()
+			go ipfs.SaveRefs(cids)
 		}
 	}
 
@@ -150,7 +128,7 @@ func initialize(ctx context.Context) {
 
 	if *nodeType == 1 {
 		log.Info("Starting proof validation challenge coordinator")
-		go Rewards.RunValidationChallenges(ctx)
+		go validators.RunValidationChallenges(ctx)
 	}
 
 	log.Info("Initialization complete")
