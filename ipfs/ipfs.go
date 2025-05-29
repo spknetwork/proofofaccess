@@ -29,7 +29,7 @@ const BufferSize = 1024
 var isIPFSDown bool
 var lastIPFSErrorTime time.Time
 
-const ipfsErrorCooldown = 5 * time.Minute
+const ipfsErrorCooldown = 30 * time.Second
 
 func checkIPFSConnection() bool {
 	if time.Since(lastIPFSErrorTime) < ipfsErrorCooldown {
@@ -337,10 +337,17 @@ func SyncNode(NewPins map[string]interface{}, name string) {
 	localdata.CIDRefPercentage[name] = percentage
 	localdata.Lock.Unlock()
 
+	// Add rate limiting for sync operations
+	semaphore := make(chan struct{}, 3) // Limit to 3 concurrent operations for sync
+
 	for i, key := range keys {
 		wg.Add(1)
 		go func(key string, index int) {
 			defer wg.Done()
+
+			// Acquire semaphore
+			semaphore <- struct{}{}
+			defer func() { <-semaphore }()
 
 			size, err := FileSize(key)
 			if err != nil {
@@ -359,7 +366,7 @@ func SyncNode(NewPins map[string]interface{}, name string) {
 			if !IsPinnedInDB(key) {
 				savedRefs, err := Refs(key)
 				if err != nil {
-					logrus.Warnf("Error getting refs for CID %s during sync with %s: %v", key, name, err)
+					logrus.Debugf("Skipping refs for CID %s during sync with %s (may not exist): %v", key, name, err)
 					return
 				}
 				localdata.Lock.Lock()
@@ -403,14 +410,22 @@ func SaveRefs(cids []string) {
 	var wg sync.WaitGroup
 	percentage := 0
 
+	// Add rate limiting to prevent overwhelming IPFS
+	semaphore := make(chan struct{}, 5) // Limit to 5 concurrent operations
+
 	for i, key := range cids {
 		wg.Add(1)
 		go func(key string, index int) {
 			defer wg.Done()
+
+			// Acquire semaphore
+			semaphore <- struct{}{}
+			defer func() { <-semaphore }()
+
 			if !IsPinnedInDB(key) {
 				savedRefs, err := Refs(key)
 				if err != nil {
-					logrus.Warnf("Error getting refs for CID %s in SaveRefs: %v", key, err)
+					logrus.Debugf("Skipping refs for CID %s in SaveRefs (may not exist): %v", key, err)
 					return
 				}
 				localdata.Lock.Lock()

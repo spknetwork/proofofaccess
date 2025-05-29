@@ -47,10 +47,18 @@ func FetchPins() {
 
 	var wg sync.WaitGroup
 
+	// Add rate limiting to prevent overwhelming IPFS
+	semaphore := make(chan struct{}, 5) // Limit to 5 concurrent operations
+
 	for key := range NewPins {
 		wg.Add(1)
 		go func(key string) {
 			defer wg.Done()
+
+			// Acquire semaphore
+			semaphore <- struct{}{}
+			defer func() { <-semaphore }()
+
 			size, _ := ipfs.FileSize(key)
 			localdata.Lock.Lock()
 			PeerSize += size
@@ -58,7 +66,7 @@ func FetchPins() {
 			if !ipfs.IsPinnedInDB(key) {
 				savedRefs, err := ipfs.Refs(key)
 				if err != nil {
-					logrus.Errorf("Error getting refs for %s: %v", key, err)
+					logrus.Debugf("Skipping refs for CID %s in FetchPins (may not exist): %v", key, err)
 					return
 				}
 

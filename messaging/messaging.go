@@ -80,6 +80,26 @@ func HandleMessage(message string, ws *websocket.Conn) {
 	if req.Type == TypePingPongPong {
 		logrus.Debugf("Received PingPongPong from %s with hash %s", req.User, req.Hash)
 		Ping[req.Hash] = true
+
+		// Handle storage node reconnection for validators
+		if nodeType == 1 {
+			localdata.Lock.Lock()
+			// Add the storage node back to peer lists if it's not already there
+			found := false
+			for _, peerName := range localdata.PeerNames {
+				if peerName == req.User {
+					found = true
+					break
+				}
+			}
+			if !found {
+				logrus.Infof("Storage node %s reconnected, adding back to peer list", req.User)
+				localdata.PeerNames = append(localdata.PeerNames, req.User)
+				localdata.NodesStatus[req.User] = "Connected"
+			}
+			localdata.PeerLastActive[req.User] = time.Now()
+			localdata.Lock.Unlock()
+		}
 	}
 	if req.Type == TypePingPongPing {
 		PingPongPong(req, ws)
