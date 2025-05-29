@@ -62,13 +62,18 @@ func HandleMessage(message string, ws *websocket.Conn) {
 		if req.Type == TypeProofOfAccess {
 			go HandleProofOfAccess(req, ws)
 		}
-
+		if req.Type == "ChallengeResponse" {
+			go HandleChallengeResponse(req, ws)
+		}
 	}
 
 	//Handle request for proof request from validation node
 	if nodeType == 2 {
 		if req.Type == TypeRequestProof {
 			go HandleRequestProof(req, ws)
+		}
+		if req.Type == "RandomChallenge" {
+			go HandleRandomChallenge(req, ws)
 		}
 		if req.Type == TypePingPongPong {
 			validatorName := req.User

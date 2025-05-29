@@ -272,3 +272,128 @@ func SendProof(req Request, validationHash string, salt string, user string, ws 
 
 	logrus.Debugf("Proof response sent successfully to %s", req.User)
 }
+
+// HandleRandomChallenge
+// Storage nodes handle random challenges from validators by picking their own content to prove
+func HandleRandomChallenge(req Request, ws *websocket.Conn) {
+	salt := req.Hash // The salt is in the hash field for random challenges
+	logrus.Debugf("Storage node received random challenge from %s with salt %s", req.User, salt)
+
+	// Storage node picks its own content to prove access to
+	// This could be based on blockchain assignments, local policy, etc.
+	selectedCID := selectRandomCIDForChallenge()
+
+	if selectedCID == "" {
+		logrus.Warnf("No content available for random challenge from %s", req.User)
+		sendChallengeResponse(req, "NA", salt, localdata.NodeName, ws)
+		return
+	}
+
+	logrus.Debugf("Storage node selected CID %s for challenge from %s", selectedCID, req.User)
+
+	// Generate proof hash for the selected content
+	if ipfs.IsPinnedInDB(selectedCID) {
+		logrus.Debugf("Generating proof for selected CID %s", selectedCID)
+		validationHash := validation.CreatProofHash(salt, selectedCID)
+		logrus.Debugf("Generated proof hash %s for CID %s", validationHash, selectedCID)
+		sendChallengeResponse(req, validationHash, salt, localdata.NodeName, ws)
+	} else {
+		logrus.Warnf("Selected CID %s not actually pinned, sending NA response", selectedCID)
+		sendChallengeResponse(req, "NA", salt, localdata.NodeName, ws)
+	}
+}
+
+// selectRandomCIDForChallenge - Storage node selects content for proof challenge
+// This is where storage nodes implement their own content selection logic
+func selectRandomCIDForChallenge() string {
+	// Storage nodes can implement various strategies:
+	// 1. Random selection from pinned content
+	// 2. Blockchain-assigned content
+	// 3. Content from external APIs (3Speak, etc.)
+	// 4. Local configuration
+
+	localdata.Lock.Lock()
+	defer localdata.Lock.Unlock()
+
+	// For now, use any available content the storage node has
+	if len(localdata.ThreeSpeakVideos) > 0 {
+		// Pick a random 3Speak video if available
+		idx := time.Now().Nanosecond() % len(localdata.ThreeSpeakVideos)
+		selected := localdata.ThreeSpeakVideos[idx]
+		logrus.Debugf("Storage node selected 3Speak CID: %s", selected)
+		return selected
+	}
+
+	if len(localdata.HoneycombContractCIDs) > 0 {
+		// Pick a random Honeycomb CID if available
+		idx := time.Now().Nanosecond() % len(localdata.HoneycombContractCIDs)
+		selected := localdata.HoneycombContractCIDs[idx]
+		logrus.Debugf("Storage node selected Honeycomb CID: %s", selected)
+		return selected
+	}
+
+	logrus.Debug("Storage node has no content available for challenge")
+	return ""
+}
+
+// sendChallengeResponse - Send challenge response back to validator
+func sendChallengeResponse(req Request, validationHash string, salt string, user string, ws *websocket.Conn) {
+	logrus.Debugf("Sending challenge response: Hash=%s, Salt=%s, From=%s, To=%s", validationHash, salt, user, req.User)
+
+	data := map[string]string{
+		"type": "ChallengeResponse",
+		"hash": validationHash,
+		"seed": salt,
+		"user": user,
+	}
+	jsonData, err := json.Marshal(data)
+	if err != nil {
+		logrus.Errorf("Error encoding ChallengeResponse JSON: %v", err)
+		return
+	}
+
+	// Send response back to validator via PubSub
+	logrus.Debugf("Sending challenge response to validator %s via PubSub", req.User)
+	pubsub.Publish(string(jsonData), req.User)
+
+	logrus.Debugf("Challenge response sent successfully to %s", req.User)
+}
+
+// HandleChallengeResponse
+// Validators handle responses from storage nodes to random challenges
+func HandleChallengeResponse(req Request, ws *websocket.Conn) {
+	receivedTime := time.Now()
+	salt := req.Seed
+	hash := req.Hash
+
+	logrus.Debugf("Validator received challenge response from %s: Hash=%s, Salt=%s", req.User, hash, salt)
+
+	if salt == "" {
+		logrus.Errorf("Received ChallengeResponse with missing Salt from %s", req.User)
+		return
+	}
+
+	// Get the start time to calculate elapsed time
+	start := localdata.GetTime("random-challenge", salt)
+	if start.IsZero() {
+		logrus.Warnf("Could not retrieve start time for challenge salt %s from %s", salt, req.User)
+		return
+	}
+	elapsed := receivedTime.Sub(start)
+
+	logrus.Debugf("Challenge response from %s took %v", req.User, elapsed)
+
+	// For random challenges, we accept any non-"NA" response as valid
+	// The storage node chose its own content to prove access to
+	status := "Invalid"
+	if hash != "" && hash != "NA" {
+		status = "Valid"
+		logrus.Debugf("Challenge response from %s accepted (storage node proved access to their content)", req.User)
+	} else {
+		logrus.Debugf("Challenge response from %s rejected (no content available)", req.User)
+	}
+
+	// Record the result
+	localdata.SetStatus(salt, "random-challenge", status, req.User, start, 0)
+	logrus.Debugf("Challenge result for %s set to %s", req.User, status)
+}

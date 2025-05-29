@@ -6,14 +6,12 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"proofofaccess/ipfs"
 	"proofofaccess/localdata"
 	"sync"
 	"time"
 
 	"proofofaccess/proofcrypto"
 	"proofofaccess/pubsub"
-	"proofofaccess/validation"
 
 	log "github.com/sirupsen/logrus"
 )
@@ -36,86 +34,84 @@ type HiveTransfer struct {
 // Create a WaitGroup to wait for the function to finish
 var wg sync.WaitGroup
 
-func RunProofs(cids []string) error {
-	log.Debugf("RunProofs starting with %d CIDs", len(cids))
+// RunValidationChallenges - Lightweight validator that challenges storage nodes
+// Storage nodes determine their own content based on blockchain/external systems
+func RunValidationChallenges(ctx context.Context) {
+	log.Info("Starting lightweight validation challenge coordinator")
 
 	for {
-		for i, cid := range cids {
+		select {
+		case <-ctx.Done():
+			return
+		default:
 			localdata.Lock.Lock()
-			cidStatus := localdata.CIDRefStatus[cid]
+			peerNames := localdata.PeerNames
+			peerCount := len(peerNames)
 			localdata.Lock.Unlock()
 
-			log.Debugf("Processing CID %d/%d: %s (status: %t)", i+1, len(cids), cid, cidStatus)
+			log.Debugf("Challenge cycle: found %d storage nodes to test", peerCount)
 
-			if cidStatus == true {
-				localdata.Lock.Lock()
-				peerNames := localdata.PeerNames
-				localdata.Lock.Unlock()
-
-				log.Debugf("CID %s is ready, checking %d peers", cid, len(peerNames))
-
-				for _, peer := range peerNames {
-					isPinnedInDB := ipfs.IsPinnedInDB(cid)
-					log.Debugf("Checking peer %s for CID %s (pinned in DB: %t)", peer, cid, isPinnedInDB)
-
-					if isPinnedInDB == true {
-						// REMOVED: Redundant check of storage node self-reported CID lists
-						// Instead, directly challenge storage nodes based on blockchain CID assignments
-						// The blockchain/cryptocurrency layer already defines which CIDs each node should store
-						log.Debugf("Running proof for peer: %s and CID: %s", peer, cid)
-						go RunProof(peer, cid)
-						time.Sleep(8 * time.Second)
-					} else {
-						log.Debugf("Skipping CID %s - not pinned in local database", cid)
-					}
-				}
-			} else {
-				log.Debugf("Skipping CID %s - not ready (status: %t)", cid, cidStatus)
+			if peerCount == 0 {
+				log.Debug("No storage nodes available for challenges, waiting...")
+				time.Sleep(30 * time.Second)
+				continue
 			}
-		}
 
-		// Add a delay between full cycles
-		log.Debug("Completed one full proof cycle, waiting before next cycle...")
-		time.Sleep(60 * time.Second)
+			// Challenge each storage node with random test
+			for _, peer := range peerNames {
+				log.Debugf("Sending random challenge to storage node: %s", peer)
+				go SendRandomChallenge(peer)
+				time.Sleep(5 * time.Second) // Stagger challenges
+			}
+
+			// Wait before next challenge cycle
+			log.Debug("Challenge cycle complete, waiting 60 seconds...")
+			time.Sleep(60 * time.Second)
+		}
 	}
 }
 
-func RunProof(peer string, cid string) error {
-	log.Debugf("Initiating proof request for peer: %s and CID: %s", peer, cid)
+// SendRandomChallenge - Send a random validation challenge to a storage node
+// The storage node decides what content it has and responds accordingly
+func SendRandomChallenge(peer string) error {
+	log.Debugf("Sending random challenge to storage node: %s", peer)
 
-	// Create a random salt for this proof request
+	// Create random salt for this challenge
 	salt, err := proofcrypto.CreateRandomHash()
 	if err != nil {
-		log.Errorf("Failed to create random salt for proof request to %s: %v", peer, err)
+		log.Errorf("Failed to create random salt for challenge to %s: %v", peer, err)
 		return err
 	}
 
-	// Create the proof request JSON
-	proofJson, err := validation.ProofRequestJson(salt, cid)
+	// Create a challenge request - storage node will pick appropriate content
+	challengeData := map[string]string{
+		"type": "RandomChallenge",
+		"hash": salt,
+		"user": localdata.GetNodeName(),
+	}
+
+	challengeJson, err := json.Marshal(challengeData)
 	if err != nil {
-		log.Errorf("Failed to create proof request JSON for peer %s: %v", peer, err)
+		log.Errorf("Failed to create challenge JSON for %s: %v", peer, err)
 		return err
 	}
 
-	// Send the proof request to the storage node
-	log.Debugf("Sending proof request to storage node %s with salt %s and CID %s", peer, salt, cid)
+	log.Debugf("Sending random challenge to %s with salt %s", peer, salt)
 
-	// Save the time when we send the request
-	localdata.SaveTime(cid, salt)
-
-	// Set initial status to Pending
+	// Save challenge start time
+	localdata.SaveTime("random-challenge", salt)
 	localdata.Lock.Lock()
-	localdata.SetStatus(salt, cid, "Pending", peer, time.Now(), 0)
+	localdata.SetStatus(salt, "random-challenge", "Pending", peer, time.Now(), 0)
 	localdata.Lock.Unlock()
 
-	// Send the request via PubSub (storage nodes listen on their own name)
-	err = pubsub.Publish(string(proofJson), peer)
+	// Send challenge via PubSub
+	err = pubsub.Publish(string(challengeJson), peer)
 	if err != nil {
-		log.Errorf("Failed to send proof request to storage node %s: %v", peer, err)
+		log.Errorf("Failed to send challenge to %s: %v", peer, err)
 		return err
 	}
 
-	log.Debugf("Proof request sent to storage node %s, waiting for response...", peer)
+	log.Debugf("Random challenge sent to %s, waiting for response...", peer)
 
 	// Wait for response with timeout
 	timeout := 15 * time.Second
@@ -123,28 +119,28 @@ func RunProof(peer string, cid string) error {
 
 	for {
 		if time.Since(startTime) > timeout {
-			log.Warnf("Proof request to %s timed out after %v", peer, timeout)
-			return fmt.Errorf("proof request to %s timed out", peer)
+			log.Warnf("Challenge to %s timed out after %v", peer, timeout)
+			return fmt.Errorf("challenge to %s timed out", peer)
 		}
 
 		// Check if we received a response
 		status := localdata.GetStatus(salt)
 		if status.Status != "" && status.Status != "Pending" {
-			log.Debugf("Received proof response from %s: %s", peer, status.Status)
+			log.Debugf("Received challenge response from %s: %s", peer, status.Status)
 			if status.Status == "Valid" {
-				// If proof is successful, add to localdata.PeerProofs
+				// Successful challenge
 				localdata.Lock.Lock()
 				localdata.PeerProofs[peer]++
-				log.Debugf("Proof successful for peer %s, total proofs: %d", peer, localdata.PeerProofs[peer])
+				log.Debugf("Challenge successful for %s, total proofs: %d", peer, localdata.PeerProofs[peer])
 				localdata.Lock.Unlock()
 				return nil
 			} else {
-				log.Debugf("Proof failed for peer %s: %s", peer, status.Status)
-				return fmt.Errorf("proof failed: %s", status.Status)
+				log.Debugf("Challenge failed for %s: %s", peer, status.Status)
+				return fmt.Errorf("challenge failed: %s", status.Status)
 			}
 		}
 
-		time.Sleep(100 * time.Millisecond) // Check every 100ms
+		time.Sleep(100 * time.Millisecond)
 	}
 }
 
@@ -233,7 +229,7 @@ func RunRewardProofs(ctx context.Context) {
 				continue
 			}
 
-			RunProofs(cids)
+			RunValidationChallenges(ctx)
 		}
 	}
 }

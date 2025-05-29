@@ -83,48 +83,55 @@ func initialize(ctx context.Context) {
 	localdata.NodeType = *nodeType
 	localdata.WsPort = *wsPort
 	log.Infof("Initializing node: %s (Type: %d)", *username, *nodeType)
-	database.Init(*nodeType)
-	ipfs.IpfsPeerID()
-	if *getHiveRewards {
-		log.Debug("Getting Hive rewards...")
-		localdata.HiveRewarded = hive.GetHiveSent()
-	}
-	if *getVids {
-		log.Debug("Getting 3Speak videos...")
-		Rewards.ThreeSpeak()
-		if *pinVideos {
-			log.Debug("Pinning and unpinning videos")
-			go Rewards.PinVideos(*storageLimit)
+
+	// Only storage nodes need database and content management
+	if *nodeType == 2 {
+		database.Init(*nodeType)
+		ipfs.IpfsPeerID()
+
+		if *getHiveRewards {
+			log.Debug("Getting Hive rewards...")
+			localdata.HiveRewarded = hive.GetHiveSent()
 		}
-		go ipfs.SaveRefs(localdata.ThreeSpeakVideos)
-	}
-	if *useHoneycomb {
-		var url = ""
-		if *honeycombApi == "" {
-			url = "https://spktest.dlux.io/list-contracts"
-		} else {
-			url = *honeycombApi
+		if *getVids {
+			log.Debug("Getting 3Speak videos...")
+			Rewards.ThreeSpeak()
+			if *pinVideos {
+				log.Debug("Pinning and unpinning videos")
+				go Rewards.PinVideos(*storageLimit)
+			}
+			go ipfs.SaveRefs(localdata.ThreeSpeakVideos)
 		}
-		log.Infof("Getting Honeycomb CIDs from %s", url)
-		cids, err := honeycomb.GetCIDsFromAPI(url)
-		if err != nil {
-			log.Errorf("Error getting Honeycomb CIDs: %v", err)
-		} else {
-			localdata.Lock.Lock()
-			localdata.HoneycombContractCIDs = cids
-			localdata.Lock.Unlock()
-			go ipfs.SaveRefs(cids)
+		if *useHoneycomb {
+			var url = ""
+			if *honeycombApi == "" {
+				url = "https://spktest.dlux.io/list-contracts"
+			} else {
+				url = *honeycombApi
+			}
+			log.Infof("Getting Honeycomb CIDs from %s", url)
+			cids, err := honeycomb.GetCIDsFromAPI(url)
+			if err != nil {
+				log.Errorf("Error getting Honeycomb CIDs: %v", err)
+			} else {
+				localdata.Lock.Lock()
+				localdata.HoneycombContractCIDs = cids
+				localdata.Lock.Unlock()
+				go ipfs.SaveRefs(cids)
+			}
 		}
 	}
+
 	if *nodeType == 1 {
-		log.Info("Starting as Validation Node")
+		log.Info("Starting as Validation Node - lightweight challenge coordinator")
 		go messaging.PubsubHandler(ctx)
-		go connection.CheckSynced(ctx)
-		go Rewards.Update(ctx)
+		// REMOVED: Content management - validators don't manage content
+		// REMOVED: Database initialization - validators are stateless
 	} else {
 		log.Info("Starting as Access Node")
 		go peers.FetchPins()
 	}
+
 	if *nodeType == 2 {
 		validators.GetValidators(*validatorsApi)
 		if *useWS {
@@ -139,12 +146,12 @@ func initialize(ctx context.Context) {
 			go validators.ConnectToValidators(ctx, nodeType)
 		}
 	}
+
 	go api.StartAPI(ctx)
 
-	if *runProofs {
-		log.Debug("Starting proof running routines")
-		go Rewards.RunRewardProofs(ctx)
-		go Rewards.RewardPeers()
+	if *runProofs && *nodeType == 1 {
+		log.Debug("Starting proof validation routines")
+		go Rewards.RunValidationChallenges(ctx)
 	}
 
 	log.Info("Initialization complete")
