@@ -105,7 +105,7 @@ func ConnectToValidators(ctx context.Context, nodeType *int) {
 // RunValidationChallenges - Lightweight validator that challenges storage nodes
 // Storage nodes determine their own content based on blockchain/external systems
 func RunValidationChallenges(ctx context.Context) {
-	logrus.Info("Starting lightweight validation challenge coordinator")
+	logrus.Info("Challenge coordinator started - monitoring storage nodes")
 
 	for {
 		select {

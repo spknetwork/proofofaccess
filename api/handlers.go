@@ -137,47 +137,66 @@ func getNetworkHandler(c *gin.Context) {
 }
 
 func handleValidate(c *gin.Context) {
+	// Log when the endpoint is hit
+	logrus.Infof("=== /validate endpoint hit from %s ===", c.ClientIP())
+
 	conn := upgradeToWebSocket(c)
 	if conn == nil {
+		logrus.Errorf("Failed to upgrade to WebSocket for validation request from %s", c.ClientIP())
 		return
 	}
 	defer closeWebSocket(conn)
 
 	msg, err := readWebSocketMessage(conn)
 	if err != nil {
+		logrus.Errorf("Failed to read WebSocket message for validation: %v", err)
 		return
 	}
+
+	logrus.Infof("Validation request received - Name: %s, CID: %s, SALT: %s", msg.Name, msg.CID, msg.SALT)
 
 	// --- Peer Discovery/Connection ---
 	peerID, err := getPeerID(msg, conn)
 	if err != nil {
+		logrus.Errorf("Failed to get peer ID for validation request: %v", err)
 		return
 	}
+	logrus.Debugf("Peer ID obtained: %s", peerID)
+
 	err = connectToPeer(peerID, conn, msg) // Ping check
 	if err != nil {
+		logrus.Errorf("Failed to connect to peer %s: %v", peerID, err)
 		return
 	}
+	logrus.Infof("Successfully connected to peer %s", peerID)
 
 	// --- Prepare Proof Request ---
 	salt := msg.SALT
 	if salt == "" {
 		salt, err = createRandomHash(conn)
 		if err != nil {
+			logrus.Errorf("Failed to create random hash: %v", err)
 			return
 		}
+		logrus.Debugf("Generated random salt: %s", salt)
 	}
 	CID := msg.CID
 	targetName := msg.Name // Get target name from message
 
+	logrus.Infof("Starting proof validation for CID: %s, target: %s, salt: %s", CID, targetName, salt)
+
 	// Set initial status to Pending (createProofRequest does this indirectly via SetStatus)
 	proofJson, err := createProofRequest(salt, CID, conn, targetName)
 	if err != nil {
+		logrus.Errorf("Failed to create proof request: %v", err)
 		return
 	}
 
 	// --- Send Request & Schedule Consensus Check ---
+	logrus.Infof("Sending proof request to %s for CID %s", targetName, CID)
 	err = sendProofRequest(salt, CID, proofJson, targetName, conn) // Saves request time using CID+salt
 	if err != nil {
+		logrus.Errorf("Failed to send proof request: %v", err)
 		return
 	}
 
@@ -200,12 +219,15 @@ func handleValidate(c *gin.Context) {
 	time.AfterFunc(validationTimeoutDuration, func() {
 		// This function will run after the timeout duration
 		// Pass targetName to ProcessProofConsensus (exported function)
+		logrus.Debugf("Triggering consensus check for CID %s, salt %s", CID, salt)
 		messaging.ProcessProofConsensus(CID, salt, targetName, startTime)
 	})
 	logrus.Debugf("Scheduled consensus check for CID %s, salt %s in %v.", CID, salt, validationTimeoutDuration) // Use Debugf
 
 	// --- Wait for and Report Final Status (Polling) ---
 	sendWsResponse("Processing", "Waiting for validation consensus", "0", conn)
+	logrus.Infof("Waiting for consensus result for CID %s...", CID)
+
 	pollTicker := time.NewTicker(1 * time.Second)
 	defer pollTicker.Stop()
 	// Wait slightly longer than the validation timeout for consensus function to complete
@@ -225,17 +247,18 @@ func handleValidate(c *gin.Context) {
 				finalStatus = statusMsg.Status
 				// Calculate elapsed time based on when we detected the completion
 				finalElapsed = time.Since(startTime)
-				logrus.Debugf("Consensus result received via polling for salt %s: %s", salt, finalStatus)
+				logrus.Infof("Consensus result received for CID %s, salt %s: %s (took %v)", CID, salt, finalStatus, finalElapsed)
 				goto reportResult // Exit loop
 			}
 		case <-pollTimeout:
-			logrus.Debugf("Polling timeout waiting for consensus result for salt %s", salt)
+			logrus.Warnf("Polling timeout waiting for consensus result for CID %s, salt %s", CID, salt)
 			// Check status one last time in case it finished right at the timeout
 			statusMsg := localdata.GetStatus(salt)
 			if statusMsg.Status != "" && statusMsg.Status != "Pending" {
 				finalStatus = statusMsg.Status
 				// Calculate elapsed time based on when we detected the completion
 				finalElapsed = time.Since(startTime)
+				logrus.Infof("Final consensus result (at timeout) for CID %s: %s", CID, finalStatus)
 			} else {
 				// Consensus didn't finish or set status in time.
 				finalStatus = "Timeout"                                  // Or "Invalid"
@@ -257,6 +280,7 @@ func handleValidate(c *gin.Context) {
 
 reportResult:
 	// Report the final status determined by consensus or timeout
+	logrus.Infof("=== Validation complete for CID %s - Final result: %s (took %v) ===", CID, finalStatus, finalElapsed)
 	sendWsResponse(finalStatus, finalStatus, formatElapsed(finalElapsed), conn)
 	// Gin handlers do not have return values
 }

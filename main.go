@@ -100,7 +100,7 @@ func initialize(ctx context.Context) {
 	}
 
 	if *nodeType == 1 {
-		log.Info("Starting as Validation Node - lightweight challenge coordinator")
+		log.Info("Starting as Validation Node")
 		go messaging.PubsubHandler(ctx)
 		// REMOVED: Content management - validators don't manage content
 		// REMOVED: Database initialization - validators are stateless
@@ -129,7 +129,6 @@ func initialize(ctx context.Context) {
 	go api.StartAPI(ctx)
 
 	if *nodeType == 1 {
-		log.Info("Starting proof validation challenge coordinator")
 		go validators.RunValidationChallenges(ctx)
 	}
 
