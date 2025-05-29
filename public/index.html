@@ -140,6 +140,8 @@
             lines.forEach((line) => {
                 line.classList.remove('completed');
             });
+            // Send the message right after opening and resetting UI
+            socket.send(JSON.stringify({ name, cid }));
         });
 
         socket.addEventListener('message', (event) => {
@@ -178,10 +180,6 @@
                 }
                 stepTexts[stepIndex].innerHTML = text;
             }
-        });
-
-        socket.addEventListener('open', () => {
-            socket.send(JSON.stringify({ name, cid }));
         });
     }
 

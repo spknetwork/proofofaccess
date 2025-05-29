@@ -3,6 +3,7 @@ package api
 import (
 	"context"
 	"errors"
+	"fmt"
 	"proofofaccess/hive"
 	"proofofaccess/ipfs"
 	"proofofaccess/localdata"
@@ -10,6 +11,7 @@ import (
 	"proofofaccess/proofcrypto"
 	"proofofaccess/pubsub"
 	"proofofaccess/validation"
+	"strings"
 	"time"
 
 	"github.com/gorilla/websocket"
@@ -116,25 +118,78 @@ func createProofRequest(salt string, CID string, conn *websocket.Conn, name stri
 	return proofJson, nil
 }
 
-func sendProofRequest(salt string, cid string, proofJson []byte, name string, conn *websocket.Conn) error {
+func sendProofRequest(salt string, cid string, proofJson []byte, target string, conn *websocket.Conn) error {
 	sendWsResponse(wsRequestingProof, "RequestingProof", "0", conn)
-	if localdata.WsPeers[name] == name && localdata.NodeType == 1 {
-		ws := localdata.WsClients[name]
-		ws.WriteMessage(websocket.TextMessage, proofJson)
-	} else if localdata.UseWS == true && localdata.NodeType == 2 {
-		localdata.Lock.Lock()
-		validatorWs := localdata.WsValidators[name]
-		validatorWs.WriteMessage(websocket.TextMessage, proofJson)
-		localdata.Lock.Unlock()
+
+	// Determine if target is a peer ID (starts with "12D3KooW") or username
+	isPeerID := strings.HasPrefix(target, "12D3KooW")
+	var username string
+	var peerID string
+
+	if isPeerID {
+		peerID = target
+		// For now, we need to extract username from the original message context
+		// This is a limitation - we'll use PeerID for tracking but username for communication
+		username = target // Fallback - this will need to be improved
 	} else {
-		err := pubsub.Publish(string(proofJson), name)
+		username = target
+		peerID = target // Fallback
+	}
+
+	log.Infof("Attempting to send proof request to target: %s (isPeerID: %v)", target, isPeerID)
+	log.Debugf("  Target details - Username: %s, PeerID: %s", username, peerID)
+	log.Debugf("  CID: %s, Salt: %s", cid, salt)
+	log.Debugf("  Current node type: %d, UseWS: %v", localdata.NodeType, localdata.UseWS)
+
+	// Check WebSocket peer connection for validators sending to storage nodes
+	if localdata.WsPeers[username] == username && localdata.NodeType == 1 {
+		log.Infof("Sending proof request to storage node %s via WebSocket (validator->storage)", username)
+		ws := localdata.WsClients[username]
+		if ws == nil {
+			log.Errorf("WebSocket connection to %s is nil", username)
+			return errors.New("WebSocket connection is nil")
+		}
+		err := ws.WriteMessage(websocket.TextMessage, proofJson)
 		if err != nil {
-			sendWsResponse(wsError, "Failed to send proof request to storage node", "0", conn)
-			log.Error(err)
+			log.Errorf("Failed to send proof request via WebSocket to %s: %v", username, err)
 			return err
 		}
+		log.Infof("Proof request sent successfully via WebSocket to %s (peer: %s)", username, peerID)
+	} else if localdata.UseWS == true && localdata.NodeType == 2 {
+		log.Infof("Sending proof request to validator %s via WebSocket (storage->validator)", username)
+		localdata.Lock.Lock()
+		validatorWs := localdata.WsValidators[username]
+		localdata.Lock.Unlock()
+		if validatorWs == nil {
+			log.Errorf("Validator WebSocket connection to %s is nil", username)
+			return errors.New("Validator WebSocket connection is nil")
+		}
+		err := validatorWs.WriteMessage(websocket.TextMessage, proofJson)
+		if err != nil {
+			log.Errorf("Failed to send proof request via WebSocket to validator %s: %v", username, err)
+			return err
+		}
+		log.Infof("Proof request sent successfully via WebSocket to validator %s (peer: %s)", username, peerID)
+	} else {
+		// For PubSub, we must use username since that's what nodes subscribe to
+		if isPeerID {
+			log.Warnf("Cannot send to peer ID %s via PubSub - PubSub uses usernames for topics", peerID)
+			log.Warnf("This indicates multiple IPFS instances for the same user - functionality not fully supported yet")
+			return fmt.Errorf("cannot target specific peer ID %s via PubSub - need username", peerID)
+		}
+
+		log.Infof("Sending proof request to %s via PubSub", username)
+		err := pubsub.Publish(string(proofJson), username)
+		if err != nil {
+			log.Errorf("Failed to send proof request via PubSub to %s: %v", username, err)
+			sendWsResponse(wsError, "Failed to send proof request to storage node", "0", conn)
+			return err
+		}
+		log.Infof("Proof request sent successfully via PubSub to %s", username)
 	}
+
 	// Call SaveTime with CID and salt
 	localdata.SaveTime(cid, salt)
+	log.Debugf("Saved request time for CID %s, salt %s", cid, salt)
 	return nil
 }

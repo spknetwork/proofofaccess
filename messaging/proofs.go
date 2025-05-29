@@ -37,17 +37,23 @@ var ConsensusProcessingMutex sync.Mutex
 func HandleRequestProof(req Request, ws *websocket.Conn) {
 	CID := req.CID
 	hash := req.Hash
-	logrus.Debugf("Storage node received proof request: CID=%s, Hash=%s, From=%s", CID, hash, req.User)
+	logrus.Infof("=== Storage node received proof request ===")
+	logrus.Infof("  CID: %s", CID)
+	logrus.Infof("  Hash: %s", hash)
+	logrus.Infof("  From: %s", req.User)
+	logrus.Infof("  Request Type: %s", req.Type)
 
 	if ipfs.IsPinnedInDB(CID) {
-		logrus.Debugf("CID %s found in local storage, generating proof hash", CID)
+		logrus.Infof("CID %s found in local storage, generating proof hash", CID)
 		validationHash := validation.CreatProofHash(hash, CID)
-		logrus.Debugf("Generated proof hash %s for CID %s", validationHash, CID)
+		logrus.Infof("Generated proof hash %s for CID %s", validationHash, CID)
 		SendProof(req, validationHash, hash, localdata.NodeName, ws)
+		logrus.Infof("=== Proof response sent to %s ===", req.User)
 	} else {
-		logrus.Warnf("Pin %s not found locally when handling proof request for %s", CID, req.User)
-		logrus.Debugf("Sending 'NA' response for unavailable CID %s to %s", CID, req.User)
+		logrus.Warnf("CID %s not found locally when handling proof request from %s", CID, req.User)
+		logrus.Infof("Sending 'NA' response for unavailable CID %s to %s", CID, req.User)
 		SendProof(req, "NA", hash, localdata.NodeName, ws)
+		logrus.Infof("=== 'NA' response sent to %s ===", req.User)
 	}
 }
 

@@ -153,7 +153,7 @@ func handleValidate(c *gin.Context) {
 		return
 	}
 
-	logrus.Infof("Validation request received - Name: %s, CID: %s, SALT: %s", msg.Name, msg.CID, msg.SALT)
+	logrus.Infof("Validation request received - Name: %s, CID: %s, SALT: %s, PEERID: %s", msg.Name, msg.CID, msg.SALT, msg.PEERID)
 
 	// --- Peer Discovery/Connection ---
 	peerID, err := getPeerID(msg, conn)
@@ -161,14 +161,14 @@ func handleValidate(c *gin.Context) {
 		logrus.Errorf("Failed to get peer ID for validation request: %v", err)
 		return
 	}
-	logrus.Debugf("Peer ID obtained: %s", peerID)
+	logrus.Infof("Peer ID obtained: %s for user: %s", peerID, msg.Name)
 
 	err = connectToPeer(peerID, conn, msg) // Ping check
 	if err != nil {
-		logrus.Errorf("Failed to connect to peer %s: %v", peerID, err)
+		logrus.Errorf("Failed to connect to peer %s (user: %s): %v", peerID, msg.Name, err)
 		return
 	}
-	logrus.Infof("Successfully connected to peer %s", peerID)
+	logrus.Infof("Successfully connected to peer %s (user: %s)", peerID, msg.Name)
 
 	// --- Prepare Proof Request ---
 	salt := msg.SALT
@@ -181,20 +181,21 @@ func handleValidate(c *gin.Context) {
 		logrus.Debugf("Generated random salt: %s", salt)
 	}
 	CID := msg.CID
-	targetName := msg.Name // Get target name from message
+	// Use username for targeting (PubSub compatibility) but track peer ID
+	targetUsername := msg.Name
 
-	logrus.Infof("Starting proof validation for CID: %s, target: %s, salt: %s", CID, targetName, salt)
+	logrus.Infof("Starting proof validation for CID: %s, target user: %s, peer: %s, salt: %s", CID, targetUsername, peerID, salt)
 
-	// Set initial status to Pending (createProofRequest does this indirectly via SetStatus)
-	proofJson, err := createProofRequest(salt, CID, conn, targetName)
+	// Set initial status to Pending - use username for compatibility
+	proofJson, err := createProofRequest(salt, CID, conn, targetUsername)
 	if err != nil {
 		logrus.Errorf("Failed to create proof request: %v", err)
 		return
 	}
 
 	// --- Send Request & Schedule Consensus Check ---
-	logrus.Infof("Sending proof request to %s for CID %s", targetName, CID)
-	err = sendProofRequest(salt, CID, proofJson, targetName, conn) // Saves request time using CID+salt
+	logrus.Infof("Sending proof request to user %s (peer: %s) for CID %s", targetUsername, peerID, CID)
+	err = sendProofRequest(salt, CID, proofJson, targetUsername, conn) // Use username for targeting
 	if err != nil {
 		logrus.Errorf("Failed to send proof request: %v", err)
 		return
@@ -220,7 +221,7 @@ func handleValidate(c *gin.Context) {
 		// This function will run after the timeout duration
 		// Pass targetName to ProcessProofConsensus (exported function)
 		logrus.Debugf("Triggering consensus check for CID %s, salt %s", CID, salt)
-		messaging.ProcessProofConsensus(CID, salt, targetName, startTime)
+		messaging.ProcessProofConsensus(CID, salt, targetUsername, startTime)
 	})
 	logrus.Debugf("Scheduled consensus check for CID %s, salt %s in %v.", CID, salt, validationTimeoutDuration) // Use Debugf
 
@@ -271,7 +272,7 @@ func handleValidate(c *gin.Context) {
 					// This case should ideally not happen if AfterFunc works correctly
 					logrus.Errorf("Consensus for %s was not triggered by AfterFunc within timeout!", CID+salt)
 					// Manually trigger as a fallback, though the state might be inconsistent
-					go messaging.ProcessProofConsensus(CID, salt, targetName, startTime)
+					go messaging.ProcessProofConsensus(CID, salt, targetUsername, startTime)
 				}
 			}
 			goto reportResult // Exit loop
