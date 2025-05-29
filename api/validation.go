@@ -35,16 +35,21 @@ func getPeerID(msg *message, conn *websocket.Conn) (string, error) {
 }
 
 func connectToPeer(peerID string, conn *websocket.Conn, msg *message) error {
-	sendWsResponse("Connecting", "Connecting to Peer", "0", conn)
+	sendWsResponse("Connecting", "Attempting direct IPFS connection", "0", conn)
 	var err error
 	log.Debug(peerID)
 	err = ipfs.IpfsPingNode(peerID)
 	if err != nil {
-		sendWsResponse("PeerNotFound", "Peer Not Found", "0", conn)
-		log.Debugf("Peer %s not found via routing: %v", peerID, err)
-		return err
+		sendWsResponse("DirectConnectionFailed", "Direct IPFS connection failed, using network routing", "0", conn)
+		log.Debugf("Direct IPFS connection to peer %s failed: %v", peerID, err)
+		log.Debugf("Will attempt proof validation via PubSub/WebSocket instead")
+		// Continue with PubSub ping instead of returning error
+	} else {
+		sendWsResponse("Connected", "Direct IPFS connection established", "0", conn)
+		log.Debugf("Direct IPFS connection to peer %s successful", peerID)
 	}
-	sendWsResponse("Connected", "Connected to Peer", "0", conn)
+
+	// Always attempt PubSub ping regardless of direct IPFS connection result
 	salt := msg.SALT
 	if salt == "" {
 		salt, err = proofcrypto.CreateRandomHash()
@@ -55,9 +60,22 @@ func connectToPeer(peerID string, conn *websocket.Conn, msg *message) error {
 		}
 	}
 
+	sendWsResponse("NetworkPing", "Testing network connectivity via PubSub", "0", conn)
 	ctx, cancel := context.WithTimeout(context.Background(), pingTimeout*maxPingAttempts)
 	defer cancel()
-	return performPingPong(ctx, salt, msg.Name, conn)
+	pingErr := performPingPong(ctx, salt, msg.Name, conn)
+	if pingErr != nil {
+		log.Debugf("PubSub ping to %s also failed: %v", msg.Name, pingErr)
+		// If both direct IPFS and PubSub ping fail, that's more concerning
+		if err != nil {
+			return fmt.Errorf("both direct IPFS connection and PubSub ping failed for %s", msg.Name)
+		}
+		// If only PubSub ping failed but direct IPFS worked, still proceed
+		return pingErr
+	}
+
+	sendWsResponse("NetworkConnected", "Network connectivity confirmed", "0", conn)
+	return nil
 }
 
 func sendWsResponseAndHandleError(status string, message string, elapsed string, conn *websocket.Conn, err error) error {

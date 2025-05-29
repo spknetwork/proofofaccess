@@ -163,12 +163,15 @@ func handleValidate(c *gin.Context) {
 	}
 	logrus.Infof("Peer ID obtained: %s for user: %s", peerID, msg.Name)
 
+	// Attempt IPFS peer connection (optional - validation can proceed without it)
 	err = connectToPeer(peerID, conn, msg) // Ping check
 	if err != nil {
-		logrus.Errorf("Failed to connect to peer %s (user: %s): %v", peerID, msg.Name, err)
-		return
+		logrus.Warnf("Direct IPFS connection to peer %s (user: %s) failed: %v", peerID, msg.Name, err)
+		logrus.Infof("Continuing with proof validation via PubSub/WebSocket for user: %s", msg.Name)
+		// Don't return - continue with proof validation
+	} else {
+		logrus.Infof("Successfully connected to peer %s (user: %s)", peerID, msg.Name)
 	}
-	logrus.Infof("Successfully connected to peer %s (user: %s)", peerID, msg.Name)
 
 	// --- Prepare Proof Request ---
 	salt := msg.SALT
