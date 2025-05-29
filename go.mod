@@ -1,13 +1,15 @@
 module proofofaccess
 
-go 1.22
+go 1.23.0
+
+toolchain go1.23.9
 
 require (
 	github.com/dgraph-io/badger v1.6.2
 	github.com/gin-gonic/gin v1.9.0
 	github.com/gorilla/websocket v1.5.3
 	github.com/ipfs/go-ipfs-api v0.6.0
-	github.com/multiformats/go-multiaddr v0.15.0
+	github.com/multiformats/go-multiaddr v0.13.0
 	github.com/multiformats/go-multihash v0.2.3
 	github.com/sirupsen/logrus v1.9.0
 )
@@ -38,7 +40,7 @@ require (
 	github.com/leodido/go-urn v1.2.1 // indirect
 	github.com/libp2p/go-buffer-pool v0.1.0 // indirect
 	github.com/libp2p/go-flow-metrics v0.2.0 // indirect
-	github.com/libp2p/go-libp2p v0.41.1 // indirect
+	github.com/libp2p/go-libp2p v0.37.2 // indirect
 	github.com/mattn/go-isatty v0.0.20 // indirect
 	github.com/minio/sha256-simd v1.0.1 // indirect
 	github.com/mitchellh/go-homedir v1.1.0 // indirect

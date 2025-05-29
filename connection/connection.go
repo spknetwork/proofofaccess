@@ -10,6 +10,7 @@ import (
 	"proofofaccess/localdata"
 	"proofofaccess/messaging"
 	"proofofaccess/proofcrypto"
+	"sync"
 	"time"
 
 	"github.com/gorilla/websocket"
@@ -29,6 +30,31 @@ const (
 	// Maximum message size allowed from peer.
 	maxMessageSize = 512
 )
+
+// UsernameVerificationError represents a username verification failure
+type UsernameVerificationError struct {
+	ValidatorName string
+	Expected      string
+	Actual        string
+}
+
+func (e *UsernameVerificationError) Error() string {
+	return fmt.Sprintf("username verification failed for %s: expected %s, got %s", e.ValidatorName, e.Expected, e.Actual)
+}
+
+// Connection state tracking
+var (
+	validatorConnectionState = make(map[string]*ValidatorConnectionState)
+	connectionStateMutex     = &sync.Mutex{}
+)
+
+type ValidatorConnectionState struct {
+	LastAttempt         time.Time
+	LastUsernameFailure time.Time
+	ConsecutiveFailures int
+	UsernameVerified    bool
+	ShouldRetry         bool
+}
 
 func CheckSynced(ctx context.Context) {
 	for {
@@ -129,10 +155,65 @@ func StartWsClient(name string) {
 	baseBackoff := 1 * time.Second // Start with 1 second
 	currentBackoff := baseBackoff
 
+	// Initialize connection state
+	connectionStateMutex.Lock()
+	if validatorConnectionState[name] == nil {
+		validatorConnectionState[name] = &ValidatorConnectionState{
+			ShouldRetry: true,
+		}
+	}
+	state := validatorConnectionState[name]
+	connectionStateMutex.Unlock()
+
 	for {
+		// Check if we should attempt to connect
+		connectionStateMutex.Lock()
+		shouldAttempt := state.ShouldRetry
+		connectionStateMutex.Unlock()
+
+		if !shouldAttempt {
+			logrus.Debugf("Skipping connection attempt to %s - waiting for validator refresh", name)
+			time.Sleep(30 * time.Second) // Check every 30 seconds if we should retry
+			continue
+		}
+
 		err := connectAndListen(name, interrupt)
+
+		connectionStateMutex.Lock()
+		state.LastAttempt = time.Now()
+		connectionStateMutex.Unlock()
+
 		if err != nil {
+			// Check if this is a username verification error
+			if usernameErr, ok := err.(*UsernameVerificationError); ok {
+				logrus.Warnf("Username verification failed for %s: %v. Will wait for next validator refresh (30 minutes).", name, usernameErr)
+
+				connectionStateMutex.Lock()
+				state.LastUsernameFailure = time.Now()
+				state.UsernameVerified = false
+				state.ShouldRetry = false // Stop retrying until next validator refresh
+				connectionStateMutex.Unlock()
+
+				// Wait for next validator refresh cycle (but check more frequently)
+				for i := 0; i < 60; i++ { // Check every 30 seconds for 30 minutes
+					time.Sleep(30 * time.Second)
+					connectionStateMutex.Lock()
+					shouldRetry := state.ShouldRetry
+					connectionStateMutex.Unlock()
+					if shouldRetry {
+						logrus.Infof("Validator refresh enabled retry for %s, resuming connection attempts", name)
+						break
+					}
+				}
+				continue
+			}
+
+			// For other connection errors, use exponential backoff
 			logrus.Debugf("WebSocket client connection error for %s: %v. Retrying in %v...", name, err, currentBackoff)
+
+			connectionStateMutex.Lock()
+			state.ConsecutiveFailures++
+			connectionStateMutex.Unlock()
 
 			jitter := time.Duration(rand.Int63n(int64(currentBackoff))) - (currentBackoff / 2)
 			waitTime := currentBackoff + jitter
@@ -148,6 +229,12 @@ func StartWsClient(name string) {
 			}
 		} else {
 			logrus.Infof("WebSocket client for %s disconnected cleanly.", name)
+
+			connectionStateMutex.Lock()
+			state.ConsecutiveFailures = 0
+			state.UsernameVerified = true
+			connectionStateMutex.Unlock()
+
 			currentBackoff = baseBackoff
 			time.Sleep(time.Second * 1)
 		}
@@ -171,6 +258,11 @@ func connectAndListen(name string, interrupt <-chan os.Signal) error {
 	err = verifyUsername(c, name)
 	if err != nil {
 		logrus.Errorf("Username verification failed for %s: %v", name, err)
+		// Return the error as-is if it's already a UsernameVerificationError
+		if _, ok := err.(*UsernameVerificationError); ok {
+			return err
+		}
+		// Wrap other verification errors
 		return fmt.Errorf("username verification failed for %s: %v", name, err)
 	}
 	logrus.Infof("Username verification successful for %s", name)
@@ -280,7 +372,11 @@ func verifyUsername(conn *websocket.Conn, expectedUsername string) error {
 
 	// Check username
 	if username, ok := response["user"].(string); !ok || username != expectedUsername {
-		return fmt.Errorf("username mismatch: expected %s, got %s", expectedUsername, username)
+		return &UsernameVerificationError{
+			ValidatorName: expectedUsername,
+			Expected:      expectedUsername,
+			Actual:        username,
+		}
 	}
 
 	// Reset read deadline
@@ -303,5 +399,21 @@ func wsPing(hash string, name string, c *websocket.Conn) {
 	err = c.WriteMessage(websocket.TextMessage, jsonData)
 	if err != nil {
 		logrus.Errorf("Error writing wsPing message for %s: %v", name, err)
+	}
+}
+
+// EnableValidatorRetries resets the retry state for all validators
+// This is called after a validator refresh to allow retry attempts for validators
+// that previously failed username verification
+func EnableValidatorRetries() {
+	connectionStateMutex.Lock()
+	defer connectionStateMutex.Unlock()
+
+	for name, state := range validatorConnectionState {
+		if !state.ShouldRetry {
+			logrus.Debugf("Re-enabling connection retries for validator: %s", name)
+			state.ShouldRetry = true
+			state.ConsecutiveFailures = 0
+		}
 	}
 }

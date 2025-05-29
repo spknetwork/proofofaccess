@@ -117,6 +117,8 @@ func initialize(ctx context.Context) {
 			for _, name := range localdata.ValidatorNames {
 				go connection.StartWsClient(name)
 			}
+			// Start periodic validator refresh
+			go periodicValidatorRefresh(ctx)
 		} else {
 			log.Info("Connecting to validators via PubSub")
 			go messaging.PubsubHandler(ctx)
@@ -132,6 +134,56 @@ func initialize(ctx context.Context) {
 	}
 
 	log.Info("Initialization complete")
+}
+
+// periodicValidatorRefresh refreshes the validator list every 30 minutes
+// and enables connection retries for validators that had username verification failures
+func periodicValidatorRefresh(ctx context.Context) {
+	ticker := time.NewTicker(30 * time.Minute)
+	defer ticker.Stop()
+
+	log.Info("Starting periodic validator refresh (every 30 minutes)")
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			log.Info("Refreshing validator list...")
+
+			// Get current validator list for comparison
+			localdata.Lock.Lock()
+			oldValidators := make(map[string]string)
+			for k, v := range localdata.ValidatorAddress {
+				oldValidators[k] = v
+			}
+			localdata.Lock.Unlock()
+
+			// Refresh validator list
+			validators.GetValidators(*validatorsApi)
+
+			// Check for new or updated validators
+			localdata.Lock.Lock()
+			newValidators := make(map[string]string)
+			for k, v := range localdata.ValidatorAddress {
+				newValidators[k] = v
+			}
+			localdata.Lock.Unlock()
+
+			// Enable retries for all validators (especially those with username verification failures)
+			connection.EnableValidatorRetries()
+
+			// Start connections for any new validators
+			for name := range newValidators {
+				if _, existed := oldValidators[name]; !existed {
+					log.Infof("Found new validator: %s, starting connection...", name)
+					go connection.StartWsClient(name)
+				}
+			}
+
+			log.Debugf("Validator refresh complete. Enabled retries for all validators.")
+		}
+	}
 }
 
 func setupCloseHandler(cancel context.CancelFunc) {
