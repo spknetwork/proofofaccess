@@ -39,7 +39,7 @@ var mu sync.Mutex
 
 func main() {
 	flag.Parse()
-	log.SetLevel(logrus.DebugLevel)
+	log.SetLevel(logrus.WarnLevel)
 	ipfs.Shell = shell.NewShell("localhost:" + *ipfsPort)
 
 	// Wait for IPFS to be ready before proceeding
@@ -100,7 +100,7 @@ func initialize(ctx context.Context) {
 	}
 
 	if *nodeType == 1 {
-		log.Info("Starting as Validation Node")
+		log.Info("Starting as Validation Node - lightweight challenge coordinator")
 		go messaging.PubsubHandler(ctx)
 		// REMOVED: Content management - validators don't manage content
 		// REMOVED: Database initialization - validators are stateless
@@ -111,21 +111,15 @@ func initialize(ctx context.Context) {
 
 	if *nodeType == 2 {
 		validators.GetValidators(*validatorsApi)
-
-		// Storage nodes should always subscribe to PubSub for message fallback
-		log.Info("Starting PubSub handler for message fallback")
-		go messaging.PubsubHandler(ctx)
-
 		if *useWS {
 			localdata.UseWS = *useWS
 			log.Info("Connecting to validators via WebSocket")
 			for _, name := range localdata.ValidatorNames {
 				go connection.StartWsClient(name)
 			}
-			// Start periodic validator refresh
-			go periodicValidatorRefresh(ctx)
 		} else {
-			log.Info("Using PubSub only (WebSocket disabled)")
+			log.Info("Connecting to validators via PubSub")
+			go messaging.PubsubHandler(ctx)
 			go validators.ConnectToValidators(ctx, nodeType)
 		}
 	}
@@ -133,60 +127,11 @@ func initialize(ctx context.Context) {
 	go api.StartAPI(ctx)
 
 	if *nodeType == 1 {
+		log.Info("Starting proof validation challenge coordinator")
 		go validators.RunValidationChallenges(ctx)
 	}
 
 	log.Info("Initialization complete")
-}
-
-// periodicValidatorRefresh refreshes the validator list every 30 minutes
-// and enables connection retries for validators that had username verification failures
-func periodicValidatorRefresh(ctx context.Context) {
-	ticker := time.NewTicker(30 * time.Minute)
-	defer ticker.Stop()
-
-	log.Info("Starting periodic validator refresh (every 30 minutes)")
-
-	for {
-		select {
-		case <-ctx.Done():
-			return
-		case <-ticker.C:
-			log.Info("Refreshing validator list...")
-
-			// Get current validator list for comparison
-			localdata.Lock.Lock()
-			oldValidators := make(map[string]string)
-			for k, v := range localdata.ValidatorAddress {
-				oldValidators[k] = v
-			}
-			localdata.Lock.Unlock()
-
-			// Refresh validator list
-			validators.GetValidators(*validatorsApi)
-
-			// Check for new or updated validators
-			localdata.Lock.Lock()
-			newValidators := make(map[string]string)
-			for k, v := range localdata.ValidatorAddress {
-				newValidators[k] = v
-			}
-			localdata.Lock.Unlock()
-
-			// Enable retries for all validators (especially those with username verification failures)
-			connection.EnableValidatorRetries()
-
-			// Start connections for any new validators
-			for name := range newValidators {
-				if _, existed := oldValidators[name]; !existed {
-					log.Infof("Found new validator: %s, starting connection...", name)
-					go connection.StartWsClient(name)
-				}
-			}
-
-			log.Debugf("Validator refresh complete. Enabled retries for all validators.")
-		}
-	}
 }
 
 func setupCloseHandler(cancel context.CancelFunc) {
