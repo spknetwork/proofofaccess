@@ -52,18 +52,12 @@ func RunProofs(cids []string) error {
 					//fmt.Println("Running proof for peer: " + peer)
 					isPinnedInDB := ipfs.IsPinnedInDB(cid)
 					if isPinnedInDB == true {
-						//fmt.Println("Running proofs for peer: " + peer)
-						//fmt.Println("Length of PeerCids: " + strconv.Itoa(len(localdata.PeerCids[peer])))
-						localdata.Lock.Lock()
-						peers := localdata.PeerCids[peer]
-						localdata.Lock.Unlock()
-						for _, peerHash := range peers {
-							if peerHash == cid {
-								log.Debugf("Running proof for peer: %s and CID: %s", peer, cid)
-								go RunProof(peer, cid)
-								time.Sleep(8 * time.Second)
-							}
-						}
+						// REMOVED: Redundant check of storage node self-reported CID lists
+						// Instead, directly challenge storage nodes based on blockchain CID assignments
+						// The blockchain/cryptocurrency layer already defines which CIDs each node should store
+						log.Debugf("Running proof for peer: %s and CID: %s", peer, cid)
+						go RunProof(peer, cid)
+						time.Sleep(8 * time.Second)
 					}
 				}
 			}

@@ -78,7 +78,7 @@ func HandleMessage(message string, ws *websocket.Conn) {
 		}
 	}
 	if req.Type == TypePingPongPong {
-		logrus.Debugf("Received PingPongPong from %s with hash %s", req.User, req.Hash)
+		logrus.Debugf("Received PingPongPong response from %s with hash %s", req.User, req.Hash)
 		Ping[req.Hash] = true
 
 		// Handle storage node reconnection for validators
@@ -103,20 +103,6 @@ func HandleMessage(message string, ws *websocket.Conn) {
 	}
 	if req.Type == TypePingPongPing {
 		PingPongPong(req, ws)
-		nodeStatus := localdata.NodesStatus[req.User]
-		nodes := Nodes[req.User]
-		if nodeType == 1 && !nodes && nodeStatus != "Synced" {
-			go SyncNode(req, ws)
-		}
-
-	}
-	if req.Type == "RequestCIDS" {
-		go SendCIDS(req.User, ws)
-
-	}
-	if req.Type == "SendCIDS" {
-		go SyncNode(req, ws)
-
 	}
 	if req.Type == "Syncing" {
 		go ReceiveSyncing(req)

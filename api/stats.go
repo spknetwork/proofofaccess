@@ -50,10 +50,6 @@ func stats(c *websocket.Conn, key string) {
 	for k, v := range localdata.HiveRewarded {
 		hiveRewarded[k] = int(v)
 	}
-	peerCids := make(map[string][]string)
-	for k, v := range localdata.PeerCids {
-		peerCids[k] = append([]string(nil), v...)
-	}
 
 	localdata.Lock.Unlock()
 
@@ -81,7 +77,6 @@ func stats(c *websocket.Conn, key string) {
 		"PeerProofs":      peerProofs,
 		"PeerSynced":      peerSynced,
 		"PeerHiveRewards": hiveRewarded,
-		"PeerCids":        peerCids,
 	}
 	jsonData, err := json.Marshal(data)
 	if err != nil {

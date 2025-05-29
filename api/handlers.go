@@ -358,14 +358,6 @@ func getCIDHandler(c *gin.Context) {
 	})
 }
 
-func getPeerHandler(c *gin.Context) {
-	key := c.Query("username")
-	cids := localdata.PeerCids[key]
-	c.JSON(http.StatusOK, gin.H{
-		"CIDs": cids,
-	})
-}
-
 func getIPHandler(c *gin.Context) {
 	domain := c.Query("domain")
 	if domain == "" {

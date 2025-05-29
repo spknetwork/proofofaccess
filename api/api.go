@@ -2,11 +2,12 @@ package api
 
 import (
 	"context"
-	"github.com/gin-gonic/gin"
-	"github.com/sirupsen/logrus"
 	"net/http"
 	"proofofaccess/localdata"
 	"time"
+
+	"github.com/gin-gonic/gin"
+	"github.com/sirupsen/logrus"
 )
 
 var (
@@ -50,8 +51,7 @@ func StartAPI(ctx context.Context) {
 	r.GET("/get-ip", getIPHandler)
 	r.GET("/get-stats", getStatsHandler)
 	r.GET("/network-history", getNetworkHandler)
-	r.GET("/CID", getCIDHandler)
-	r.GET("/peer", getPeerHandler)
+	r.GET("/cid", getCIDHandler)
 	// Start the server
 	server := &http.Server{
 		Addr:    ":" + localdata.WsPort,
