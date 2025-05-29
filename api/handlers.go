@@ -212,7 +212,7 @@ func handleValidate(c *gin.Context) {
 	}
 
 	// Define timeout duration (should be consistent)
-	validationTimeoutDuration := 10 * time.Second // e.g., 10 seconds
+	validationTimeoutDuration := 30 * time.Second // Increased from 10s to 30s for testing
 
 	// Mark that consensus *should* run for this key, but hasn't started yet
 	messaging.ConsensusProcessingMutex.Lock() // Use exported mutex
@@ -235,7 +235,7 @@ func handleValidate(c *gin.Context) {
 	pollTicker := time.NewTicker(1 * time.Second)
 	defer pollTicker.Stop()
 	// Wait slightly longer than the validation timeout for consensus function to complete
-	pollTimeout := time.After(validationTimeoutDuration + 3*time.Second) // Increased buffer slightly
+	pollTimeout := time.After(validationTimeoutDuration + 5*time.Second) // Increased buffer to 5s
 
 	finalStatus := "Timeout"       // Default status if polling times out
 	var finalElapsed time.Duration // Use to store the elapsed time from the status message
@@ -266,7 +266,7 @@ func handleValidate(c *gin.Context) {
 			} else {
 				// Consensus didn't finish or set status in time.
 				finalStatus = "Timeout"                                  // Or "Invalid"
-				finalElapsed = validationTimeoutDuration + 3*time.Second // Report polling timeout duration
+				finalElapsed = validationTimeoutDuration + 5*time.Second // Report polling timeout duration
 				// Check if consensus processing was ever started (it should have been by AfterFunc)
 				messaging.ConsensusProcessingMutex.Lock() // Use exported mutex
 				processing := messaging.ConsensusProcessing[CID+salt]

@@ -145,7 +145,7 @@ func ProcessProofConsensus(cid string, seed string, targetName string, startTime
 	var firstValidHash string = ""
 	conflictingHashes := false
 	// Use a consistent timeout duration for checking timeliness
-	validationTimeoutDuration := 25 * time.Second // Example: use the same threshold as before
+	validationTimeoutDuration := 30 * time.Second // Increased to match main validation timeout
 
 	for _, resp := range responses {
 		// Check timeliness (elapsed time from request to response reception)
