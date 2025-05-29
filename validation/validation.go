@@ -34,15 +34,31 @@ func AppendHashToFile(hash string, CID string) string {
 // Create Proof Hash
 func CreatProofHash(hash string, CID string) string {
 	// Get all the file blocks CIDs from the Target Files CID
-	//fmt.Println("CID: ", CID)
 	log.Debug("Proof CID: ", CID)
-	refsBytes := database.Read([]byte("refs" + CID))
-	//fmt.Println("Refs Bytes: ", refsBytes)
+
 	var cids []string
-	if err := json.Unmarshal(refsBytes, &cids); err != nil {
-		log.Errorf("Error while unmarshaling refs: %v\n", err)
-		return ""
+	var err error
+
+	// Try to get refs from database first (for storage nodes)
+	if database.DB != nil {
+		refsBytes := database.Read([]byte("refs" + CID))
+		if refsBytes != nil {
+			if err := json.Unmarshal(refsBytes, &cids); err != nil {
+				log.Errorf("Error while unmarshaling refs from database: %v\n", err)
+			}
+		}
 	}
+
+	// If no refs found in database or database not available, get from IPFS
+	if len(cids) == 0 {
+		log.Debugf("Getting refs for CID %s from IPFS (database not available or refs not found)", CID)
+		cids, err = ipfs.Refs(CID)
+		if err != nil {
+			log.Errorf("Error getting refs from IPFS for CID %s: %v", CID, err)
+			return ""
+		}
+	}
+
 	// Get the length of the CIDs
 	length := len(cids)
 	log.Debug("length", length)
