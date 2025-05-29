@@ -47,7 +47,7 @@ var mu sync.Mutex
 
 func main() {
 	flag.Parse()
-	log.SetLevel(logrus.WarnLevel)
+	log.SetLevel(logrus.DebugLevel)
 	ipfs.Shell = shell.NewShell("localhost:" + *ipfsPort)
 
 	// Wait for IPFS to be ready before proceeding
