@@ -37,11 +37,16 @@ var ConsensusProcessingMutex sync.Mutex
 func HandleRequestProof(req Request, ws *websocket.Conn) {
 	CID := req.CID
 	hash := req.Hash
+	logrus.Debugf("Storage node received proof request: CID=%s, Hash=%s, From=%s", CID, hash, req.User)
+
 	if ipfs.IsPinnedInDB(CID) {
+		logrus.Debugf("CID %s found in local storage, generating proof hash", CID)
 		validationHash := validation.CreatProofHash(hash, CID)
+		logrus.Debugf("Generated proof hash %s for CID %s", validationHash, CID)
 		SendProof(req, validationHash, hash, localdata.NodeName, ws)
 	} else {
 		logrus.Warnf("Pin %s not found locally when handling proof request for %s", CID, req.User)
+		logrus.Debugf("Sending 'NA' response for unavailable CID %s to %s", CID, req.User)
 		SendProof(req, "NA", hash, localdata.NodeName, ws)
 	}
 }
@@ -227,20 +232,25 @@ func ProcessProofConsensus(cid string, seed string, targetName string, startTime
 // SendProof
 // This is the function that sends the proof of access to the validation node
 func SendProof(req Request, validationHash string, salt string, user string, ws *websocket.Conn) {
+	logrus.Debugf("Sending proof response: Hash=%s, Salt=%s, From=%s, To=%s", validationHash, salt, user, req.User)
+
 	data := map[string]string{
 		"type": TypeProofOfAccess,
 		"hash": validationHash,
 		"seed": salt,
 		"user": user,
+		"cid":  req.CID, // Include CID in response
 	}
 	jsonData, err := json.Marshal(data)
 	if err != nil {
 		logrus.Errorf("Error encoding ProofOfAccess JSON: %v", err)
 		return
 	}
+
 	wsPeers := localdata.WsPeers[req.User]
 	nodeType := localdata.NodeType
 	if wsPeers == req.User && nodeType == 1 {
+		logrus.Debugf("Sending proof response to validator %s via WebSocket", req.User)
 		WsMutex.Lock()
 		err = ws.WriteMessage(websocket.TextMessage, jsonData)
 		if err != nil {
@@ -248,6 +258,7 @@ func SendProof(req Request, validationHash string, salt string, user string, ws 
 		}
 		WsMutex.Unlock()
 	} else if localdata.UseWS && nodeType == 2 {
+		logrus.Debugf("Sending proof response to validator %s via WebSocket (storage node)", req.User)
 		WsMutex.Lock()
 		err = ws.WriteMessage(websocket.TextMessage, jsonData)
 		if err != nil {
@@ -255,6 +266,9 @@ func SendProof(req Request, validationHash string, salt string, user string, ws 
 		}
 		WsMutex.Unlock()
 	} else {
+		logrus.Debugf("Sending proof response to validator %s via PubSub", req.User)
 		pubsub.Publish(string(jsonData), req.User)
 	}
+
+	logrus.Debugf("Proof response sent successfully to %s", req.User)
 }

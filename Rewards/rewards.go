@@ -6,13 +6,15 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"net/url"
 	"proofofaccess/ipfs"
 	"proofofaccess/localdata"
 	"sync"
 	"time"
 
-	"github.com/gorilla/websocket"
+	"proofofaccess/proofcrypto"
+	"proofofaccess/pubsub"
+	"proofofaccess/validation"
+
 	log "github.com/sirupsen/logrus"
 )
 
@@ -35,22 +37,27 @@ type HiveTransfer struct {
 var wg sync.WaitGroup
 
 func RunProofs(cids []string) error {
+	log.Debugf("RunProofs starting with %d CIDs", len(cids))
+
 	for {
-		//fmt.Println("Running proofs")
-		//fmt.Println("length of localdata.PeerNames: " + strconv.Itoa(len(localdata.PeerNames)))
-		//fmt.Println("Length of ThreeSpeakVideos: " + strconv.Itoa(len(localdata.ThreeSpeakVideos)))
-		for _, cid := range cids {
+		for i, cid := range cids {
 			localdata.Lock.Lock()
 			cidStatus := localdata.CIDRefStatus[cid]
 			localdata.Lock.Unlock()
+
+			log.Debugf("Processing CID %d/%d: %s (status: %t)", i+1, len(cids), cid, cidStatus)
+
 			if cidStatus == true {
-				// fmt.Println("Running proofs for CID: " + cid)
 				localdata.Lock.Lock()
 				peerNames := localdata.PeerNames
 				localdata.Lock.Unlock()
+
+				log.Debugf("CID %s is ready, checking %d peers", cid, len(peerNames))
+
 				for _, peer := range peerNames {
-					//fmt.Println("Running proof for peer: " + peer)
 					isPinnedInDB := ipfs.IsPinnedInDB(cid)
+					log.Debugf("Checking peer %s for CID %s (pinned in DB: %t)", peer, cid, isPinnedInDB)
+
 					if isPinnedInDB == true {
 						// REMOVED: Redundant check of storage node self-reported CID lists
 						// Instead, directly challenge storage nodes based on blockchain CID assignments
@@ -58,31 +65,87 @@ func RunProofs(cids []string) error {
 						log.Debugf("Running proof for peer: %s and CID: %s", peer, cid)
 						go RunProof(peer, cid)
 						time.Sleep(8 * time.Second)
+					} else {
+						log.Debugf("Skipping CID %s - not pinned in local database", cid)
 					}
 				}
+			} else {
+				log.Debugf("Skipping CID %s - not ready (status: %t)", cid, cidStatus)
 			}
 		}
+
+		// Add a delay between full cycles
+		log.Debug("Completed one full proof cycle, waiting before next cycle...")
+		time.Sleep(60 * time.Second)
 	}
 }
 
 func RunProof(peer string, cid string) error {
-	proof, err := runProofAPI(peer, cid)
+	log.Debugf("Initiating proof request for peer: %s and CID: %s", peer, cid)
+
+	// Create a random salt for this proof request
+	salt, err := proofcrypto.CreateRandomHash()
 	if err != nil {
-		return fmt.Errorf("failed to run proof for peer %s and CID %s: %w", peer, cid, err)
+		log.Errorf("Failed to create random salt for proof request to %s: %v", peer, err)
+		return err
 	}
-	// If proof is successful, add to localdata.PeerProofs
-	if proof.Success {
-		//fmt.Println("Proof successful")
-		//fmt.Println("Peer: " + peer)
-		//fmt.Println("CID: " + cid)
-		localdata.Lock.Lock()
-		peerProofs := localdata.PeerProofs[peer]
-		peerProofs = peerProofs + 1
-		//fmt.Println("Proofs: ", peerProofs)
-		localdata.PeerProofs[peer] = peerProofs // Update the map while the lock is held
-		localdata.Lock.Unlock()
+
+	// Create the proof request JSON
+	proofJson, err := validation.ProofRequestJson(salt, cid)
+	if err != nil {
+		log.Errorf("Failed to create proof request JSON for peer %s: %v", peer, err)
+		return err
 	}
-	return nil
+
+	// Send the proof request to the storage node
+	log.Debugf("Sending proof request to storage node %s with salt %s and CID %s", peer, salt, cid)
+
+	// Save the time when we send the request
+	localdata.SaveTime(cid, salt)
+
+	// Set initial status to Pending
+	localdata.Lock.Lock()
+	localdata.SetStatus(salt, cid, "Pending", peer, time.Now(), 0)
+	localdata.Lock.Unlock()
+
+	// Send the request via PubSub (storage nodes listen on their own name)
+	err = pubsub.Publish(string(proofJson), peer)
+	if err != nil {
+		log.Errorf("Failed to send proof request to storage node %s: %v", peer, err)
+		return err
+	}
+
+	log.Debugf("Proof request sent to storage node %s, waiting for response...", peer)
+
+	// Wait for response with timeout
+	timeout := 15 * time.Second
+	startTime := time.Now()
+
+	for {
+		if time.Since(startTime) > timeout {
+			log.Warnf("Proof request to %s timed out after %v", peer, timeout)
+			return fmt.Errorf("proof request to %s timed out", peer)
+		}
+
+		// Check if we received a response
+		status := localdata.GetStatus(salt)
+		if status.Status != "" && status.Status != "Pending" {
+			log.Debugf("Received proof response from %s: %s", peer, status.Status)
+			if status.Status == "Valid" {
+				// If proof is successful, add to localdata.PeerProofs
+				localdata.Lock.Lock()
+				localdata.PeerProofs[peer]++
+				log.Debugf("Proof successful for peer %s, total proofs: %d", peer, localdata.PeerProofs[peer])
+				localdata.Lock.Unlock()
+				return nil
+			} else {
+				log.Debugf("Proof failed for peer %s: %s", peer, status.Status)
+				return fmt.Errorf("proof failed: %s", status.Status)
+			}
+		}
+
+		time.Sleep(100 * time.Millisecond) // Check every 100ms
+	}
 }
 
 func RewardPeers() {
@@ -130,53 +193,6 @@ func RewardPeers() {
 	}
 }
 
-type Proof struct {
-	Success bool
-}
-
-func runProofAPI(peer string, cid string) (*Proof, error) {
-	u := url.URL{Scheme: "ws", Host: "localhost:8000", Path: "/validate"}
-	c, _, err := websocket.DefaultDialer.Dial(u.String(), nil)
-	if err != nil {
-		return nil, fmt.Errorf("failed to connect to the WebSocket server: %w", err)
-	}
-	defer c.Close()
-
-	clientInfo := map[string]string{
-		"CID":  cid,
-		"Name": peer,
-	}
-
-	err = c.WriteJSON(clientInfo)
-	if err != nil {
-		return nil, fmt.Errorf("failed to send client information to the server: %w", err)
-	}
-
-	for {
-		_, message, err := c.ReadMessage()
-		if err != nil {
-			return nil, fmt.Errorf("failed to read message from the server: %w", err)
-		}
-
-		var proofMessage ProofMessage
-		err = json.Unmarshal(message, &proofMessage)
-		if err != nil {
-			return nil, fmt.Errorf("failed to unmarshal server message: %w", err)
-		}
-
-		// Stop processing when receiving a "Valid" message, but keep the connection open to receive other messages.
-		if proofMessage.Status == "Valid" {
-			log.Debug("Valid")
-			break
-		}
-
-		// Add a delay before sending the next request, if needed.
-		time.Sleep(time.Second)
-	}
-
-	return &Proof{Success: true}, nil
-}
-
 type CIDSize struct {
 	CID  string
 	Size int64
@@ -201,11 +217,30 @@ func RunRewardProofs(ctx context.Context) {
 		case <-ctx.Done():
 			return
 		default:
-			log.Debug("Running proofs...")
+			log.Debug("Running reward proofs cycle...")
 			localdata.Lock.Lock()
 			cids := localdata.ThreeSpeakVideos
+			peerCount := len(localdata.PeerNames)
 			localdata.Lock.Unlock()
+
+			log.Debugf("Starting proofs for %d CIDs with %d peers", len(cids), peerCount)
+			if len(cids) > 0 {
+				log.Debugf("Sample CIDs: %v", cids[:min(3, len(cids))])
+			}
+			if peerCount == 0 {
+				log.Debug("No peers available for proof validation, waiting...")
+				time.Sleep(30 * time.Second)
+				continue
+			}
+
 			RunProofs(cids)
 		}
 	}
+}
+
+func min(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
 }
