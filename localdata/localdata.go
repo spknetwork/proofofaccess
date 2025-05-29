@@ -55,10 +55,55 @@ var HoneycombContractCIDs = []string{}
 var CidSize = map[string]int{}
 var WsWriteMutexes = make(map[string]*sync.Mutex)
 
+// In-memory storage for validators (when database is not available)
+var inMemoryStorage = make(map[string][]byte)
+var inMemoryMutex sync.RWMutex
+
 type NetworkRecord struct {
 	Peers          int    `json:"Peers"`
 	NetworkStorage int    `json:"NetworkStorage"`
 	Date           string `json:"date"`
+}
+
+// isDatabaseAvailable checks if database is available
+func isDatabaseAvailable() bool {
+	// Quick check without causing fatal errors
+	return database.DB != nil
+}
+
+// saveData saves data either to database or in-memory storage
+func saveData(key string, value []byte) {
+	if isDatabaseAvailable() {
+		database.Update([]byte(key), value)
+	} else {
+		// Use in-memory storage for validators
+		inMemoryMutex.Lock()
+		inMemoryStorage[key] = make([]byte, len(value))
+		copy(inMemoryStorage[key], value)
+		inMemoryMutex.Unlock()
+		logrus.Debugf("Saved to in-memory storage (no database): key=%s", key)
+	}
+}
+
+// readData reads data from database or in-memory storage
+func readData(key string) []byte {
+	if isDatabaseAvailable() {
+		return database.Read([]byte(key))
+	} else {
+		// Use in-memory storage for validators
+		inMemoryMutex.RLock()
+		value, exists := inMemoryStorage[key]
+		inMemoryMutex.RUnlock()
+		if !exists {
+			logrus.Debugf("Key not found in in-memory storage: %s", key)
+			return nil
+		}
+		// Return a copy to avoid modification issues
+		result := make([]byte, len(value))
+		copy(result, value)
+		logrus.Debugf("Read from in-memory storage (no database): key=%s", key)
+		return result
+	}
 }
 
 // SaveTime
@@ -67,16 +112,16 @@ func SaveTime(cid string, salt string) {
 	Time = time.Now()
 	timeStr := Time.Format(Layout)
 	key := cid + salt + "time"
-	database.Update([]byte(key), []byte(timeStr))
+	saveData(key, []byte(timeStr))
 }
 
 // GetTime
 // Gets the time from the database using CID + hash (salt) as key
 func GetTime(cid string, hash string) time.Time {
 	key := cid + hash + "time"
-	data := database.Read([]byte(key))
+	data := readData(key)
 	if data == nil {
-		logrus.Warnf("No time found for key %s", key)
+		logrus.Debugf("No time found for key %s", key)
 		return time.Time{}
 	}
 	parsedTime, err := time.Parse(Layout, string(data))
@@ -91,16 +136,16 @@ func GetTime(cid string, hash string) time.Time {
 // Sets the elapsed time to the database using CID + hash as key
 func SetElapsed(cid string, hash string, elapsed time.Duration) {
 	key := cid + hash + "elapsed"
-	database.Update([]byte(key), []byte(elapsed.String()))
+	saveData(key, []byte(elapsed.String()))
 }
 
 // GetElapsed
 // Gets the elapsed time from the database using CID + hash as key
 func GetElapsed(cid string, hash string) time.Duration {
 	key := cid + hash + "elapsed"
-	data := database.Read([]byte(key))
+	data := readData(key)
 	if data == nil {
-		logrus.Warnf("No elapsed time found for key %s", key)
+		logrus.Debugf("No elapsed time found for key %s", key)
 		return 0
 	}
 	parsedDuration, err := time.ParseDuration(string(data))
@@ -114,7 +159,7 @@ func GetElapsed(cid string, hash string) time.Duration {
 // GetStatus
 // Gets the status from the database (keyed by "Stats"+seed)
 func GetStatus(seed string) Message {
-	data := database.Read([]byte("Stats" + seed))
+	data := readData("Stats" + seed)
 	var message Message
 	if data == nil {
 		logrus.Debugf("No status record found for seed %s", seed)
@@ -140,8 +185,8 @@ func SetStatus(seed string, cid string, status string, name string, startTime ti
 		cid, seed, status, name, timeString, elapsedString)
 	jsonString = strings.TrimSpace(jsonString)
 	dbKey := "Stats" + seed
-	database.Update([]byte(dbKey), []byte(jsonString))
-	logrus.Debugf("SetStatus updated DB key %s with status %s", dbKey, status)
+	saveData(dbKey, []byte(jsonString))
+	logrus.Debugf("SetStatus updated storage key %s with status %s", dbKey, status)
 }
 
 // SetNodeName
@@ -198,5 +243,10 @@ func RecordNetwork() {
 		return
 	}
 
-	database.Save([]byte("Network"+currentTime), jsonRecord)
+	// Only save network records if database is available
+	if isDatabaseAvailable() {
+		database.Save([]byte("Network"+currentTime), jsonRecord)
+	} else {
+		logrus.Debugf("Skipping network record save - no database available (validator node)")
+	}
 }
