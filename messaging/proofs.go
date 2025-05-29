@@ -42,12 +42,31 @@ func HandleRequestProof(req Request, ws *websocket.Conn) {
 	logrus.Infof("  Hash: %s", hash)
 	logrus.Infof("  From: %s", req.User)
 	logrus.Infof("  Request Type: %s", req.Type)
+	logrus.Infof("  Timestamp: %s", time.Now().Format("15:04:05.000"))
 
-	if ipfs.IsPinnedInDB(CID) {
+	// Check if CID exists locally
+	isLocallyAvailable := ipfs.IsPinnedInDB(CID)
+	logrus.Infof("CID %s locally available: %t", CID, isLocallyAvailable)
+
+	if isLocallyAvailable {
 		logrus.Infof("CID %s found in local storage, generating proof hash", CID)
+		startGeneration := time.Now()
 		validationHash := validation.CreatProofHash(hash, CID)
-		logrus.Infof("Generated proof hash %s for CID %s", validationHash, CID)
-		SendProof(req, validationHash, hash, localdata.NodeName, ws)
+		generationTime := time.Since(startGeneration)
+		logrus.Infof("Generated proof hash %s for CID %s (took %v)", validationHash, CID, generationTime)
+
+		if validationHash == "" {
+			logrus.Errorf("Proof hash generation returned empty string for CID %s!", CID)
+			logrus.Infof("Sending 'NA' response due to hash generation failure for CID %s to %s", CID, req.User)
+			SendProof(req, "NA", hash, localdata.NodeName, ws)
+		} else if validationHash == "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855" {
+			logrus.Errorf("Proof hash generation returned empty string hash for CID %s!", CID)
+			logrus.Infof("Sending empty string hash response for CID %s to %s", CID, req.User)
+			SendProof(req, validationHash, hash, localdata.NodeName, ws)
+		} else {
+			logrus.Infof("Sending valid proof hash response for CID %s to %s", CID, req.User)
+			SendProof(req, validationHash, hash, localdata.NodeName, ws)
+		}
 		logrus.Infof("=== Proof response sent to %s ===", req.User)
 	} else {
 		logrus.Warnf("CID %s not found locally when handling proof request from %s", CID, req.User)
