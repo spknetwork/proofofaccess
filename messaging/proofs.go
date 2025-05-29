@@ -255,23 +255,33 @@ func SendProof(req Request, validationHash string, salt string, user string, ws 
 
 	wsPeers := localdata.WsPeers[req.User]
 	nodeType := localdata.NodeType
-	if wsPeers == req.User && nodeType == 1 {
+
+	// Try WebSocket for validator receiving response (only if WebSocket connection exists)
+	if wsPeers == req.User && nodeType == 1 && ws != nil {
 		logrus.Debugf("Sending proof response to validator %s via WebSocket", req.User)
 		WsMutex.Lock()
 		err = ws.WriteMessage(websocket.TextMessage, jsonData)
 		if err != nil {
 			logrus.Errorf("Error writing ProofOfAccess message to WebSocket for %s: %v", req.User, err)
+			// Fall back to PubSub if WebSocket fails
+			logrus.Debugf("WebSocket failed, falling back to PubSub for %s", req.User)
+			pubsub.Publish(string(jsonData), req.User)
 		}
 		WsMutex.Unlock()
-	} else if localdata.UseWS && nodeType == 2 {
+	} else if localdata.UseWS && nodeType == 2 && ws != nil {
+		// Try WebSocket for storage node sending response (only if WebSocket connection exists)
 		logrus.Debugf("Sending proof response to validator %s via WebSocket (storage node)", req.User)
 		WsMutex.Lock()
 		err = ws.WriteMessage(websocket.TextMessage, jsonData)
 		if err != nil {
 			logrus.Errorf("Error writing ProofOfAccess message to WebSocket validator %s: %v", req.User, err)
+			// Fall back to PubSub if WebSocket fails
+			logrus.Debugf("WebSocket failed, falling back to PubSub for %s", req.User)
+			pubsub.Publish(string(jsonData), req.User)
 		}
 		WsMutex.Unlock()
 	} else {
+		// Use PubSub (either as fallback or primary method)
 		logrus.Debugf("Sending proof response to validator %s via PubSub", req.User)
 		pubsub.Publish(string(jsonData), req.User)
 	}
