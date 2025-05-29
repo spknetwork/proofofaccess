@@ -159,21 +159,24 @@ func sendProofRequest(salt string, cid string, proofJson []byte, target string, 
 	log.Debugf("  CID: %s, Salt: %s", cid, salt)
 	log.Debugf("  Current node type: %d, UseWS: %v", localdata.NodeType, localdata.UseWS)
 
-	// Check WebSocket peer connection for validators sending to storage nodes
-	if localdata.WsPeers[username] == username && localdata.NodeType == 1 {
+	var messageSent bool = false
+
+	// Try WebSocket for validator sending to storage nodes (if connection exists)
+	if localdata.WsPeers[username] == username && localdata.NodeType == 1 && localdata.WsClients[username] != nil {
 		log.Infof("Sending proof request to storage node %s via WebSocket (validator->storage)", username)
 		ws := localdata.WsClients[username]
-		if ws == nil {
-			log.Errorf("WebSocket connection to %s is nil", username)
-			return errors.New("WebSocket connection is nil")
-		}
 		err := ws.WriteMessage(websocket.TextMessage, proofJson)
 		if err != nil {
 			log.Errorf("Failed to send proof request via WebSocket to %s: %v", username, err)
-			return err
+			log.Infof("WebSocket failed, will fall back to PubSub for %s", username)
+		} else {
+			log.Infof("Proof request sent successfully via WebSocket to %s (peer: %s)", username, peerID)
+			messageSent = true
 		}
-		log.Infof("Proof request sent successfully via WebSocket to %s (peer: %s)", username, peerID)
-	} else if localdata.UseWS == true && localdata.NodeType == 2 {
+	}
+
+	// Try WebSocket for storage nodes sending to validators
+	if !messageSent && localdata.UseWS == true && localdata.NodeType == 2 {
 		log.Infof("Sending proof request to validator %s via WebSocket (storage->validator)", username)
 		localdata.Lock.Lock()
 		validatorWs := localdata.WsValidators[username]
@@ -188,7 +191,11 @@ func sendProofRequest(salt string, cid string, proofJson []byte, target string, 
 			return err
 		}
 		log.Infof("Proof request sent successfully via WebSocket to validator %s (peer: %s)", username, peerID)
-	} else {
+		messageSent = true
+	}
+
+	// Fall back to PubSub if WebSocket wasn't used or failed
+	if !messageSent {
 		// For PubSub, we must use username since that's what nodes subscribe to
 		if isPeerID {
 			log.Warnf("Cannot send to peer ID %s via PubSub - PubSub uses usernames for topics", peerID)
