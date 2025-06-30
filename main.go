@@ -131,7 +131,29 @@ func initialize(ctx context.Context) {
 		go validators.RunValidationChallenges(ctx)
 	}
 
+	// Start cleanup goroutine for old validation results (1 hour TTL)
+	go func() {
+		ticker := time.NewTicker(10 * time.Minute)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ticker.C:
+				cleanupOldValidations()
+			case <-ctx.Done():
+				return
+			}
+		}
+	}()
+
 	log.Info("Initialization complete")
+}
+
+func cleanupOldValidations() {
+	log.Debug("Running cleanup for old validation results")
+	// Clean up validation results older than 1 hour
+	// This will need to be implemented based on your database structure
+	// For now, we'll just log that cleanup is running
+	// TODO: Implement actual cleanup logic based on timestamp field
 }
 
 func setupCloseHandler(cancel context.CancelFunc) {

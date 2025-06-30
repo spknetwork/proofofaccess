@@ -181,8 +181,10 @@ func SetStatus(seed string, cid string, status string, name string, startTime ti
 		timeString = startTime.Format(time.RFC3339)
 	}
 	elapsedString := elapsed.String()
-	jsonString := fmt.Sprintf(`{"type": "ProofOfAccessConsensus", "CID":"%s", "seed":"%s", "status":"%s", "name":"%s", "time":"%s", "elapsed":"%s"}`,
-		cid, seed, status, name, timeString, elapsedString)
+	// Add timestamp for TTL
+	timestamp := time.Now().Unix()
+	jsonString := fmt.Sprintf(`{"type": "ProofOfAccessConsensus", "CID":"%s", "seed":"%s", "status":"%s", "name":"%s", "time":"%s", "elapsed":"%s", "timestamp":%d}`,
+		cid, seed, status, name, timeString, elapsedString, timestamp)
 	jsonString = strings.TrimSpace(jsonString)
 	dbKey := "Stats" + seed
 	saveData(dbKey, []byte(jsonString))

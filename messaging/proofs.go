@@ -148,6 +148,15 @@ func ProcessProofConsensus(cid string, seed string, targetName string, startTime
 	ConsensusProcessing[key] = true
 	ConsensusProcessingMutex.Unlock() // Use exported mutex
 
+	// Clean up consensus processing flag after 5 minutes
+	go func() {
+		time.Sleep(5 * time.Minute)
+		ConsensusProcessingMutex.Lock()
+		delete(ConsensusProcessing, key)
+		ConsensusProcessingMutex.Unlock()
+		logrus.Debugf("Cleaned up consensus processing flag for key: %s", key)
+	}()
+
 	logrus.Debugf("Processing proof consensus for key: %s", key)
 
 	pendingProofsMutex.Lock()
