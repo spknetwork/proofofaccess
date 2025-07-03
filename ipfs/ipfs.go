@@ -343,6 +343,7 @@ func IsActuallyAvailable(cid string) bool {
 	go func() {
 		refs, err := Shell.Refs(cid, false)
 		if err != nil {
+			logrus.Warnf("Shell.Refs error for CID %s: %v", cid, err)
 			resultChan <- refResult{hasRefs: false, err: err}
 			return
 		}
