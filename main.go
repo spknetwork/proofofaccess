@@ -105,6 +105,9 @@ func initialize(ctx context.Context) {
 
 	if *nodeType == 2 {
 		validators.GetValidators(*validatorsApi)
+		// Storage nodes ALWAYS need to subscribe to their own PubSub topic to receive messages
+		go messaging.PubsubHandler(ctx)
+		
 		if *useWS {
 			localdata.UseWS = *useWS
 			log.Info("Connecting to validators via WebSocket")
@@ -113,7 +116,6 @@ func initialize(ctx context.Context) {
 			}
 		} else {
 			log.Info("Connecting to validators via PubSub")
-			go messaging.PubsubHandler(ctx)
 			go validators.ConnectToValidators(ctx, nodeType)
 		}
 	}
