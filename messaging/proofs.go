@@ -19,6 +19,7 @@ type ProofResponse struct {
 	Elapsed   time.Duration
 	Responder string
 	Timestamp time.Time // When the response was received by the validator
+	FileSize  int       // File size reported by the storage node (in bytes)
 }
 
 // Map to store responses grouped by cid+seed (the key identifies the original request)
@@ -122,6 +123,7 @@ func HandleProofOfAccess(req Request, ws *websocket.Conn) {
 		Elapsed:   elapsed,
 		Responder: req.User,
 		Timestamp: receivedTime,
+		FileSize:  req.Size, // Store the file size from the proof response
 	}
 
 	pendingProofsMutex.Lock()
@@ -284,12 +286,26 @@ func SendProof(req Request, validationHash string, salt string, user string, ws 
 	logrus.Infof("  Hash: %s", validationHash)
 	logrus.Infof("  Timestamp: %s", time.Now().Format("15:04:05.000"))
 
-	data := map[string]string{
+	// Get file size for the CID
+	var fileSize int
+	if validationHash != "NA" {
+		size, err := ipfs.FileSize(req.CID)
+		if err != nil {
+			logrus.Warnf("Failed to get file size for CID %s: %v", req.CID, err)
+			fileSize = -1 // Indicate error getting size
+		} else {
+			fileSize = size
+			logrus.Infof("  File Size: %d bytes", fileSize)
+		}
+	}
+
+	data := map[string]interface{}{
 		"type": TypeProofOfAccess,
 		"hash": validationHash,
 		"seed": salt,
 		"user": user,
 		"cid":  req.CID, // Include CID in response
+		"size": fileSize, // Include file size in response
 	}
 	jsonData, err := json.Marshal(data)
 	if err != nil {

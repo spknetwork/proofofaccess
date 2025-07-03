@@ -22,6 +22,7 @@ type Request struct {
 	Pins       string `json:"pins"`
 	TotalParts string `json:"totalParts"`
 	Part       string `json:"part"`
+	Size       int    `json:"size,omitempty"` // File size in bytes (optional)
 }
 
 const (
