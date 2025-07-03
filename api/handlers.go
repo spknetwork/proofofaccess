@@ -248,8 +248,17 @@ func handleValidate(c *gin.Context) {
 			if statusMsg.Status != "" && statusMsg.Status != "Pending" {
 				// Consensus process has finished and set the status
 				finalStatus = statusMsg.Status
-				// Calculate elapsed time based on when we detected the completion
-				finalElapsed = time.Since(startTime)
+				// Use the elapsed time from the consensus result if available
+				if statusMsg.Elapsed != "" && statusMsg.Elapsed != "0s" {
+					if parsed, err := time.ParseDuration(statusMsg.Elapsed); err == nil {
+						finalElapsed = parsed
+					} else {
+						// Fallback to calculated time
+						finalElapsed = time.Since(startTime)
+					}
+				} else {
+					finalElapsed = time.Since(startTime)
+				}
 				logrus.Infof("Consensus result received for CID %s, salt %s: %s (took %v)", CID, salt, finalStatus, finalElapsed)
 				goto reportResult // Exit loop
 			}
@@ -259,9 +268,18 @@ func handleValidate(c *gin.Context) {
 			statusMsg := localdata.GetStatus(salt)
 			if statusMsg.Status != "" && statusMsg.Status != "Pending" {
 				finalStatus = statusMsg.Status
-				// Calculate elapsed time based on when we detected the completion
-				finalElapsed = time.Since(startTime)
-				logrus.Infof("Final consensus result (at timeout) for CID %s: %s", CID, finalStatus)
+				// Use the elapsed time from the consensus result if available
+				if statusMsg.Elapsed != "" && statusMsg.Elapsed != "0s" {
+					if parsed, err := time.ParseDuration(statusMsg.Elapsed); err == nil {
+						finalElapsed = parsed
+					} else {
+						// Fallback to calculated time
+						finalElapsed = time.Since(startTime)
+					}
+				} else {
+					finalElapsed = time.Since(startTime)
+				}
+				logrus.Infof("Final consensus result (at timeout) for CID %s: %s (took %v)", CID, finalStatus, finalElapsed)
 			} else {
 				// Consensus didn't finish or set status in time.
 				finalStatus = "Timeout"                                  // Or "Invalid"

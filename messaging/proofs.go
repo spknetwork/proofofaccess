@@ -271,8 +271,25 @@ func ProcessProofConsensus(cid string, seed string, targetName string, startTime
 		targetName = "Consensus"
 	}
 
-	localdata.SetStatus(seed, cid, finalStatus, targetName, startTime, 0) // Use updated SetStatus, pass 0 duration
-	logrus.Debugf("Final status for key %s set to %s for target %s", key, finalStatus, targetName)
+	// Find the fastest response time (regardless of validity)
+	var fastestResponseTime time.Duration = 0
+	if len(timelyResponses) > 0 {
+		// Find the fastest response among all timely responses
+		fastestResponseTime = time.Hour // Start with a very large duration
+		for _, resp := range timelyResponses {
+			if resp.Elapsed < fastestResponseTime {
+				fastestResponseTime = resp.Elapsed
+			}
+		}
+		// If we didn't find any response times, use 0
+		if fastestResponseTime == time.Hour {
+			fastestResponseTime = 0
+		}
+		logrus.Debugf("Fastest response time for key %s: %v (status: %s)", key, fastestResponseTime, finalStatus)
+	}
+
+	localdata.SetStatus(seed, cid, finalStatus, targetName, startTime, fastestResponseTime) // Pass actual fastest response time
+	logrus.Debugf("Final status for key %s set to %s for target %s with response time %v", key, finalStatus, targetName, fastestResponseTime)
 }
 
 // SendProof
