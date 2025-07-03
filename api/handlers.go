@@ -249,15 +249,19 @@ func handleValidate(c *gin.Context) {
 				// Consensus process has finished and set the status
 				finalStatus = statusMsg.Status
 				// Use the elapsed time from the consensus result if available
+				logrus.Debugf("Retrieved status message - Status: %s, Elapsed: %s", statusMsg.Status, statusMsg.Elapsed)
 				if statusMsg.Elapsed != "" && statusMsg.Elapsed != "0s" {
 					if parsed, err := time.ParseDuration(statusMsg.Elapsed); err == nil {
 						finalElapsed = parsed
+						logrus.Infof("Using elapsed time from consensus: %v", finalElapsed)
 					} else {
 						// Fallback to calculated time
 						finalElapsed = time.Since(startTime)
+						logrus.Warnf("Failed to parse elapsed time '%s': %v, using calculated time: %v", statusMsg.Elapsed, err, finalElapsed)
 					}
 				} else {
 					finalElapsed = time.Since(startTime)
+					logrus.Warnf("No elapsed time in consensus result (was: '%s'), using calculated time: %v", statusMsg.Elapsed, finalElapsed)
 				}
 				logrus.Infof("Consensus result received for CID %s, salt %s: %s (took %v)", CID, salt, finalStatus, finalElapsed)
 				goto reportResult // Exit loop

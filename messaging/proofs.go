@@ -159,10 +159,11 @@ func ProcessProofConsensus(cid string, seed string, targetName string, startTime
 		logrus.Debugf("Cleaned up consensus processing flag for key: %s", key)
 	}()
 
-	logrus.Debugf("Processing proof consensus for key: %s", key)
+	logrus.Warnf("Processing proof consensus for key: %s", key)
 
 	pendingProofsMutex.Lock()
 	responses, exists := pendingProofs[key]
+	logrus.Warnf("Found %d pending responses for key %s", len(responses), key)
 	if exists {
 		// Clean up the entry from pending proofs map *after* processing
 		defer func() {
@@ -280,16 +281,20 @@ func ProcessProofConsensus(cid string, seed string, targetName string, startTime
 			if resp.Elapsed < fastestResponseTime {
 				fastestResponseTime = resp.Elapsed
 			}
+			logrus.Debugf("Response from %s: elapsed=%v, hash=%s", resp.Responder, resp.Elapsed, resp.Hash)
 		}
 		// If we didn't find any response times, use 0
 		if fastestResponseTime == time.Hour {
 			fastestResponseTime = 0
+			logrus.Warnf("No valid response times found for key %s, using 0", key)
 		}
-		logrus.Debugf("Fastest response time for key %s: %v (status: %s)", key, fastestResponseTime, finalStatus)
+		logrus.Warnf("Fastest response time for key %s: %v (status: %s, had %d timely responses)", key, fastestResponseTime, finalStatus, len(timelyResponses))
+	} else {
+		logrus.Warnf("No timely responses for key %s, using 0 elapsed time", key)
 	}
 
 	localdata.SetStatus(seed, cid, finalStatus, targetName, startTime, fastestResponseTime) // Pass actual fastest response time
-	logrus.Debugf("Final status for key %s set to %s for target %s with response time %v", key, finalStatus, targetName, fastestResponseTime)
+	logrus.Warnf("Final status for key %s set to %s for target %s with response time %v", key, finalStatus, targetName, fastestResponseTime)
 }
 
 // SendProof
