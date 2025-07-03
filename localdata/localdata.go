@@ -153,10 +153,39 @@ func GetStatus(seed string) Message {
 		logrus.Debugf("No status record found for seed %s", seed)
 		return message
 	}
-	err := json.Unmarshal([]byte(string(data)), &message)
+	
+	// Parse into a raw map first to handle empty time strings
+	var rawMsg map[string]interface{}
+	err := json.Unmarshal(data, &rawMsg)
 	if err != nil {
 		logrus.Errorf("Error decoding Stats JSON for seed %s (data: %s): %v", seed, string(data), err)
+		return message
 	}
+	
+	// Manually extract fields
+	message.Type = getStringField(rawMsg, "type")
+	message.CID = getStringField(rawMsg, "CID")
+	message.Status = getStringField(rawMsg, "status")
+	message.Name = getStringField(rawMsg, "name")
+	message.Elapsed = getStringField(rawMsg, "elapsed")
+	
+	// Parse seed as Hash
+	if seed, ok := rawMsg["seed"].(string); ok {
+		message.Hash = seed
+	}
+	
+	// Parse time only if not empty
+	if timeStr, ok := rawMsg["time"].(string); ok && timeStr != "" {
+		if parsedTime, err := time.Parse(time.RFC3339, timeStr); err == nil {
+			message.Time = parsedTime
+		}
+	}
+	
+	// Parse timestamp
+	if timestamp, ok := rawMsg["timestamp"].(float64); ok {
+		message.Timestamp = int64(timestamp)
+	}
+	
 	return message
 }
 
