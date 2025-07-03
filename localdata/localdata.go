@@ -153,10 +153,12 @@ func GetStatus(seed string) Message {
 		logrus.Debugf("No status record found for seed %s", seed)
 		return message
 	}
+	logrus.Debugf("GetStatus raw data for seed %s: %s", seed, string(data))
 	err := json.Unmarshal([]byte(string(data)), &message)
 	if err != nil {
 		logrus.Errorf("Error decoding Stats JSON for seed %s (data: %s): %v", seed, string(data), err)
 	}
+	logrus.Debugf("GetStatus parsed message for seed %s: Status=%s, Elapsed=%s", seed, message.Status, message.Elapsed)
 	return message
 }
 
