@@ -328,52 +328,32 @@ func IsActuallyAvailable(cid string) bool {
 		return false
 	}
 	
-	// Try to check refs with a timeout - this is faster than checking all pins
-	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
-	defer cancel()
-	
-	// Create a channel for the result
-	type refResult struct {
-		hasRefs bool
-		err     error
-	}
-	resultChan := make(chan refResult, 1)
-	
-	// Check refs in a goroutine
-	go func() {
-		refs, err := Shell.Refs(cid, false)
+	// Try using BlockStat which should work for pinned content
+	// This is more reliable than refs for checking local availability
+	stat, err := Shell.BlockStat(cid)
+	if err != nil {
+		// If BlockStat fails, try one more method - see if we can get any data
+		// This uses Cat but with a very small byte limit
+		reader, err := Shell.Cat(cid)
 		if err != nil {
-			logrus.Warnf("Shell.Refs error for CID %s: %v", cid, err)
-			resultChan <- refResult{hasRefs: false, err: err}
-			return
-		}
-		
-		// Check if we got at least one ref
-		select {
-		case _, ok := <-refs:
-			resultChan <- refResult{hasRefs: ok, err: nil}
-		default:
-			resultChan <- refResult{hasRefs: false, err: nil}
-		}
-	}()
-	
-	// Wait for result or timeout
-	select {
-	case result := <-resultChan:
-		if result.err != nil {
-			logrus.Debugf("CID %s not available in IPFS: %v", cid, result.err)
+			logrus.Debugf("CID %s not available in IPFS (BlockStat and Cat failed): %v", cid, err)
 			return false
 		}
-		if result.hasRefs {
-			logrus.Debugf("CID %s is available in IPFS", cid)
-			return true
+		// Read just 1 byte to verify the file exists
+		buf := make([]byte, 1)
+		_, err = reader.Read(buf)
+		reader.Close()
+		if err != nil && err != io.EOF {
+			logrus.Debugf("CID %s not available in IPFS (can't read): %v", cid, err)
+			return false
 		}
-		logrus.Debugf("CID %s has no refs in IPFS", cid)
-		return false
-	case <-ctx.Done():
-		logrus.Warnf("Timeout checking CID %s availability", cid)
-		return false
+		logrus.Debugf("CID %s is available in IPFS (via Cat)", cid)
+		return true
 	}
+	
+	// If we got stats, the block exists locally
+	logrus.Debugf("CID %s is available in IPFS (BlockStat size: %d)", cid, stat.Size)
+	return true
 }
 
 func SaveRefs(cids []string) {

@@ -249,7 +249,7 @@ func handleValidate(c *gin.Context) {
 				// Consensus process has finished and set the status
 				finalStatus = statusMsg.Status
 				// Use the elapsed time from the consensus result if available
-				logrus.Debugf("Retrieved status message - Status: %s, Elapsed: '%s'", statusMsg.Status, statusMsg.Elapsed)
+				logrus.Infof("Retrieved status message - Status: %s, Elapsed: '%s', Name: %s", statusMsg.Status, statusMsg.Elapsed, statusMsg.Name)
 				// Use elapsed time from consensus unless it's completely empty
 				if statusMsg.Elapsed != "" {
 					if parsed, err := time.ParseDuration(statusMsg.Elapsed); err == nil {
