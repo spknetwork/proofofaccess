@@ -54,9 +54,25 @@ func CreatProofHash(hash string, CID string) string {
 	log.Infof("Total refs count: %d", length)
 
 	if length == 0 {
-		log.Errorf("No refs found for CID %s - cannot generate proof hash", CID)
-		log.Errorf("=== Proof hash generation failed - zero refs ===")
-		return ""
+		log.Infof("No refs found for CID %s - likely a single-block file, using content directly", CID)
+		// For single-block files (like small thumbnails), use the file content directly
+		fileContent, err := ipfs.Download(CID)
+		if err != nil {
+			log.Errorf("Failed to download single-block file %s: %v", CID, err)
+			log.Errorf("=== Proof hash generation failed - cannot access file ===")
+			return ""
+		}
+		
+		// Create proof hash using the file content combined with the input hash
+		contentWithHash := append([]byte(hash), fileContent.Bytes()...)
+		proofHash := proofcrypto.HashFile(string(contentWithHash))
+		finalHash := proofcrypto.HashFile(proofHash)
+		
+		log.Infof("=== Proof hash generation complete (single-block file) ===")
+		log.Infof("  Final proof hash: %s", finalHash)
+		log.Infof("  File size: %d bytes", fileContent.Len())
+		
+		return finalHash
 	}
 
 	// Create the file contents
