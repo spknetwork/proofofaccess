@@ -177,7 +177,9 @@ func ProcessProofConsensus(cid string, seed string, targetName string, startTime
 
 	if !exists || len(responses) == 0 {
 		logrus.Warnf("No proof responses received for key %s within timeout.", key)
-		localdata.SetStatus(seed, cid, "Invalid", "NoResponse", startTime, 0) // Use updated SetStatus
+		// When no responses received, the elapsed time is the full timeout duration
+		timeoutDuration := 30 * time.Second
+		localdata.SetStatus(seed, cid, "Invalid", targetName, startTime, timeoutDuration)
 		return
 	}
 

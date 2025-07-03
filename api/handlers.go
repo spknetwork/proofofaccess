@@ -250,7 +250,8 @@ func handleValidate(c *gin.Context) {
 				finalStatus = statusMsg.Status
 				// Use the elapsed time from the consensus result if available
 				logrus.Debugf("Retrieved status message - Status: %s, Elapsed: '%s'", statusMsg.Status, statusMsg.Elapsed)
-				if statusMsg.Elapsed != "" && statusMsg.Elapsed != "0s" {
+				// Use elapsed time from consensus unless it's completely empty
+				if statusMsg.Elapsed != "" {
 					if parsed, err := time.ParseDuration(statusMsg.Elapsed); err == nil {
 						finalElapsed = parsed
 						logrus.Infof("Using elapsed time from consensus: %v", finalElapsed)
@@ -273,7 +274,7 @@ func handleValidate(c *gin.Context) {
 			if statusMsg.Status != "" && statusMsg.Status != "Pending" {
 				finalStatus = statusMsg.Status
 				// Use the elapsed time from the consensus result if available
-				if statusMsg.Elapsed != "" && statusMsg.Elapsed != "0s" {
+				if statusMsg.Elapsed != "" {
 					if parsed, err := time.ParseDuration(statusMsg.Elapsed); err == nil {
 						finalElapsed = parsed
 					} else {

@@ -197,7 +197,11 @@ func SetStatus(seed string, cid string, status string, name string, startTime ti
 	if !startTime.IsZero() {
 		timeString = startTime.Format(time.RFC3339)
 	}
-	elapsedString := elapsed.String()
+	elapsedString := ""
+	// If elapsed is negative, don't set it (let API calculate from start time)
+	if elapsed >= 0 {
+		elapsedString = elapsed.String()
+	}
 	// Log what we're storing for debugging
 	logrus.Debugf("SetStatus storing: seed=%s, status=%s, elapsed=%s", seed, status, elapsedString)
 	// Add timestamp for TTL
