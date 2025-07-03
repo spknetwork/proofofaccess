@@ -2,7 +2,6 @@ package validation
 
 import (
 	"encoding/json"
-	"proofofaccess/database"
 	"proofofaccess/ipfs"
 	"proofofaccess/localdata"
 	"proofofaccess/proofcrypto"
@@ -36,40 +35,19 @@ func CreatProofHash(hash string, CID string) string {
 	log.Infof("=== Starting proof hash generation ===")
 	log.Infof("  CID: %s", CID)
 	log.Infof("  Input hash: %s", hash)
-	log.Infof("  Database available: %t", database.DB != nil)
 
 	var cids []string
 	var err error
 
-	// Try to get refs from database first (for storage nodes)
-	if database.DB != nil {
-		log.Debugf("Attempting to get refs from database for CID %s", CID)
-		refsBytes := database.Read([]byte("refs" + CID))
-		if refsBytes != nil {
-			log.Debugf("Found refs in database for CID %s, unmarshaling...", CID)
-			if err := json.Unmarshal(refsBytes, &cids); err != nil {
-				log.Errorf("Error while unmarshaling refs from database for CID %s: %v", CID, err)
-			} else {
-				log.Infof("Successfully loaded %d refs from database for CID %s", len(cids), CID)
-			}
-		} else {
-			log.Debugf("No refs found in database for CID %s", CID)
-		}
-	} else {
-		log.Debugf("Database not available, will try IPFS directly")
+	// Always get refs from IPFS directly
+	log.Infof("Getting refs for CID %s from IPFS", CID)
+	cids, err = ipfs.Refs(CID)
+	if err != nil {
+		log.Errorf("Error getting refs from IPFS for CID %s: %v", CID, err)
+		log.Errorf("=== Proof hash generation failed - no refs available ===")
+		return ""
 	}
-
-	// If no refs found in database or database not available, get from IPFS
-	if len(cids) == 0 {
-		log.Infof("Getting refs for CID %s from IPFS (database not available or refs not found)", CID)
-		cids, err = ipfs.Refs(CID)
-		if err != nil {
-			log.Errorf("Error getting refs from IPFS for CID %s: %v", CID, err)
-			log.Errorf("=== Proof hash generation failed - no refs available ===")
-			return ""
-		}
-		log.Infof("Successfully got %d refs from IPFS for CID %s", len(cids), CID)
-	}
+	log.Infof("Successfully got %d refs from IPFS for CID %s", len(cids), CID)
 
 	// Get the length of the CIDs
 	length := len(cids)

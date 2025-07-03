@@ -3,7 +3,6 @@ package localdata
 import (
 	"encoding/json"
 	"fmt"
-	"proofofaccess/database"
 	"strings"
 	"sync"
 	"time"
@@ -17,10 +16,14 @@ var Time = time.Now()
 const Layout = "2006-01-02 15:04:05.999999 -0700 MST m=+0.000000000"
 
 type Message struct {
-	Type   string `json:"type"`
-	Hash   string `json:"hash"`
-	CID    string `json:"CID"`
-	Status string `json:"status"`
+	Type      string    `json:"type"`
+	Hash      string    `json:"hash"`
+	CID       string    `json:"CID"`
+	Status    string    `json:"status"`
+	Name      string    `json:"name"`
+	Time      time.Time `json:"time"`
+	Elapsed   string    `json:"elapsed"`
+	Timestamp int64     `json:"timestamp"`
 }
 
 var Synced = false
@@ -65,45 +68,30 @@ type NetworkRecord struct {
 	Date           string `json:"date"`
 }
 
-// isDatabaseAvailable checks if database is available
-func isDatabaseAvailable() bool {
-	// Quick check without causing fatal errors
-	return database.DB != nil
-}
 
-// saveData saves data either to database or in-memory storage
+// saveData saves data to in-memory storage
 func saveData(key string, value []byte) {
-	if isDatabaseAvailable() {
-		database.Update([]byte(key), value)
-	} else {
-		// Use in-memory storage for validators
-		inMemoryMutex.Lock()
-		inMemoryStorage[key] = make([]byte, len(value))
-		copy(inMemoryStorage[key], value)
-		inMemoryMutex.Unlock()
-		logrus.Debugf("Saved to in-memory storage (no database): key=%s", key)
-	}
+	inMemoryMutex.Lock()
+	inMemoryStorage[key] = make([]byte, len(value))
+	copy(inMemoryStorage[key], value)
+	inMemoryMutex.Unlock()
+	logrus.Debugf("Saved to in-memory storage: key=%s", key)
 }
 
-// readData reads data from database or in-memory storage
+// readData reads data from in-memory storage
 func readData(key string) []byte {
-	if isDatabaseAvailable() {
-		return database.Read([]byte(key))
-	} else {
-		// Use in-memory storage for validators
-		inMemoryMutex.RLock()
-		value, exists := inMemoryStorage[key]
-		inMemoryMutex.RUnlock()
-		if !exists {
-			logrus.Debugf("Key not found in in-memory storage: %s", key)
-			return nil
-		}
-		// Return a copy to avoid modification issues
-		result := make([]byte, len(value))
-		copy(result, value)
-		logrus.Debugf("Read from in-memory storage (no database): key=%s", key)
-		return result
+	inMemoryMutex.RLock()
+	value, exists := inMemoryStorage[key]
+	inMemoryMutex.RUnlock()
+	if !exists {
+		logrus.Debugf("Key not found in in-memory storage: %s", key)
+		return nil
 	}
+	// Return a copy to avoid modification issues
+	result := make([]byte, len(value))
+	copy(result, value)
+	logrus.Debugf("Read from in-memory storage: key=%s", key)
+	return result
 }
 
 // SaveTime
@@ -245,10 +233,112 @@ func RecordNetwork() {
 		return
 	}
 
-	// Only save network records if database is available
-	if isDatabaseAvailable() {
-		database.Save([]byte("Network"+currentTime), jsonRecord)
-	} else {
-		logrus.Debugf("Skipping network record save - no database available (validator node)")
+	// Save network records to in-memory storage
+	saveData("Network"+currentTime, jsonRecord)
+	logrus.Debugf("Saved network record for time: %s", currentTime)
+}
+
+// CleanupOldValidations removes validation results older than the specified duration
+func CleanupOldValidations(maxAge time.Duration) {
+	now := time.Now()
+	cutoff := now.Add(-maxAge).Unix()
+	
+	inMemoryMutex.Lock()
+	defer inMemoryMutex.Unlock()
+	
+	keysToDelete := []string{}
+	
+	for key, data := range inMemoryStorage {
+		if strings.HasPrefix(key, "Stats") {
+			// Try to parse the validation result
+			var result map[string]interface{}
+			if err := json.Unmarshal(data, &result); err == nil {
+				if timestamp, ok := result["timestamp"].(float64); ok {
+					if int64(timestamp) < cutoff {
+						keysToDelete = append(keysToDelete, key)
+					}
+				}
+			}
+		}
 	}
+	
+	for _, key := range keysToDelete {
+		delete(inMemoryStorage, key)
+		logrus.Debugf("Cleaned up old validation: %s", key)
+	}
+	
+	if len(keysToDelete) > 0 {
+		logrus.Infof("Cleaned up %d old validation results", len(keysToDelete))
+	}
+}
+
+// GetStats returns validation statistics for API handlers
+func GetStats(user string) []Message {
+	inMemoryMutex.RLock()
+	defer inMemoryMutex.RUnlock()
+	
+	var messages []Message
+	for key, data := range inMemoryStorage {
+		if strings.HasPrefix(key, "Stats") {
+			// Parse the raw JSON to get all fields
+			var rawMsg map[string]interface{}
+			if err := json.Unmarshal(data, &rawMsg); err != nil {
+				continue
+			}
+			
+			msg := Message{
+				Type:   getStringField(rawMsg, "type"),
+				CID:    getStringField(rawMsg, "CID"),
+				Status: getStringField(rawMsg, "status"),
+				Name:   getStringField(rawMsg, "name"),
+				Elapsed: getStringField(rawMsg, "elapsed"),
+			}
+			
+			// Parse seed as Hash
+			if seed, ok := rawMsg["seed"].(string); ok {
+				msg.Hash = seed
+			}
+			
+			// Parse time
+			if timeStr, ok := rawMsg["time"].(string); ok && timeStr != "" {
+				if parsedTime, err := time.Parse(time.RFC3339, timeStr); err == nil {
+					msg.Time = parsedTime
+				}
+			}
+			
+			// Parse timestamp
+			if timestamp, ok := rawMsg["timestamp"].(float64); ok {
+				msg.Timestamp = int64(timestamp)
+			}
+			
+			if user == "" || msg.Name == user {
+				messages = append(messages, msg)
+			}
+		}
+	}
+	return messages
+}
+
+func getStringField(m map[string]interface{}, field string) string {
+	if val, ok := m[field].(string); ok {
+		return val
+	}
+	return ""
+}
+
+// GetNetwork returns network statistics for API handlers
+func GetNetwork() []NetworkRecord {
+	inMemoryMutex.RLock()
+	defer inMemoryMutex.RUnlock()
+	
+	var records []NetworkRecord
+	for key, data := range inMemoryStorage {
+		if strings.HasPrefix(key, "Network") {
+			var record NetworkRecord
+			if err := json.Unmarshal(data, &record); err == nil {
+				records = append(records, record)
+			}
+		}
+	}
+	return records
 }

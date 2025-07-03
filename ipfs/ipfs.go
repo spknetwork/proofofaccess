@@ -10,7 +10,6 @@ import (
 	"io/ioutil"
 	"net"
 	"os"
-	"proofofaccess/database"
 	"proofofaccess/localdata"
 	"strings"
 	"sync"
@@ -117,10 +116,6 @@ func IsPinned(cid string) bool {
 	return ok
 }
 
-func IsPinnedInDB(cid string) bool {
-	val := database.Read([]byte("refs" + cid))
-	return val != nil
-}
 
 func IpfsPingNode(peerID string) error {
 	if !checkIPFSConnection() {
@@ -325,6 +320,25 @@ func FileSize(cid string) (int, error) {
 	return stat.CumulativeSize, nil
 }
 
+// IsActuallyAvailable checks if a CID is actually available in IPFS
+// This is what storage nodes should use instead of checking a database
+func IsActuallyAvailable(cid string) bool {
+	if !checkIPFSConnection() {
+		logrus.Warnf("Cannot check CID availability: IPFS is currently unavailable")
+		return false
+	}
+	
+	// Try to get object stats - this is a lightweight way to check if the CID exists
+	_, err := Shell.ObjectStat(cid)
+	if err != nil {
+		logrus.Debugf("CID %s not available in IPFS: %v", cid, err)
+		return false
+	}
+	
+	logrus.Debugf("CID %s is available in IPFS", cid)
+	return true
+}
+
 func SaveRefs(cids []string) {
 	logrus.Debugf("Saving refs for %d CIDs...", len(cids))
 	var wg sync.WaitGroup
@@ -342,25 +356,16 @@ func SaveRefs(cids []string) {
 			semaphore <- struct{}{}
 			defer func() { <-semaphore }()
 
-			if !IsPinnedInDB(key) {
-				savedRefs, err := Refs(key)
-				if err != nil {
-					logrus.Debugf("Skipping refs for CID %s in SaveRefs (may not exist): %v", key, err)
-					return
-				}
-				localdata.Lock.Lock()
-				localdata.SavedRefs[key] = savedRefs
-				refsBytes, err := json.Marshal(savedRefs)
-				if err != nil {
-					logrus.Errorf("Error marshaling refs for CID %s in SaveRefs: %v", key, err)
-					localdata.Lock.Unlock()
-					return
-				}
-				database.Save([]byte("refs"+key), refsBytes)
-				percentage = (index + 1) * 100 / len(cids)
-				localdata.CIDRefPercentage["self"] = percentage
-				localdata.Lock.Unlock()
+			savedRefs, err := Refs(key)
+			if err != nil {
+				logrus.Debugf("Skipping refs for CID %s in SaveRefs (may not exist): %v", key, err)
+				return
 			}
+			localdata.Lock.Lock()
+			localdata.SavedRefs[key] = savedRefs
+			percentage = (index + 1) * 100 / len(cids)
+			localdata.CIDRefPercentage["self"] = percentage
+			localdata.Lock.Unlock()
 		}(key, i)
 	}
 	wg.Wait()

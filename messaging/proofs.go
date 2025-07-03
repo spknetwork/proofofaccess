@@ -45,8 +45,8 @@ func HandleRequestProof(req Request, ws *websocket.Conn) {
 	logrus.Infof("  Request Type: %s", req.Type)
 	logrus.Infof("  Timestamp: %s", time.Now().Format("15:04:05.000"))
 
-	// Check if CID exists locally
-	isLocallyAvailable := ipfs.IsPinnedInDB(CID)
+	// Check if CID exists locally - for storage nodes, check actual IPFS availability
+	isLocallyAvailable := ipfs.IsActuallyAvailable(CID)
 	logrus.Infof("CID %s locally available: %t", CID, isLocallyAvailable)
 
 	if isLocallyAvailable {
@@ -368,13 +368,13 @@ func HandleRandomChallenge(req Request, ws *websocket.Conn) {
 	logrus.Debugf("Storage node selected CID %s for challenge from %s", selectedCID, req.User)
 
 	// Generate proof hash for the selected content
-	if ipfs.IsPinnedInDB(selectedCID) {
+	if ipfs.IsActuallyAvailable(selectedCID) {
 		logrus.Debugf("Generating proof for selected CID %s", selectedCID)
 		validationHash := validation.CreatProofHash(salt, selectedCID)
 		logrus.Debugf("Generated proof hash %s for CID %s", validationHash, selectedCID)
 		sendChallengeResponse(req, validationHash, salt, localdata.NodeName, ws)
 	} else {
-		logrus.Warnf("Selected CID %s not actually pinned, sending NA response", selectedCID)
+		logrus.Warnf("Selected CID %s not actually available in IPFS, sending NA response", selectedCID)
 		sendChallengeResponse(req, "NA", salt, localdata.NodeName, ws)
 	}
 }

@@ -1,8 +1,6 @@
 package peers
 
 import (
-	"encoding/json"
-	"proofofaccess/database"
 	"proofofaccess/ipfs"
 	"proofofaccess/localdata"
 	"proofofaccess/messaging"
@@ -63,27 +61,16 @@ func FetchPins() {
 			localdata.Lock.Lock()
 			PeerSize += size
 			localdata.Lock.Unlock()
-			if !ipfs.IsPinnedInDB(key) {
-				savedRefs, err := ipfs.Refs(key)
-				if err != nil {
-					logrus.Debugf("Skipping refs for CID %s in FetchPins (may not exist): %v", key, err)
-					return
-				}
-
-				// Marshal JSON outside the lock
-				refsBytes, err := json.Marshal(savedRefs)
-				if err != nil {
-					// Log error and return (no lock held yet)
-					logrus.Errorf("Error marshaling refs for %s: %v", key, err)
-					return
-				}
-
-				localdata.Lock.Lock()
-				localdata.SavedRefs[key] = savedRefs
-				localdata.Lock.Unlock() // Release lock before DB save
-
-				database.Save([]byte("refs"+key), refsBytes)
+			// Get refs for pinned content
+			savedRefs, err := ipfs.Refs(key)
+			if err != nil {
+				logrus.Debugf("Skipping refs for CID %s in FetchPins (may not exist): %v", key, err)
+				return
 			}
+
+			localdata.Lock.Lock()
+			localdata.SavedRefs[key] = savedRefs
+			localdata.Lock.Unlock()
 		}(key)
 	}
 
@@ -147,27 +134,16 @@ func getPeerPins() {
 			localdata.Lock.Lock()
 			PeerSize += size
 			localdata.Lock.Unlock()
-			if !ipfs.IsPinnedInDB(key) {
-				savedRefs, err := ipfs.Refs(key)
-				if err != nil {
-					logrus.Errorf("Error getting refs for %s: %v", key, err)
-					return
-				}
-
-				// Marshal JSON outside the lock
-				refsBytes, err := json.Marshal(savedRefs)
-				if err != nil {
-					// Log error and return (no lock held yet)
-					logrus.Errorf("Error marshaling refs for %s: %v", key, err)
-					return
-				}
-
-				localdata.Lock.Lock()
-				localdata.SavedRefs[key] = savedRefs
-				localdata.Lock.Unlock() // Release lock before DB save
-
-				database.Save([]byte("refs"+key), refsBytes)
+			// Get refs for pinned content
+			savedRefs, err := ipfs.Refs(key)
+			if err != nil {
+				logrus.Errorf("Error getting refs for %s: %v", key, err)
+				return
 			}
+
+			localdata.Lock.Lock()
+			localdata.SavedRefs[key] = savedRefs
+			localdata.Lock.Unlock()
 		}(key)
 	}
 

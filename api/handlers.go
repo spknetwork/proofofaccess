@@ -6,7 +6,6 @@ import (
 	"net"
 	"net/http"
 	"os"
-	"proofofaccess/database"
 	"proofofaccess/localdata"
 	"proofofaccess/messaging"
 	"sort"
@@ -43,8 +42,8 @@ func getStatsHandler(c *gin.Context) {
 
 	const pageSize = 50 // define the number of results per page
 
-	// Fetch stats from the database
-	stats := database.GetStats(key)
+	// Fetch stats from in-memory storage
+	stats := localdata.GetStats(key)
 
 	// Sort stats by date
 	sort.Slice(stats, func(i, j int) bool {
@@ -98,15 +97,15 @@ func getNetworkHandler(c *gin.Context) {
 	}
 
 	const pageSize = 4000 // define the number of results per page
-	stats := database.GetNetwork()
+	stats := localdata.GetNetwork()
 
 	// Sort stats by date
 	sort.Slice(stats, func(i, j int) bool {
-		timeI, errI := stats[i].Date, error(nil)
-		timeJ, errJ := stats[j].Date, error(nil)
+		timeI, errI := time.Parse(time.RFC3339, stats[i].Date)
+		timeJ, errJ := time.Parse(time.RFC3339, stats[j].Date)
 
 		if errI != nil || errJ != nil {
-			logrus.Warn("Error parsing time in network stats for sorting (this should not happen if type is time.Time)")
+			logrus.Warn("Error parsing time in network stats for sorting")
 			return false
 		}
 

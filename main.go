@@ -7,7 +7,6 @@ import (
 	"os/signal"
 	"proofofaccess/api"
 	"proofofaccess/connection"
-	"proofofaccess/database"
 	"proofofaccess/honeycomb"
 	"proofofaccess/ipfs"
 	"proofofaccess/localdata"
@@ -64,10 +63,6 @@ func main() {
 	<-ctx.Done()
 
 	log.Info("Shutting down...")
-
-	if err := database.Close(); err != nil {
-		log.Error("Error closing the database: ", err)
-	}
 }
 
 func initialize(ctx context.Context) {
@@ -76,9 +71,8 @@ func initialize(ctx context.Context) {
 	localdata.WsPort = *wsPort
 	log.Infof("Initializing node: %s (Type: %d)", *username, *nodeType)
 
-	// Only storage nodes need database and content management
+	// Only storage nodes need content management
 	if *nodeType == 2 {
-		database.Init(*nodeType)
 		ipfs.IpfsPeerID()
 
 		var url = ""
@@ -150,10 +144,8 @@ func initialize(ctx context.Context) {
 
 func cleanupOldValidations() {
 	log.Debug("Running cleanup for old validation results")
-	// Clean up validation results older than 1 hour
-	// This will need to be implemented based on your database structure
-	// For now, we'll just log that cleanup is running
-	// TODO: Implement actual cleanup logic based on timestamp field
+	// Clean up in-memory validation results older than 1 hour
+	localdata.CleanupOldValidations(1 * time.Hour)
 }
 
 func setupCloseHandler(cancel context.CancelFunc) {
