@@ -328,43 +328,51 @@ func IsActuallyAvailable(cid string) bool {
 		return false
 	}
 	
-	// Try to check if the CID is pinned (most efficient check)
-	pins, err := Shell.Pins()
-	if err != nil {
-		logrus.Warnf("Failed to check pins: %v", err)
-		return false
-	}
+	// Try to check refs with a timeout - this is faster than checking all pins
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
 	
-	// Check if the CID is in the pins
-	for pinnedCid := range pins {
-		if pinnedCid == cid {
-			logrus.Debugf("CID %s is pinned in IPFS", cid)
-			return true
+	// Create a channel for the result
+	type refResult struct {
+		hasRefs bool
+		err     error
+	}
+	resultChan := make(chan refResult, 1)
+	
+	// Check refs in a goroutine
+	go func() {
+		refs, err := Shell.Refs(cid, false)
+		if err != nil {
+			resultChan <- refResult{hasRefs: false, err: err}
+			return
 		}
-	}
+		
+		// Check if we got at least one ref
+		select {
+		case _, ok := <-refs:
+			resultChan <- refResult{hasRefs: ok, err: nil}
+		default:
+			resultChan <- refResult{hasRefs: false, err: nil}
+		}
+	}()
 	
-	// If not pinned, try to get just the refs to check if we have it locally
-	// This is much lighter than Cat
-	refs, err := Shell.Refs(cid, false)
-	if err != nil {
-		logrus.Warnf("CID %s not available in IPFS: %v", cid, err)
-		return false
-	}
-	
-	// If we can get refs, the file exists locally
-	// Just check if we got at least one ref
+	// Wait for result or timeout
 	select {
-	case _, ok := <-refs:
-		if ok {
-			logrus.Debugf("CID %s is available in IPFS (has refs)", cid)
+	case result := <-resultChan:
+		if result.err != nil {
+			logrus.Debugf("CID %s not available in IPFS: %v", cid, result.err)
+			return false
+		}
+		if result.hasRefs {
+			logrus.Debugf("CID %s is available in IPFS", cid)
 			return true
 		}
-	default:
-		// No refs available immediately
+		logrus.Debugf("CID %s has no refs in IPFS", cid)
+		return false
+	case <-ctx.Done():
+		logrus.Warnf("Timeout checking CID %s availability", cid)
+		return false
 	}
-	
-	logrus.Warnf("CID %s not available in IPFS", cid)
-	return false
 }
 
 func SaveRefs(cids []string) {
