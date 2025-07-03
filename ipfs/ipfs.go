@@ -330,7 +330,7 @@ func IsActuallyAvailable(cid string) bool {
 	
 	// Try using BlockStat which should work for pinned content
 	// This is more reliable than refs for checking local availability
-	stat, _, err := Shell.BlockStat(cid)
+	statInfo, _, err := Shell.BlockStat(cid)
 	if err != nil {
 		// If BlockStat fails, try one more method - see if we can get any data
 		// This uses Cat but with a very small byte limit
@@ -352,7 +352,7 @@ func IsActuallyAvailable(cid string) bool {
 	}
 	
 	// If we got stats, the block exists locally
-	logrus.Debugf("CID %s is available in IPFS (BlockStat size: %d)", cid, stat.Size)
+	logrus.Debugf("CID %s is available in IPFS (BlockStat returned: %s)", cid, statInfo)
 	return true
 }
 
