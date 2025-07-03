@@ -169,6 +169,8 @@ func SetStatus(seed string, cid string, status string, name string, startTime ti
 		timeString = startTime.Format(time.RFC3339)
 	}
 	elapsedString := elapsed.String()
+	// Log what we're storing for debugging
+	logrus.Warnf("SetStatus storing: seed=%s, status=%s, elapsed=%s (%v)", seed, status, elapsedString, elapsed)
 	// Add timestamp for TTL
 	timestamp := time.Now().Unix()
 	jsonString := fmt.Sprintf(`{"type": "ProofOfAccessConsensus", "CID":"%s", "seed":"%s", "status":"%s", "name":"%s", "time":"%s", "elapsed":"%s", "timestamp":%d}`,
