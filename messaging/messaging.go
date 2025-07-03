@@ -164,7 +164,9 @@ func SendPing(hash string, user string, ws *websocket.Conn) {
 		logrus.Errorf("Error encoding Ping JSON: %v", err)
 		return
 	}
+	localdata.Lock.Lock()
 	localdata.PingTime[user] = time.Now()
+	localdata.Lock.Unlock()
 
 	// Fix: Validator should use PubSub to send pings to storage nodes
 	if localdata.NodeType == 1 {
