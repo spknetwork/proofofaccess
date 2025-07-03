@@ -331,7 +331,8 @@ func IsActuallyAvailable(cid string) bool {
 	// Try to get object stats - this is a lightweight way to check if the CID exists
 	_, err := Shell.ObjectStat(cid)
 	if err != nil {
-		logrus.Debugf("CID %s not available in IPFS: %v", cid, err)
+		// Log as warning for debugging the pinning issue
+		logrus.Warnf("CID %s not available in IPFS: %v", cid, err)
 		return false
 	}
 	

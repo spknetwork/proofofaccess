@@ -222,7 +222,7 @@ func handleValidate(c *gin.Context) {
 	time.AfterFunc(validationTimeoutDuration, func() {
 		// This function will run after the timeout duration
 		// Pass targetName to ProcessProofConsensus (exported function)
-		logrus.Infof("=== Consensus timeout reached, triggering consensus check for CID %s, salt %s ===", CID, salt)
+		logrus.Debugf("Consensus timeout reached, triggering consensus check for CID %s, salt %s", CID, salt)
 		messaging.ProcessProofConsensus(CID, salt, targetUsername, startTime)
 	})
 	logrus.Infof("Scheduled consensus check for CID %s, salt %s in %v", CID, salt, validationTimeoutDuration)
@@ -249,8 +249,7 @@ func handleValidate(c *gin.Context) {
 				// Consensus process has finished and set the status
 				finalStatus = statusMsg.Status
 				// Use the elapsed time from the consensus result if available
-				logrus.Infof("Retrieved status message - Status: %s, Elapsed: '%s', ElapsedLen: %d", statusMsg.Status, statusMsg.Elapsed, len(statusMsg.Elapsed))
-				logrus.Infof("Elapsed check: isEmpty=%t, is0s=%t, value='%s'", statusMsg.Elapsed == "", statusMsg.Elapsed == "0s", statusMsg.Elapsed)
+				logrus.Debugf("Retrieved status message - Status: %s, Elapsed: '%s'", statusMsg.Status, statusMsg.Elapsed)
 				if statusMsg.Elapsed != "" && statusMsg.Elapsed != "0s" {
 					if parsed, err := time.ParseDuration(statusMsg.Elapsed); err == nil {
 						finalElapsed = parsed

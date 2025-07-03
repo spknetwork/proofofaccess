@@ -138,7 +138,7 @@ func HandleProofOfAccess(req Request, ws *websocket.Conn) {
 // Exported function.
 func ProcessProofConsensus(cid string, seed string, targetName string, startTime time.Time) {
 	key := cid + seed
-	logrus.Infof("=== ProcessProofConsensus called for key %s, target %s ===", key, targetName)
+	logrus.Debugf("ProcessProofConsensus called for key %s, target %s", key, targetName)
 
 	// Mark consensus as started to prevent late responses from being added
 	ConsensusProcessingMutex.Lock() // Use exported mutex
@@ -282,20 +282,20 @@ func ProcessProofConsensus(cid string, seed string, targetName string, startTime
 			if resp.Elapsed < fastestResponseTime {
 				fastestResponseTime = resp.Elapsed
 			}
-			logrus.Infof("Response from %s: elapsed=%v, hash=%s", resp.Responder, resp.Elapsed, resp.Hash)
+			logrus.Debugf("Response from %s: elapsed=%v, hash=%s", resp.Responder, resp.Elapsed, resp.Hash)
 		}
 		// If we didn't find any response times, use 0
 		if fastestResponseTime == time.Hour {
 			fastestResponseTime = 0
 			logrus.Warnf("No valid response times found for key %s, using 0", key)
 		}
-		logrus.Infof("Fastest response time for key %s: %v (status: %s, had %d timely responses)", key, fastestResponseTime, finalStatus, len(timelyResponses))
+		logrus.Debugf("Fastest response time for key %s: %v (status: %s, had %d timely responses)", key, fastestResponseTime, finalStatus, len(timelyResponses))
 	} else {
 		logrus.Warnf("No timely responses for key %s, using 0 elapsed time", key)
 	}
 
 	localdata.SetStatus(seed, cid, finalStatus, targetName, startTime, fastestResponseTime) // Pass actual fastest response time
-	logrus.Warnf("Final status for key %s set to %s for target %s with response time %v", key, finalStatus, targetName, fastestResponseTime)
+	logrus.Debugf("Final status for key %s set to %s for target %s with response time %v", key, finalStatus, targetName, fastestResponseTime)
 }
 
 // SendProof
