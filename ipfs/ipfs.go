@@ -328,16 +328,43 @@ func IsActuallyAvailable(cid string) bool {
 		return false
 	}
 	
-	// Try to get object stats - this is a lightweight way to check if the CID exists
-	_, err := Shell.ObjectStat(cid)
+	// Try to check if the CID is pinned (most efficient check)
+	pins, err := Shell.Pins()
 	if err != nil {
-		// Log as warning for debugging the pinning issue
+		logrus.Warnf("Failed to check pins: %v", err)
+		return false
+	}
+	
+	// Check if the CID is in the pins
+	for pinnedCid := range pins {
+		if pinnedCid == cid {
+			logrus.Debugf("CID %s is pinned in IPFS", cid)
+			return true
+		}
+	}
+	
+	// If not pinned, try to get just the refs to check if we have it locally
+	// This is much lighter than Cat
+	refs, err := Shell.Refs(cid, false)
+	if err != nil {
 		logrus.Warnf("CID %s not available in IPFS: %v", cid, err)
 		return false
 	}
 	
-	logrus.Debugf("CID %s is available in IPFS", cid)
-	return true
+	// If we can get refs, the file exists locally
+	// Just check if we got at least one ref
+	select {
+	case _, ok := <-refs:
+		if ok {
+			logrus.Debugf("CID %s is available in IPFS (has refs)", cid)
+			return true
+		}
+	default:
+		// No refs available immediately
+	}
+	
+	logrus.Warnf("CID %s not available in IPFS", cid)
+	return false
 }
 
 func SaveRefs(cids []string) {
