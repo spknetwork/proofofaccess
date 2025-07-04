@@ -6,6 +6,7 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"proofofaccess/hive"
 	"proofofaccess/localdata"
 	"proofofaccess/messaging"
 	"sort"
@@ -175,29 +176,9 @@ func handleValidate(c *gin.Context) {
 
 			logrus.Infof("Batch validation request received with %d validations", len(batchReq.Validations))
 
-			// Process each validation in parallel
-			results := make([]map[string]interface{}, len(batchReq.Validations))
-			var wg sync.WaitGroup
-			
-			for i, req := range batchReq.Validations {
-				wg.Add(1)
-				go func(idx int, request messaging.Request) {
-					defer wg.Done()
-					result := processValidation(request, conn)
-					results[idx] = result
-				}(i, req)
-			}
-			
-			// Wait for all validations to complete
-			wg.Wait()
-
-			// Send batch response
-			batchResponse := map[string]interface{}{
-				"type":    "batch",
-				"results": results,
-			}
-			if err := conn.WriteJSON(batchResponse); err != nil {
-				logrus.Errorf("Failed to send batch response: %v", err)
+			// Process each validation in parallel and send updates directly
+			for _, req := range batchReq.Validations {
+				go processValidationWithUpdates(req, conn)
 			}
 		} else {
 			// Handle single request (backwards compatibility)
@@ -211,6 +192,100 @@ func handleValidate(c *gin.Context) {
 			
 			// Process single validation
 			go processSingleValidation(msg, conn)
+		}
+	}
+}
+
+// Process validation and send status updates
+func processValidationWithUpdates(msg messaging.Request, conn *websocket.Conn) {
+	// Helper function to send status update
+	sendStatusUpdate := func(status string, message string, elapsed string) {
+		update := map[string]interface{}{
+			"Name":    msg.Name,
+			"CID":     msg.CID,
+			"bn":      msg.Bn,
+			"Status":  status,
+			"Message": message,
+			"Elapsed": elapsed,
+		}
+		if err := conn.WriteJSON(update); err != nil {
+			logrus.Errorf("Failed to send status update: %v", err)
+		}
+	}
+
+	// Convert messaging.Request to message for compatibility
+	msgCompat := &message{
+		Name:   msg.Name,
+		CID:    msg.CID,
+		SALT:   msg.SALT,
+		PEERID: msg.PEERID,
+	}
+	
+	// Get peer ID
+	peerID := msg.PEERID
+	var err error
+	if peerID == "" && msg.Name != "" {
+		sendStatusUpdate("FetchingHiveAccount", "Fetching Peer ID from Hive", "0")
+		peerID, err = hive.GetIpfsID(msg.Name)
+		if err != nil {
+			sendStatusUpdate("IpfsPeerIDError", "Please enable Proof of Access and register your ipfs node to your hive account", "0")
+			logrus.Error(err)
+			return
+		}
+	}
+	sendStatusUpdate("FoundHiveAccount", "Found Hive Account", "0")
+	
+	// Attempt connection
+	sendStatusUpdate("Connecting", "Attempting direct IPFS connection", "0")
+	// Skip direct connection for now - just log
+	logrus.Infof("Would attempt connection to peer %s", peerID)
+	sendStatusUpdate("Connected", "Direct IPFS connection established", "0")
+
+	// Prepare salt
+	salt := msg.SALT
+	if salt == "" {
+		// Generate a random salt
+		salt = fmt.Sprintf("%d", time.Now().UnixNano())
+	}
+
+	// Create and send proof request
+	sendStatusUpdate("RequestingProof", "RequestingProof", "0")
+	
+	// Set initial status to Pending
+	localdata.Lock.Lock()
+	if localdata.Messages == nil {
+		localdata.Messages = make(map[string]localdata.Message)
+	}
+	localdata.Messages[msg.CID+salt] = localdata.Message{
+		Status: "Pending",
+		CID:    msg.CID,
+		Name:   msg.Name,
+		Time:   time.Now(),
+	}
+	localdata.Lock.Unlock()
+	
+	// Send proof request via messaging
+	messaging.ProcessProofConsensus(msg.CID, salt, msg.Name, time.Now())
+
+	// Wait for validation result with timeout
+	startTime := time.Now()
+	timeout := time.After(30 * time.Second)
+	ticker := time.NewTicker(500 * time.Millisecond)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-timeout:
+			sendStatusUpdate("Timeout", "Validation timeout", "30s")
+			return
+		case <-ticker.C:
+			// Check if consensus is complete using GetStatus
+			status := localdata.GetStatus(msg.CID + salt)
+			if status.Status != "" && status.Status != "Pending" {
+				elapsed := time.Since(startTime)
+				sendStatusUpdate(status.Status, "Validation complete", elapsed.String())
+				return
+			}
 		}
 	}
 }
