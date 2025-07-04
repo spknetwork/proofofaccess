@@ -176,8 +176,22 @@ func handleValidate(c *gin.Context) {
 
 			logrus.Infof("Batch validation request received with %d validations", len(batchReq.Validations))
 
-			// Process each validation in parallel and send updates directly
+			// Deduplicate validations by CID+Name to avoid redundant work
+			seen := make(map[string]bool)
+			uniqueValidations := []messaging.Request{}
+			
 			for _, req := range batchReq.Validations {
+				key := req.CID + ":" + req.Name
+				if !seen[key] {
+					seen[key] = true
+					uniqueValidations = append(uniqueValidations, req)
+				}
+			}
+			
+			logrus.Infof("After deduplication: %d unique validations", len(uniqueValidations))
+
+			// Process each unique validation in parallel and send updates directly
+			for _, req := range uniqueValidations {
 				go processValidationWithUpdates(req, conn)
 			}
 		} else {
@@ -263,10 +277,22 @@ func processValidationWithUpdates(msg messaging.Request, conn *websocket.Conn) {
 	
 	// Send via PubSub
 	proofReqJSON, _ := json.Marshal(proofReq)
-	pubsub.Publish(string(proofReqJSON), msg.Name)
+	err = pubsub.Publish(string(proofReqJSON), msg.Name)
+	if err != nil {
+		logrus.Errorf("Failed to publish proof request: %v", err)
+		sendStatusUpdate("Error", "Failed to send proof request", "0")
+		return
+	}
+	
+	// Mark that consensus should run for this key
+	key := msg.CID + salt
+	messaging.ConsensusProcessingMutex.Lock()
+	messaging.ConsensusProcessing[key] = false // Mark as pending, not yet processed
+	messaging.ConsensusProcessingMutex.Unlock()
 	
 	// Schedule consensus check
 	time.AfterFunc(30*time.Second, func() {
+		logrus.Debugf("Consensus timeout reached for CID %s, salt %s", msg.CID, salt)
 		messaging.ProcessProofConsensus(msg.CID, salt, msg.Name, startTime)
 	})
 
