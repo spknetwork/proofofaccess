@@ -244,7 +244,6 @@ func processValidationWithUpdates(msg messaging.Request, conn *websocket.Conn) {
 	sendStatusUpdate("RequestingProof", "RequestingProof", "0")
 	
 	// Store the request time
-	key := msg.CID + salt
 	startTime := time.Now()
 	
 	// Store the time for this request
@@ -259,7 +258,8 @@ func processValidationWithUpdates(msg messaging.Request, conn *websocket.Conn) {
 	}
 	
 	// Send via PubSub
-	pubsub.PublishMessage(msg.Name, proofReq)
+	proofReqJSON, _ := json.Marshal(proofReq)
+	pubsub.Publish(string(proofReqJSON), msg.Name)
 	
 	// Schedule consensus check
 	time.AfterFunc(30*time.Second, func() {
