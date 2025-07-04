@@ -166,7 +166,7 @@ func handleValidate(c *gin.Context) {
 		if err := json.Unmarshal(rawMsg, &batchCheck); err == nil && batchCheck.Type == "batch" {
 			// Handle batch request
 			var batchReq struct {
-				Type        string                `json:"type"`
+				Type        string              `json:"type"`
 				Validations []messaging.Request `json:"validations"`
 			}
 			if err := json.Unmarshal(rawMsg, &batchReq); err != nil {
@@ -268,12 +268,19 @@ func processValidationWithUpdates(msg messaging.Request, conn *websocket.Conn) {
 	localdata.SaveTime(msg.CID, salt)
 	
 	// Create proof request with both seed and hash fields for compatibility
+	// Note: User field should be the validator's name (who to send response to)
+	// The target storage node is determined by the PubSub topic we publish to
+	// If the incoming request has a validator field, use that; otherwise use local node name
+	validatorName := msg.Validator
+	if validatorName == "" {
+		validatorName = localdata.NodeName
+	}
 	proofReq := messaging.Request{
 		Type: "RequestProof",
 		CID:  msg.CID,
 		Seed: salt,
 		Hash: salt, // Storage nodes might expect this field
-		User: msg.Name,
+		User: validatorName, // This should be the validator's name for response routing
 	}
 	
 	// Send via PubSub

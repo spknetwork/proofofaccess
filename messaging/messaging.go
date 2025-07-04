@@ -22,11 +22,12 @@ type Request struct {
 	Pins       string `json:"pins"`
 	TotalParts string `json:"totalParts"`
 	Part       string `json:"part"`
-	Size       int    `json:"size,omitempty"` // File size in bytes (optional)
-	Name       string `json:"Name,omitempty"`    // Node name
-	SALT       string `json:"SALT,omitempty"`    // Salt for validation
-	PEERID     string `json:"peerid,omitempty"`  // Peer ID
-	Bn         int    `json:"bn,omitempty"`      // Block number
+	Size       int    `json:"size,omitempty"`      // File size in bytes (optional)
+	Name       string `json:"Name,omitempty"`       // Node name
+	SALT       string `json:"SALT,omitempty"`       // Salt for validation
+	PEERID     string `json:"peerid,omitempty"`     // Peer ID
+	Bn         int    `json:"bn,omitempty"`         // Block number
+	Validator  string `json:"validator,omitempty"` // Validator identity for response routing
 }
 
 const (
