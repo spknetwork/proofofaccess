@@ -267,11 +267,12 @@ func processValidationWithUpdates(msg messaging.Request, conn *websocket.Conn) {
 	// Store the time for this request
 	localdata.SaveTime(msg.CID, salt)
 	
-	// Create proof request
+	// Create proof request with both seed and hash fields for compatibility
 	proofReq := messaging.Request{
 		Type: "RequestProof",
 		CID:  msg.CID,
 		Seed: salt,
+		Hash: salt, // Storage nodes might expect this field
 		User: msg.Name,
 	}
 	
