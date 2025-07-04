@@ -23,6 +23,10 @@ type Request struct {
 	TotalParts string `json:"totalParts"`
 	Part       string `json:"part"`
 	Size       int    `json:"size,omitempty"` // File size in bytes (optional)
+	Name       string `json:"Name,omitempty"`    // Node name
+	SALT       string `json:"SALT,omitempty"`    // Salt for validation
+	PEERID     string `json:"peerid,omitempty"`  // Peer ID
+	Bn         int    `json:"bn,omitempty"`      // Block number
 }
 
 const (

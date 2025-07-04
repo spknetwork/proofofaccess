@@ -9,6 +9,7 @@ import (
 	"proofofaccess/localdata"
 	"proofofaccess/messaging"
 	"sort"
+	"sync"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -146,13 +147,198 @@ func handleValidate(c *gin.Context) {
 	}
 	defer closeWebSocket(conn)
 
-	msg, err := readWebSocketMessage(conn)
-	if err != nil {
-		logrus.Errorf("Failed to read WebSocket message for validation: %v", err)
-		return
+	// Keep connection open for batch processing
+	for {
+		var rawMsg json.RawMessage
+		err := conn.ReadJSON(&rawMsg)
+		if err != nil {
+			if websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway, websocket.CloseAbnormalClosure) {
+				logrus.Errorf("WebSocket error: %v", err)
+			}
+			break
+		}
+
+		// Check if it's a batch request
+		var batchCheck struct {
+			Type string `json:"type"`
+		}
+		if err := json.Unmarshal(rawMsg, &batchCheck); err == nil && batchCheck.Type == "batch" {
+			// Handle batch request
+			var batchReq struct {
+				Type        string                `json:"type"`
+				Validations []messaging.Request `json:"validations"`
+			}
+			if err := json.Unmarshal(rawMsg, &batchReq); err != nil {
+				logrus.Errorf("Failed to parse batch request: %v", err)
+				continue
+			}
+
+			logrus.Infof("Batch validation request received with %d validations", len(batchReq.Validations))
+
+			// Process each validation in parallel
+			results := make([]map[string]interface{}, len(batchReq.Validations))
+			var wg sync.WaitGroup
+			
+			for i, req := range batchReq.Validations {
+				wg.Add(1)
+				go func(idx int, request messaging.Request) {
+					defer wg.Done()
+					result := processValidation(request, conn)
+					results[idx] = result
+				}(i, req)
+			}
+			
+			// Wait for all validations to complete
+			wg.Wait()
+
+			// Send batch response
+			batchResponse := map[string]interface{}{
+				"type":    "batch",
+				"results": results,
+			}
+			if err := conn.WriteJSON(batchResponse); err != nil {
+				logrus.Errorf("Failed to send batch response: %v", err)
+			}
+		} else {
+			// Handle single request (backwards compatibility)
+			var msg messaging.Request
+			if err := json.Unmarshal(rawMsg, &msg); err != nil {
+				logrus.Errorf("Failed to parse single request: %v", err)
+				continue
+			}
+
+			logrus.Infof("Single validation request received - Name: %s, CID: %s, SALT: %s, PEERID: %s", msg.Name, msg.CID, msg.SALT, msg.PEERID)
+			
+			// Process single validation
+			go processSingleValidation(msg, conn)
+		}
+	}
+}
+
+// Process a single validation and return result
+func processValidation(msg messaging.Request, conn *websocket.Conn) map[string]interface{} {
+	result := map[string]interface{}{
+		"Name":   msg.Name,
+		"CID":    msg.CID,
+		"bn":     msg.Bn,
+		"Status": "Processing",
 	}
 
-	logrus.Infof("Validation request received - Name: %s, CID: %s, SALT: %s, PEERID: %s", msg.Name, msg.CID, msg.SALT, msg.PEERID)
+	// Create a channel to receive the final status
+	statusChan := make(chan map[string]interface{}, 1)
+	
+	// Process validation in goroutine
+	go func() {
+		// Get peer ID
+		peerID, err := getPeerID(msg, conn)
+		if err != nil {
+			statusChan <- map[string]interface{}{
+				"Name":   msg.Name,
+				"CID":    msg.CID,
+				"bn":     msg.Bn,
+				"Status": "IpfsPeerIDError",
+				"Error":  err.Error(),
+			}
+			return
+		}
+
+		// Attempt connection
+		err = connectToPeer(peerID, conn, msg)
+		if err != nil {
+			logrus.Warnf("Direct IPFS connection to peer %s failed: %v", peerID, err)
+		}
+
+		// Prepare salt
+		salt := msg.SALT
+		if salt == "" {
+			salt, err = createRandomHash(conn)
+			if err != nil {
+				statusChan <- map[string]interface{}{
+					"Name":   msg.Name,
+					"CID":    msg.CID,
+					"bn":     msg.Bn,
+					"Status": "Error",
+					"Error":  "Failed to create salt",
+				}
+				return
+			}
+		}
+
+		// Create and send proof request
+		proofJson, err := createProofRequest(salt, msg.CID, conn, msg.Name)
+		if err != nil {
+			statusChan <- map[string]interface{}{
+				"Name":   msg.Name,
+				"CID":    msg.CID,
+				"bn":     msg.Bn,
+				"Status": "Error",
+				"Error":  "Failed to create proof request",
+			}
+			return
+		}
+
+		err = sendProofRequest(salt, msg.CID, proofJson, msg.Name, conn)
+		if err != nil {
+			statusChan <- map[string]interface{}{
+				"Name":   msg.Name,
+				"CID":    msg.CID,
+				"bn":     msg.Bn,
+				"Status": "Error",
+				"Error":  "Failed to send proof request",
+			}
+			return
+		}
+
+		// Wait for validation result with timeout
+		timeout := time.After(30 * time.Second)
+		ticker := time.NewTicker(500 * time.Millisecond)
+		defer ticker.Stop()
+
+		for {
+			select {
+			case <-timeout:
+				statusChan <- map[string]interface{}{
+					"Name":   msg.Name,
+					"CID":    msg.CID,
+					"bn":     msg.Bn,
+					"Status": "Timeout",
+				}
+				return
+			case <-ticker.C:
+				// Check if consensus is complete
+				consensusValue := localdata.GetConsensus(msg.CID, salt)
+				if consensusValue != "" {
+					elapsed := localdata.GetElapsed(msg.CID, salt)
+					statusChan <- map[string]interface{}{
+						"Name":    msg.Name,
+						"CID":     msg.CID,
+						"bn":      msg.Bn,
+						"Status":  consensusValue,
+						"Elapsed": elapsed,
+					}
+					return
+				}
+			}
+		}
+	}()
+
+	// Wait for result with timeout
+	select {
+	case finalResult := <-statusChan:
+		return finalResult
+	case <-time.After(35 * time.Second): // Slightly longer than validation timeout
+		return map[string]interface{}{
+			"Name":   msg.Name,
+			"CID":    msg.CID,
+			"bn":     msg.Bn,
+			"Status": "Timeout",
+		}
+	}
+}
+
+// Process single validation (original logic)
+func processSingleValidation(msg messaging.Request, conn *websocket.Conn) {
+	logrus.Infof("Processing single validation - Name: %s, CID: %s, SALT: %s, PEERID: %s", msg.Name, msg.CID, msg.SALT, msg.PEERID)
 
 	// --- Peer Discovery/Connection ---
 	peerID, err := getPeerID(msg, conn)
