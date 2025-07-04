@@ -321,8 +321,14 @@ func processValidationWithUpdates(msg messaging.Request, conn *websocket.Conn) {
 			// GetStatus expects just the salt/seed, not CID+salt
 			status := localdata.GetStatus(salt)
 			if status.Status != "" && status.Status != "Pending" {
-				elapsed := time.Since(startTime)
-				sendStatusUpdate(status.Status, "Validation complete", elapsed.String())
+				// Use the elapsed time from consensus result, not time since start
+				elapsedStr := status.Elapsed
+				if elapsedStr == "" {
+					// Fallback to calculated time if not in status
+					elapsed := time.Since(startTime)
+					elapsedStr = elapsed.String()
+				}
+				sendStatusUpdate(status.Status, "Validation complete", elapsedStr)
 				return
 			}
 		}
