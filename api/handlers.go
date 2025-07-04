@@ -198,7 +198,7 @@ func handleValidate(c *gin.Context) {
 
 // Process validation and send status updates
 func processValidationWithUpdates(msg messaging.Request, conn *websocket.Conn) {
-	// Helper function to send status update
+	// Helper function to send status update with thread safety
 	sendStatusUpdate := func(status string, message string, elapsed string) {
 		update := map[string]interface{}{
 			"Name":    msg.Name,
@@ -208,7 +208,11 @@ func processValidationWithUpdates(msg messaging.Request, conn *websocket.Conn) {
 			"Message": message,
 			"Elapsed": elapsed,
 		}
-		if err := conn.WriteJSON(update); err != nil {
+		// Use the websocket mutex for thread-safe writes
+		wsMutex.Lock()
+		err := conn.WriteJSON(update)
+		wsMutex.Unlock()
+		if err != nil {
 			logrus.Errorf("Failed to send status update: %v", err)
 		}
 	}
