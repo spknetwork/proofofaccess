@@ -217,20 +217,21 @@ func handleValidate(c *gin.Context) {
 
 // Process a single validation and return result
 func processValidation(msg messaging.Request, conn *websocket.Conn) map[string]interface{} {
-	result := map[string]interface{}{
-		"Name":   msg.Name,
-		"CID":    msg.CID,
-		"bn":     msg.Bn,
-		"Status": "Processing",
-	}
-
 	// Create a channel to receive the final status
 	statusChan := make(chan map[string]interface{}, 1)
 	
 	// Process validation in goroutine
 	go func() {
+		// Convert messaging.Request to message for compatibility
+		msgCompat := &message{
+			Name:   msg.Name,
+			CID:    msg.CID,
+			SALT:   msg.SALT,
+			PEERID: msg.PEERID,
+		}
+		
 		// Get peer ID
-		peerID, err := getPeerID(msg, conn)
+		peerID, err := getPeerID(msgCompat, conn)
 		if err != nil {
 			statusChan <- map[string]interface{}{
 				"Name":   msg.Name,
@@ -243,7 +244,7 @@ func processValidation(msg messaging.Request, conn *websocket.Conn) map[string]i
 		}
 
 		// Attempt connection
-		err = connectToPeer(peerID, conn, msg)
+		err = connectToPeer(peerID, conn, msgCompat)
 		if err != nil {
 			logrus.Warnf("Direct IPFS connection to peer %s failed: %v", peerID, err)
 		}
@@ -305,16 +306,16 @@ func processValidation(msg messaging.Request, conn *websocket.Conn) map[string]i
 				}
 				return
 			case <-ticker.C:
-				// Check if consensus is complete
-				consensusValue := localdata.GetConsensus(msg.CID, salt)
-				if consensusValue != "" {
+				// Check if consensus is complete using GetStatus
+				status := localdata.GetStatus(msg.CID + salt)
+				if status.Status != "" && status.Status != "Pending" {
 					elapsed := localdata.GetElapsed(msg.CID, salt)
 					statusChan <- map[string]interface{}{
 						"Name":    msg.Name,
 						"CID":     msg.CID,
 						"bn":      msg.Bn,
-						"Status":  consensusValue,
-						"Elapsed": elapsed,
+						"Status":  status.Status,
+						"Elapsed": elapsed.String(),
 					}
 					return
 				}
@@ -340,8 +341,16 @@ func processValidation(msg messaging.Request, conn *websocket.Conn) map[string]i
 func processSingleValidation(msg messaging.Request, conn *websocket.Conn) {
 	logrus.Infof("Processing single validation - Name: %s, CID: %s, SALT: %s, PEERID: %s", msg.Name, msg.CID, msg.SALT, msg.PEERID)
 
+	// Convert messaging.Request to message for compatibility
+	msgCompat := &message{
+		Name:   msg.Name,
+		CID:    msg.CID,
+		SALT:   msg.SALT,
+		PEERID: msg.PEERID,
+	}
+	
 	// --- Peer Discovery/Connection ---
-	peerID, err := getPeerID(msg, conn)
+	peerID, err := getPeerID(msgCompat, conn)
 	if err != nil {
 		logrus.Errorf("Failed to get peer ID for validation request: %v", err)
 		return
@@ -349,7 +358,7 @@ func processSingleValidation(msg messaging.Request, conn *websocket.Conn) {
 	logrus.Infof("Peer ID obtained: %s for user: %s", peerID, msg.Name)
 
 	// Attempt IPFS peer connection (optional - validation can proceed without it)
-	err = connectToPeer(peerID, conn, msg) // Ping check
+	err = connectToPeer(peerID, conn, msgCompat) // Ping check
 	if err != nil {
 		logrus.Warnf("Direct IPFS connection to peer %s (user: %s) failed: %v", peerID, msg.Name, err)
 		logrus.Infof("Continuing with proof validation via PubSub/WebSocket for user: %s", msg.Name)
