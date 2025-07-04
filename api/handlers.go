@@ -301,22 +301,25 @@ func processValidationWithUpdates(msg messaging.Request, conn *websocket.Conn) {
 	// Schedule consensus check
 	time.AfterFunc(30*time.Second, func() {
 		logrus.Debugf("Consensus timeout reached for CID %s, salt %s", msg.CID, salt)
-		messaging.ProcessProofConsensus(msg.CID, salt, msg.Name, startTime)
+		// Use validator name for consensus target, not the storage node name
+		messaging.ProcessProofConsensus(msg.CID, salt, validatorName, startTime)
 	})
 
 	// Wait for validation result with timeout
-	timeout := time.After(30 * time.Second)
+	// Add 5 seconds buffer to allow consensus to complete and store results
+	timeout := time.After(35 * time.Second)
 	ticker := time.NewTicker(500 * time.Millisecond)
 	defer ticker.Stop()
 
 	for {
 		select {
 		case <-timeout:
-			sendStatusUpdate("Timeout", "Validation timeout", "30s")
+			sendStatusUpdate("Timeout", "Validation timeout", "35s")
 			return
 		case <-ticker.C:
 			// Check if consensus is complete using GetStatus
-			status := localdata.GetStatus(msg.CID + salt)
+			// GetStatus expects just the salt/seed, not CID+salt
+			status := localdata.GetStatus(salt)
 			if status.Status != "" && status.Status != "Pending" {
 				elapsed := time.Since(startTime)
 				sendStatusUpdate(status.Status, "Validation complete", elapsed.String())
@@ -418,7 +421,8 @@ func processValidation(msg messaging.Request, conn *websocket.Conn) map[string]i
 				return
 			case <-ticker.C:
 				// Check if consensus is complete using GetStatus
-				status := localdata.GetStatus(msg.CID + salt)
+				// GetStatus expects just the salt/seed, not CID+salt
+				status := localdata.GetStatus(salt)
 				if status.Status != "" && status.Status != "Pending" {
 					elapsed := localdata.GetElapsed(msg.CID, salt)
 					statusChan <- map[string]interface{}{
