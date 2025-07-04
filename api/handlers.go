@@ -9,8 +9,8 @@ import (
 	"proofofaccess/hive"
 	"proofofaccess/localdata"
 	"proofofaccess/messaging"
+	"proofofaccess/pubsub"
 	"sort"
-	"sync"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -212,14 +212,6 @@ func processValidationWithUpdates(msg messaging.Request, conn *websocket.Conn) {
 			logrus.Errorf("Failed to send status update: %v", err)
 		}
 	}
-
-	// Convert messaging.Request to message for compatibility
-	msgCompat := &message{
-		Name:   msg.Name,
-		CID:    msg.CID,
-		SALT:   msg.SALT,
-		PEERID: msg.PEERID,
-	}
 	
 	// Get peer ID
 	peerID := msg.PEERID
@@ -251,24 +243,30 @@ func processValidationWithUpdates(msg messaging.Request, conn *websocket.Conn) {
 	// Create and send proof request
 	sendStatusUpdate("RequestingProof", "RequestingProof", "0")
 	
-	// Set initial status to Pending
-	localdata.Lock.Lock()
-	if localdata.Messages == nil {
-		localdata.Messages = make(map[string]localdata.Message)
-	}
-	localdata.Messages[msg.CID+salt] = localdata.Message{
-		Status: "Pending",
-		CID:    msg.CID,
-		Name:   msg.Name,
-		Time:   time.Now(),
-	}
-	localdata.Lock.Unlock()
+	// Store the request time
+	key := msg.CID + salt
+	startTime := time.Now()
 	
-	// Send proof request via messaging
-	messaging.ProcessProofConsensus(msg.CID, salt, msg.Name, time.Now())
+	// Store the time for this request
+	localdata.SaveTime(msg.CID, salt)
+	
+	// Create proof request
+	proofReq := messaging.Request{
+		Type: "RequestProof",
+		CID:  msg.CID,
+		Seed: salt,
+		User: msg.Name,
+	}
+	
+	// Send via PubSub
+	pubsub.PublishMessage(msg.Name, proofReq)
+	
+	// Schedule consensus check
+	time.AfterFunc(30*time.Second, func() {
+		messaging.ProcessProofConsensus(msg.CID, salt, msg.Name, startTime)
+	})
 
 	// Wait for validation result with timeout
-	startTime := time.Now()
 	timeout := time.After(30 * time.Second)
 	ticker := time.NewTicker(500 * time.Millisecond)
 	defer ticker.Stop()
