@@ -89,7 +89,7 @@ jobs:
           
           # List files for debugging
           echo "Files in dist directory:"
-          ls -la dist/
+          ls -la .
 
       - name: Create Release
         if: github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/v')
