@@ -18,15 +18,15 @@ jobs:
 
       - name: Extract version
         id: get_version
-        run: echo ::set-output name=VERSION::${GITHUB_REF#refs/tags/}
+        run: echo "VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
 
       - name: Set up Go 1.x
-        uses: actions/setup-go@v2
+        uses: actions/setup-go@v5
         with:
-          go-version: 1.20.1
+          go-version: 1.21
 
       - name: Check out code into the Go module directory
-        uses: actions/checkout@v2
+        uses: actions/checkout@v4
 
       - name: Get dependencies
         run: go mod download
@@ -35,7 +35,7 @@ jobs:
         run: go build -o linux-main-${{ steps.get_version.outputs.VERSION }}
 
       - name: Upload artifact
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v4
         with:
           name: linux-main-${{ steps.get_version.outputs.VERSION }}
           path: ./linux-main-${{ steps.get_version.outputs.VERSION }}
@@ -47,15 +47,16 @@ jobs:
 
       - name: Extract version
         id: get_version
-        run: echo ::set-output name=VERSION::${GITHUB_REF#refs/tags/}
+        shell: bash
+        run: echo "VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
 
       - name: Check out code
-        uses: actions/checkout@v2
+        uses: actions/checkout@v4
 
       - name: Set up Go
-        uses: actions/setup-go@v2
+        uses: actions/setup-go@v5
         with:
-          go-version: 1.20.1
+          go-version: 1.21
 
       - name: Get dependencies
         run: go mod download
@@ -64,7 +65,7 @@ jobs:
         run: go build -o win-main-${{ steps.get_version.outputs.VERSION }}.exe
 
       - name: Upload artifact
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v4
         with:
           name: win-main-${{ steps.get_version.outputs.VERSION }}.exe
           path: ./win-main-${{ steps.get_version.outputs.VERSION }}.exe
@@ -76,15 +77,16 @@ jobs:
 
       - name: Extract version
         id: get_version
-        run: echo ::set-output name=VERSION::${GITHUB_REF#refs/tags/}
+        shell: bash
+        run: echo "VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
 
       - name: Check out code
-        uses: actions/checkout@v2
+        uses: actions/checkout@v4
 
       - name: Set up Go
-        uses: actions/setup-go@v2
+        uses: actions/setup-go@v5
         with:
-          go-version: 1.20.1
+          go-version: 1.21
 
       - name: Get dependencies
         run: go mod download
@@ -93,7 +95,7 @@ jobs:
         run: go build -o mac-main-${{ steps.get_version.outputs.VERSION }}
 
       - name: Upload artifact
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v4
         with:
           name: mac-main-${{ steps.get_version.outputs.VERSION }}
           path: ./mac-main-${{ steps.get_version.outputs.VERSION }}
