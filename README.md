@@ -1,5 +1,5 @@
 # proof-of-access
-Proof of Access (PoA) is a mechanism used to validate that a storage node is storing a file on their local IPFS node. This technology is part of the SPK network and will be used to reward storage nodes with SPK cryptocurrency. Proof of Access is available as a Go app created by Nathan Senn (@nathansenn).
+Proof of Access (PoA) is a mechanism used to validate that a storage node is storing a file on their local IPFS node. This technology is part of the SPK network and will be used to reward storage nodes with SPK cryptocurrency.
 
 # Usage
 To run the app locally, use the following command:
@@ -26,13 +26,9 @@ Once the app is running, go to http://localhost:3000 and enter your username and
 # License
 GNU General Public License v3.0
 
-# Contact
-nathan@d.buzz
-
 # Contributors
+Steven Ettinger (@disregardfiat)
+https://github.com/disregardfiat
 Nathan Senn (@nathansenn)
 https://github.com/nathansenn
-
-# Funding
-The development of Proof of Access was funded by the SPK network, and the funding proposal can be found at https://peakd.com/hive-112019/@spknetwork/spk-network-funding-proposal-rhnv7e.
 
