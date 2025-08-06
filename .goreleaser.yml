@@ -1,0 +1,83 @@
+# GoReleaser configuration for ProofOfAccess
+# This builds platform-specific binaries for distribution
+
+project_name: proofofaccess
+
+before:
+  hooks:
+    - go mod tidy
+    - go mod download
+
+builds:
+  - id: proofofaccess
+    main: ./main.go
+    binary: proofofaccess
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - windows
+      - darwin
+    goarch:
+      - amd64
+      - arm64
+      - 386
+    ignore:
+      - goos: darwin
+        goarch: 386
+      - goos: windows
+        goarch: arm64
+    ldflags:
+      - -s -w -X main.version={{.Version}} -X main.commit={{.Commit}} -X main.date={{.Date}}
+    
+archives:
+  - id: proofofaccess
+    name_template: >-
+      {{ .ProjectName }}_
+      {{- .Version }}_
+      {{- .Os }}_
+      {{- if eq .Arch "amd64" }}x64
+      {{- else if eq .Arch "386" }}x86
+      {{- else }}{{ .Arch }}{{ end }}
+    format_overrides:
+      - goos: windows
+        format: zip
+    files:
+      - LICENSE.md
+      - README.md
+      - VERSION.md
+
+checksum:
+  name_template: 'checksums.txt'
+
+snapshot:
+  name_template: "{{ incpatch .Version }}-next"
+
+changelog:
+  sort: asc
+  filters:
+    exclude:
+      - '^docs:'
+      - '^test:'
+      - '^chore:'
+
+# NPM publishing configuration
+nfpms:
+  - id: npm-package
+    package_name: "@spk-network/proofofaccess-binary"
+    vendor: SPK Network
+    homepage: https://spk.network
+    maintainer: SPK Network <dev@spk.network>
+    description: ProofOfAccess binary for SPK Network storage validation
+    license: MIT
+    formats:
+      - npm
+
+# Release configuration
+release:
+  github:
+    owner: dlux-io
+    name: proofofaccess
+  prerelease: auto
+  draft: false
+  name_template: "{{.ProjectName}}-v{{.Version}}"

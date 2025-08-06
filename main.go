@@ -24,7 +24,15 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
+// Version information
 var (
+	Version   = "0.1.0"
+	BuildTime = "unknown"
+	CommitID  = "unknown"
+)
+
+var (
+	version        = flag.Bool("version", false, "Print version information")
 	nodeType       = flag.Int("node", 1, "Node type 1 = validation 2 = access")
 	storageLimit   = flag.Int("storageLimit", 1, "storageLimit in GB")
 	username       = flag.String("username", "", "Username")
@@ -47,6 +55,15 @@ var mu sync.Mutex
 
 func main() {
 	flag.Parse()
+	
+	// Handle version flag
+	if *version {
+		fmt.Printf("ProofOfAccess v%s\n", Version)
+		fmt.Printf("Build Time: %s\n", BuildTime)
+		fmt.Printf("Commit: %s\n", CommitID)
+		os.Exit(0)
+	}
+	
 	log.SetLevel(logrus.WarnLevel)
 	ipfs.Shell = shell.NewShell("localhost:" + *ipfsPort)
 	ctx, cancel := context.WithCancel(context.Background())

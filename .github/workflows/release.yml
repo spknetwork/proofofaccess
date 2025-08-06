@@ -1,0 +1,299 @@
+name: Build and Release
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Release version (e.g., 0.2.0)'
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-release:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.VERSION }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: '1.21'
+
+      - name: Determine version
+        id: version
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            VERSION="${{ github.event.inputs.version }}"
+          else
+            # Auto-increment patch version for automatic builds
+            LATEST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "v0.0.0")
+            VERSION=$(echo $LATEST_TAG | sed 's/v//' | awk -F. '{print $1"."$2"."$3+1}')
+          fi
+          echo "VERSION=$VERSION" >> $GITHUB_OUTPUT
+          echo "Building version: $VERSION"
+
+      - name: Update version in code
+        run: |
+          # Update version in main.go
+          sed -i "s/Version.*=.*\".*\"/Version   = \"${{ steps.version.outputs.VERSION }}\"/" main.go
+          
+          # Get build info
+          BUILD_TIME=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+          COMMIT_ID=$(git rev-parse --short HEAD)
+          
+          # Build with version info
+          LDFLAGS="-X main.Version=${{ steps.version.outputs.VERSION }} -X main.BuildTime=$BUILD_TIME -X main.CommitID=$COMMIT_ID"
+          echo "LDFLAGS=$LDFLAGS" >> $GITHUB_ENV
+
+      - name: Build binaries
+        run: |
+          mkdir -p dist
+          
+          # Get LDFLAGS from env
+          LDFLAGS="${{ env.LDFLAGS }}"
+          
+          # Linux AMD64
+          GOOS=linux GOARCH=amd64 go build -ldflags "$LDFLAGS" -o dist/proofofaccess-linux-amd64 .
+          
+          # Linux ARM64
+          GOOS=linux GOARCH=arm64 go build -ldflags "$LDFLAGS" -o dist/proofofaccess-linux-arm64 .
+          
+          # Darwin AMD64
+          GOOS=darwin GOARCH=amd64 go build -ldflags "$LDFLAGS" -o dist/proofofaccess-darwin-amd64 .
+          
+          # Darwin ARM64
+          GOOS=darwin GOARCH=arm64 go build -ldflags "$LDFLAGS" -o dist/proofofaccess-darwin-arm64 .
+          
+          # Windows AMD64
+          GOOS=windows GOARCH=amd64 go build -ldflags "$LDFLAGS" -o dist/proofofaccess-windows-amd64.exe .
+          
+          # Create checksums
+          cd dist && sha256sum * > checksums.txt
+
+      - name: Create Release
+        if: github.event_name == 'workflow_dispatch' || contains(github.event.head_commit.message, '[release]')
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: v${{ steps.version.outputs.VERSION }}
+          name: Release v${{ steps.version.outputs.VERSION }}
+          body: |
+            ## ProofOfAccess v${{ steps.version.outputs.VERSION }}
+            
+            ### Installation
+            
+            1. Download the appropriate binary for your platform
+            2. Make it executable: `chmod +x proofofaccess-*`
+            3. Run with `-version` flag to verify: `./proofofaccess -version`
+            
+            ### Usage
+            ```bash
+            # Storage node
+            ./proofofaccess -node 2 -username YOUR_USERNAME -IPFS_PORT=5001 -useWS -url=https://spktest.dlux.io
+            
+            # Validator node
+            ./proofofaccess -node 1 -username YOUR_USERNAME -IPFS_PORT=5001
+            ```
+            
+            ### Checksums
+            SHA256 checksums are provided in `checksums.txt`
+          files: |
+            dist/*
+          draft: false
+          prerelease: false
+          generate_release_notes: true
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v3
+        if: github.event_name == 'push' && !contains(github.event.head_commit.message, '[release]')
+        with:
+          name: proofofaccess-binaries
+          path: dist/
+          retention-days: 7
+
+  publish-npm:
+    needs: build-and-release
+    runs-on: ubuntu-latest
+    if: github.event_name == 'workflow_dispatch' || contains(github.event.head_commit.message, '[release]')
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          registry-url: 'https://registry.npmjs.org'
+
+      - name: Download release assets
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          VERSION="${{ needs.build-and-release.outputs.version }}"
+          if [ -z "$VERSION" ]; then
+            VERSION=$(gh release view --json tagName -q '.tagName' | sed 's/^v//')
+          fi
+          
+          mkdir -p npm-binaries
+          gh release download "v${VERSION}" -D npm-binaries || true
+
+      - name: Create NPM package
+        run: |
+          # Create package directory
+          mkdir -p npm-package/bin
+          
+          # Copy binaries to npm package
+          cp -r npm-binaries/* npm-package/bin/
+          
+          # Create package.json
+          VERSION="${{ needs.build-and-release.outputs.version }}"
+          if [ -z "$VERSION" ]; then
+            VERSION=$(gh release view --json tagName -q '.tagName' | sed 's/^v//')
+          fi
+          
+          cat > npm-package/package.json << EOF
+          {
+            "name": "@disregardfiat/proofofaccess",
+            "version": "${VERSION}",
+            "description": "ProofOfAccess binary for SPK Network storage validation",
+            "main": "index.js",
+            "bin": {
+              "proofofaccess": "./install.js"
+            },
+            "scripts": {
+              "postinstall": "node install.js"
+            },
+            "keywords": ["spk", "proofofaccess", "storage", "validation", "ipfs"],
+            "author": "SPK Network",
+            "license": "MIT",
+            "repository": {
+              "type": "git",
+              "url": "https://github.com/spknetwork/proofofaccess.git"
+            },
+            "files": [
+              "index.js",
+              "install.js",
+              "bin/**/*"
+            ],
+            "os": ["darwin", "linux", "win32"],
+            "cpu": ["x64", "arm64"]
+          }
+          EOF
+          
+          # Create index.js
+          cat > npm-package/index.js << 'EOF'
+          const path = require('path');
+          const os = require('os');
+          const fs = require('fs');
+          
+          function getBinaryName() {
+            const platform = os.platform();
+            const arch = os.arch();
+            
+            let platformName;
+            switch (platform) {
+              case 'darwin':
+                platformName = 'darwin';
+                break;
+              case 'win32':
+                platformName = 'windows';
+                break;
+              case 'linux':
+                platformName = 'linux';
+                break;
+              default:
+                throw new Error(`Unsupported platform: ${platform}`);
+            }
+            
+            let archName;
+            switch (arch) {
+              case 'x64':
+                archName = 'amd64';
+                break;
+              case 'arm64':
+                archName = 'arm64';
+                break;
+              default:
+                throw new Error(`Unsupported architecture: ${arch}`);
+            }
+            
+            const ext = platform === 'win32' ? '.exe' : '';
+            return `proofofaccess-${platformName}-${archName}${ext}`;
+          }
+          
+          function getBinaryPath() {
+            const binaryName = getBinaryName();
+            const binPath = path.join(__dirname, 'bin', binaryName);
+            
+            if (!fs.existsSync(binPath)) {
+              throw new Error(`Binary not found: ${binPath}`);
+            }
+            
+            return binPath;
+          }
+          
+          module.exports = {
+            path: getBinaryPath(),
+            getBinaryPath,
+            getBinaryName
+          };
+          EOF
+          
+          # Create install.js
+          cat > npm-package/install.js << 'EOF'
+          #!/usr/bin/env node
+          const fs = require('fs');
+          const path = require('path');
+          const { getBinaryPath } = require('./index');
+          
+          // If called directly, execute the binary
+          if (require.main === module) {
+            const { spawn } = require('child_process');
+            try {
+              const binaryPath = getBinaryPath();
+              const proc = spawn(binaryPath, process.argv.slice(2), {
+                stdio: 'inherit'
+              });
+              
+              proc.on('exit', (code) => {
+                process.exit(code);
+              });
+            } catch (error) {
+              console.error('Error:', error.message);
+              process.exit(1);
+            }
+          } else {
+            // Postinstall: make binary executable
+            try {
+              const binaryPath = getBinaryPath();
+              
+              if (process.platform !== 'win32') {
+                fs.chmodSync(binaryPath, 0o755);
+              }
+              
+              console.log(`ProofOfAccess binary installed: ${binaryPath}`);
+            } catch (error) {
+              console.error('Warning: Could not find binary for your platform');
+              console.error(error.message);
+            }
+          }
+          EOF
+          
+          chmod +x npm-package/install.js
+
+      - name: Publish to NPM
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        working-directory: npm-package
+        run: |
+          npm publish --access public
