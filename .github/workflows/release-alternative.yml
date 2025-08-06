@@ -77,13 +77,12 @@ jobs:
           ls -la
 
       - name: Create Release
-        id: create_release
-        uses: actions/create-release@v1
+        uses: softprops/action-gh-release@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           tag_name: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || format('v{0}', steps.version.outputs.VERSION) }}
-          release_name: Release v${{ steps.version.outputs.VERSION }}
+          name: Release v${{ steps.version.outputs.VERSION }}
           body: |
             ## ProofOfAccess v${{ steps.version.outputs.VERSION }}
             
@@ -104,68 +103,13 @@ jobs:
             
             ### Checksums
             SHA256 checksums are provided in `checksums.txt`
+          files: |
+            dist/*.tar.gz
+            dist/*.zip
+            dist/checksums.txt
+          fail_on_unmatched_files: false
           draft: false
           prerelease: false
-
-      - name: Upload Linux AMD64
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: ./dist/proofofaccess-linux-amd64.tar.gz
-          asset_name: proofofaccess-linux-amd64.tar.gz
-          asset_content_type: application/gzip
-
-      - name: Upload Linux ARM64
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: ./dist/proofofaccess-linux-arm64.tar.gz
-          asset_name: proofofaccess-linux-arm64.tar.gz
-          asset_content_type: application/gzip
-
-      - name: Upload Darwin AMD64
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: ./dist/proofofaccess-darwin-amd64.tar.gz
-          asset_name: proofofaccess-darwin-amd64.tar.gz
-          asset_content_type: application/gzip
-
-      - name: Upload Darwin ARM64
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: ./dist/proofofaccess-darwin-arm64.tar.gz
-          asset_name: proofofaccess-darwin-arm64.tar.gz
-          asset_content_type: application/gzip
-
-      - name: Upload Windows AMD64
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: ./dist/proofofaccess-windows-amd64.zip
-          asset_name: proofofaccess-windows-amd64.zip
-          asset_content_type: application/zip
-
-      - name: Upload Checksums
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: ./dist/checksums.txt
-          asset_name: checksums.txt
-          asset_content_type: text/plain
 
       - name: Upload artifacts for NPM
         uses: actions/upload-artifact@v4
