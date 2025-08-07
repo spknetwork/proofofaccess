@@ -1,0 +1,246 @@
+name: Publish NPM Package
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+jobs:
+  build-and-publish:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: '1.22'
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          registry-url: 'https://registry.npmjs.org'
+
+      - name: Create npm package directory
+        run: mkdir -p npm-package/bin
+
+      - name: Build binaries for all platforms
+        run: |
+          echo "Building ProofOfAccess binaries..."
+          
+          # Build for macOS AMD64
+          GOOS=darwin GOARCH=amd64 go build -o npm-package/bin/proofofaccess-darwin-amd64 main.go
+          
+          # Build for macOS ARM64 (Apple Silicon)
+          GOOS=darwin GOARCH=arm64 go build -o npm-package/bin/proofofaccess-darwin-arm64 main.go
+          
+          # Build for Linux AMD64
+          GOOS=linux GOARCH=amd64 go build -o npm-package/bin/proofofaccess-linux-amd64 main.go
+          
+          # Build for Linux ARM64
+          GOOS=linux GOARCH=arm64 go build -o npm-package/bin/proofofaccess-linux-arm64 main.go
+          
+          # Build for Windows AMD64
+          GOOS=windows GOARCH=amd64 go build -o npm-package/bin/proofofaccess-windows-amd64.exe main.go
+          
+          # Generate checksums
+          cd npm-package/bin
+          sha256sum proofofaccess-* > checksums.txt
+          cd ../..
+          
+          # Make Unix binaries executable
+          chmod +x npm-package/bin/proofofaccess-darwin-*
+          chmod +x npm-package/bin/proofofaccess-linux-*
+
+      - name: Create npm package files
+        run: |
+          # Create package.json
+          cat > npm-package/package.json << 'EOF'
+          {
+            "name": "@disregardfiat/proofofaccess",
+            "version": "${GITHUB_REF#refs/tags/v}",
+            "description": "ProofOfAccess binary for SPK Network storage validation",
+            "main": "index.js",
+            "bin": {
+              "proofofaccess": "./install.js"
+            },
+            "scripts": {
+              "postinstall": "node postinstall.js"
+            },
+            "keywords": ["spk", "proofofaccess", "storage", "validation", "ipfs"],
+            "author": "SPK Network",
+            "license": "MIT",
+            "repository": {
+              "type": "git",
+              "url": "https://github.com/spknetwork/proofofaccess.git"
+            },
+            "files": [
+              "index.js",
+              "install.js",
+              "postinstall.js",
+              "bin/**/*",
+              "README.md"
+            ],
+            "os": ["darwin", "linux", "win32"],
+            "cpu": ["x64", "arm64"]
+          }
+          EOF
+          
+          # Update version in package.json
+          VERSION=${GITHUB_REF#refs/tags/v}
+          sed -i "s/\${GITHUB_REF#refs\/tags\/v}/$VERSION/g" npm-package/package.json
+
+          # Create index.js
+          cat > npm-package/index.js << 'EOF'
+          const path = require('path');
+          const fs = require('fs');
+          
+          function getBinaryPath() {
+            const platform = process.platform;
+            const arch = process.arch;
+            
+            let binaryName;
+            
+            if (platform === 'win32') {
+              if (arch === 'x64') {
+                binaryName = 'proofofaccess-windows-amd64.exe';
+              } else {
+                throw new Error(`Unsupported Windows architecture: ${arch}`);
+              }
+            } else if (platform === 'darwin') {
+              if (arch === 'x64') {
+                binaryName = 'proofofaccess-darwin-amd64';
+              } else if (arch === 'arm64') {
+                binaryName = 'proofofaccess-darwin-arm64';
+              } else {
+                throw new Error(`Unsupported macOS architecture: ${arch}`);
+              }
+            } else if (platform === 'linux') {
+              if (arch === 'x64') {
+                binaryName = 'proofofaccess-linux-amd64';
+              } else if (arch === 'arm64') {
+                binaryName = 'proofofaccess-linux-arm64';
+              } else {
+                throw new Error(`Unsupported Linux architecture: ${arch}`);
+              }
+            } else {
+              throw new Error(`Unsupported platform: ${platform}`);
+            }
+            
+            const binaryPath = path.join(__dirname, 'bin', binaryName);
+            
+            if (!fs.existsSync(binaryPath)) {
+              throw new Error(`Binary not found at ${binaryPath}`);
+            }
+            
+            return binaryPath;
+          }
+          
+          module.exports = {
+            getBinaryPath,
+            
+            run: function(args = []) {
+              const { spawn } = require('child_process');
+              const binaryPath = getBinaryPath();
+              
+              if (process.platform !== 'win32') {
+                try {
+                  fs.chmodSync(binaryPath, 0o755);
+                } catch (err) {
+                  // Ignore chmod errors
+                }
+              }
+              
+              return spawn(binaryPath, args, {
+                stdio: 'inherit'
+              });
+            }
+          };
+          EOF
+
+          # Create install.js with the fix
+          cat > npm-package/install.js << 'EOF'
+          #!/usr/bin/env node
+          const fs = require('fs');
+          const path = require('path');
+          const { getBinaryPath } = require('./index');
+          
+          if (require.main === module) {
+            const { spawn } = require('child_process');
+            try {
+              const binaryPath = getBinaryPath();
+              
+              // CRITICAL FIX: Make binary executable BEFORE trying to spawn it
+              if (process.platform !== 'win32') {
+                try {
+                  fs.chmodSync(binaryPath, 0o755);
+                } catch (chmodError) {
+                  console.error(`Warning: Could not set execute permissions: ${chmodError.message}`);
+                }
+              }
+              
+              const proc = spawn(binaryPath, process.argv.slice(2), {
+                stdio: 'inherit'
+              });
+              
+              proc.on('error', (error) => {
+                if (error.code === 'EACCES') {
+                  console.error(`Error: Binary at ${binaryPath} is not executable.`);
+                  console.error('Try running: chmod +x ' + binaryPath);
+                } else {
+                  console.error('Error spawning process:', error.message);
+                }
+                process.exit(1);
+              });
+              
+              proc.on('exit', (code) => {
+                process.exit(code || 0);
+              });
+            } catch (error) {
+              console.error('Error:', error.message);
+              process.exit(1);
+            }
+          }
+          EOF
+
+          # Create postinstall.js
+          cat > npm-package/postinstall.js << 'EOF'
+          #!/usr/bin/env node
+          const fs = require('fs');
+          const path = require('path');
+          
+          try {
+            const { getBinaryPath } = require('./index');
+            const binaryPath = getBinaryPath();
+            
+            if (process.platform !== 'win32') {
+              try {
+                fs.chmodSync(binaryPath, 0o755);
+                console.log(`✓ ProofOfAccess binary made executable: ${binaryPath}`);
+              } catch (chmodError) {
+                console.error(`⚠ Warning: Could not set execute permissions: ${chmodError.message}`);
+                console.error('  You may need to manually run: chmod +x ' + binaryPath);
+              }
+            } else {
+              console.log(`✓ ProofOfAccess binary installed: ${binaryPath}`);
+            }
+          } catch (error) {
+            console.error('⚠ Warning: Could not find binary for your platform');
+            console.error('  ' + error.message);
+            process.exit(0);
+          }
+          EOF
+
+          # Copy README if it exists
+          [ -f README.md ] && cp README.md npm-package/README.md || echo "No README.md found"
+
+      - name: Publish to NPM
+        run: |
+          cd npm-package
+          npm publish --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
