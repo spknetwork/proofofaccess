@@ -147,22 +147,42 @@ func handleValidate(c *gin.Context) {
 
 	defer closeWebSocket(conn)
 
-	msg, err := readWebSocketMessage(conn)
-	if err != nil {
+	// First, try to read as a batch request
+	var rawMsg json.RawMessage
+	if err := conn.ReadJSON(&rawMsg); err != nil {
+		log.Error(err)
+		sendWsResponse(wsError, "Failed to read JSON from WebSocket connection", "0", conn)
 		return
 	}
 
-	//peerID, err := getPeerID(msg, conn)
-	//if err != nil {
-	//	return
-	//}
+	// Check if it's a batch request
+	var batchReq BatchRequest
+	if err := json.Unmarshal(rawMsg, &batchReq); err == nil && batchReq.Type == "batch" {
+		// Handle batch validation
+		handleBatchValidation(batchReq, conn)
+		return
+	}
 
-	//err = connectToPeer(peerID, conn, msg)
-	//if err != nil {
-	//	return
-	//}
+	// Otherwise, handle as single validation
+	var msg message
+	if err := json.Unmarshal(rawMsg, &msg); err != nil {
+		log.Error(err)
+		sendWsResponse(wsError, "Failed to parse validation request", "0", conn)
+		return
+	}
 
+	// Normalize the message to handle both uppercase and lowercase field names
+	msg.Normalize()
+
+	// Process single validation
+	processSingleValidation(&msg, conn)
+	log.Info("Exiting handleValidate")
+}
+
+// processSingleValidation handles a single validation request
+func processSingleValidation(msg *message, conn *websocket.Conn) {
 	salt := msg.SALT
+	var err error
 	if salt == "" {
 		salt, err = createRandomHash(conn)
 		if err != nil {
@@ -187,8 +207,100 @@ func handleValidate(c *gin.Context) {
 	if err != nil {
 		return
 	}
-	sendWsResponse(status, status, formatElapsed(elapsed), conn)
-	log.Info("Exiting handleValidate")
+	
+	// Send response with context for honeycomb-spkcc compatibility
+	if msg.Bn > 0 || msg.Name != "" || msg.CID != "" {
+		sendWsResponseWithContext(status, status, formatElapsed(elapsed), msg.Name, msg.CID, msg.Bn, conn)
+	} else {
+		sendWsResponse(status, status, formatElapsed(elapsed), conn)
+	}
+}
+
+// handleBatchValidation processes multiple validation requests
+func handleBatchValidation(batchReq BatchRequest, conn *websocket.Conn) {
+	results := make([]ExampleResponse, 0, len(batchReq.Validations))
+	
+	for _, msg := range batchReq.Validations {
+		// Normalize the message to handle both uppercase and lowercase field names
+		msg.Normalize()
+		salt := msg.SALT
+		var err error
+		if salt == "" {
+			salt, err = createRandomHash(conn)
+			if err != nil {
+				results = append(results, ExampleResponse{
+					Status:  wsError,
+					Message: "Failed to create hash",
+					Elapsed: "0",
+					Name:    msg.Name,
+					CID:     msg.CID,
+					Bn:      msg.Bn,
+				})
+				continue
+			}
+		} else {
+			salt = salt + msg.CID + msg.Name
+		}
+
+		proofJson, err := createProofRequest(salt, msg.CID, conn, msg.Name)
+		if err != nil {
+			results = append(results, ExampleResponse{
+				Status:  wsError,
+				Message: "Failed to create proof request",
+				Elapsed: "0",
+				Name:    msg.Name,
+				CID:     msg.CID,
+				Bn:      msg.Bn,
+			})
+			continue
+		}
+
+		err = sendProofRequest(salt, proofJson, msg.Name, conn)
+		if err != nil {
+			results = append(results, ExampleResponse{
+				Status:  wsError,
+				Message: "Failed to send proof request",
+				Elapsed: "0",
+				Name:    msg.Name,
+				CID:     msg.CID,
+				Bn:      msg.Bn,
+			})
+			continue
+		}
+
+		status, elapsed, err := waitForProofStatus(salt, msg.CID, conn)
+		if err != nil {
+			results = append(results, ExampleResponse{
+				Status:  wsError,
+				Message: "Validation timeout",
+				Elapsed: "0",
+				Name:    msg.Name,
+				CID:     msg.CID,
+				Bn:      msg.Bn,
+			})
+			continue
+		}
+
+		results = append(results, ExampleResponse{
+			Status:  status,
+			Message: status,
+			Elapsed: formatElapsed(elapsed),
+			Name:    msg.Name,
+			CID:     msg.CID,
+			Bn:      msg.Bn,
+		})
+	}
+
+	// Send batch response
+	localdata.Lock.Lock()
+	err := conn.WriteJSON(BatchResponse{
+		Type:    "batch",
+		Results: results,
+	})
+	localdata.Lock.Unlock()
+	if err != nil {
+		log.Println("Error writing batch response:", err)
+	}
 }
 
 func handleMessaging(c *gin.Context) {
