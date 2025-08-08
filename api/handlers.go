@@ -227,10 +227,12 @@ func handleBatchValidation(batchReq BatchRequest, conn *websocket.Conn) {
 		closedConnMutex.Unlock()
 	}()
 	
+	log.Printf("Processing batch with %d validations", len(batchReq.Validations))
 	results := make([]ExampleResponse, 0, len(batchReq.Validations))
 	
 	// Process each validation silently and only send final results
-	for _, msg := range batchReq.Validations {
+	for i, msg := range batchReq.Validations {
+		log.Printf("Processing validation %d/%d: Name=%s, CID=%s", i+1, len(batchReq.Validations), msg.Name, msg.CID)
 		// Normalize the message to handle both uppercase and lowercase field names
 		msg.Normalize()
 		
@@ -239,11 +241,15 @@ func handleBatchValidation(batchReq BatchRequest, conn *websocket.Conn) {
 		if salt == "" {
 			salt, err = createRandomHash(conn)
 			if err != nil {
-				// On error, report as Invalid with 0 elapsed time
-				if sendErr := sendWsResponseWithContext("Invalid", "Invalid", "0", msg.Name, msg.CID, msg.Bn, conn); sendErr != nil {
-					// Connection lost, stop processing batch
-					return
-				}
+				// On error, add Invalid result and continue
+				results = append(results, ExampleResponse{
+					Status:  "Invalid",
+					Message: "Invalid",
+					Elapsed: "0",
+					Name:    msg.Name,
+					CID:     msg.CID,
+					Bn:      msg.Bn,
+				})
 				continue
 			}
 		} else {
@@ -252,11 +258,15 @@ func handleBatchValidation(batchReq BatchRequest, conn *websocket.Conn) {
 
 		proofJson, err := createProofRequest(salt, msg.CID, conn, msg.Name)
 		if err != nil {
-			// On error, report as Invalid with 0 elapsed time
-			if sendErr := sendWsResponseWithContext("Invalid", "Invalid", "0", msg.Name, msg.CID, msg.Bn, conn); sendErr != nil {
-				// Connection lost, stop processing batch
-				return
-			}
+			// On error, add Invalid result and continue
+			results = append(results, ExampleResponse{
+				Status:  "Invalid",
+				Message: "Invalid",
+				Elapsed: "0",
+				Name:    msg.Name,
+				CID:     msg.CID,
+				Bn:      msg.Bn,
+			})
 			continue
 		}
 
@@ -282,11 +292,15 @@ func handleBatchValidation(batchReq BatchRequest, conn *websocket.Conn) {
 		}
 		
 		if !requestSent {
-			// If we couldn't send the request, report as Invalid
-			if sendErr := sendWsResponseWithContext("Invalid", "Invalid", "0", msg.Name, msg.CID, msg.Bn, conn); sendErr != nil {
-				// Connection lost, stop processing batch
-				return
-			}
+			// If we couldn't send the request, add Invalid result and continue
+			results = append(results, ExampleResponse{
+				Status:  "Invalid",
+				Message: "Invalid",
+				Elapsed: "0",
+				Name:    msg.Name,
+				CID:     msg.CID,
+				Bn:      msg.Bn,
+			})
 			continue
 		}
 		
@@ -304,11 +318,14 @@ func handleBatchValidation(batchReq BatchRequest, conn *websocket.Conn) {
 			case <-ctx.Done():
 				// Timeout - report as Invalid
 				elapsed := time.Since(startTime)
-				if sendErr := sendWsResponseWithContext("Invalid", "Invalid", formatElapsed(elapsed), msg.Name, msg.CID, msg.Bn, conn); sendErr != nil {
-					// Connection lost, stop processing batch
-					cancel()
-					return
-				}
+				results = append(results, ExampleResponse{
+					Status:  "Invalid",
+					Message: "Invalid",
+					Elapsed: formatElapsed(elapsed),
+					Name:    msg.Name,
+					CID:     msg.CID,
+					Bn:      msg.Bn,
+				})
 				validationComplete = true
 			default:
 				status := localdata.GetStatus(salt).Status
@@ -333,15 +350,10 @@ func handleBatchValidation(batchReq BatchRequest, conn *websocket.Conn) {
 						finalStatus = "Invalid"
 					}
 					
-					if sendErr := sendWsResponseWithContext(finalStatus, finalStatus, formatElapsed(elapsed), msg.Name, msg.CID, msg.Bn, conn); sendErr != nil {
-						// Connection lost, stop processing batch
-						cancel()
-						return
-					}
-					
+					// Don't send individual responses - just collect for batch
 					results = append(results, ExampleResponse{
-						Status:  status,
-						Message: status,
+						Status:  finalStatus,
+						Message: finalStatus,
 						Elapsed: formatElapsed(elapsed),
 						Name:    msg.Name,
 						CID:     msg.CID,
@@ -358,6 +370,7 @@ func handleBatchValidation(batchReq BatchRequest, conn *websocket.Conn) {
 	}
 
 	// Send final batch response with all results
+	log.Printf("Sending batch response with %d results", len(results))
 	localdata.Lock.Lock()
 	err := conn.WriteJSON(BatchResponse{
 		Type:    "batch",
@@ -366,6 +379,8 @@ func handleBatchValidation(batchReq BatchRequest, conn *websocket.Conn) {
 	localdata.Lock.Unlock()
 	if err != nil {
 		log.Println("Error writing batch response:", err)
+	} else {
+		log.Printf("Batch response sent successfully with %d results", len(results))
 	}
 }
 

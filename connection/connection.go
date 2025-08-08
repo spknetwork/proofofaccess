@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"math"
 	"os"
 	"os/signal"
 	"proofofaccess/localdata"
@@ -118,24 +119,37 @@ func StartWsClient(name string) {
 	interrupt := make(chan os.Signal, 1)
 	signal.Notify(interrupt, os.Interrupt)
 
+	// Initial delay to allow validator to start up
+	log.Printf("Waiting 2 seconds before connecting to validator %s", name)
+	time.Sleep(time.Second * 2)
+
+	retryCount := 0
 	for {
 		err := connectAndListen(name, interrupt)
 		if err != nil {
-			log.Printf("WebSocket error: %v", err)
-			time.Sleep(time.Second * 5) // Wait before attempting to reconnect
+			retryCount++
+			// Use exponential backoff with max of 30 seconds
+			backoff := time.Duration(math.Min(float64(5 * retryCount), 30)) * time.Second
+			log.Printf("WebSocket connection to %s failed (attempt %d): %v. Retrying in %v", name, retryCount, err, backoff)
+			time.Sleep(backoff)
+		} else {
+			// Reset retry count on successful connection
+			retryCount = 0
 		}
 	}
 }
 
 func connectAndListen(name string, interrupt <-chan os.Signal) error {
 	u := localdata.ValidatorAddress[name] + "/messaging"
-	log.Printf("Connecting to %s", u)
+	log.Printf("Attempting WebSocket connection to validator %s at %s", name, u)
 
 	c, _, err := websocket.DefaultDialer.Dial(u, nil)
 	if err != nil {
 		return fmt.Errorf("dial: %v", err)
 	}
 	defer c.Close()
+	
+	log.Printf("Successfully connected to validator %s at %s", name, u)
 
 	done := make(chan struct{})
 	go func() {
