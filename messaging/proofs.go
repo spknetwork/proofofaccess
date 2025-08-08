@@ -65,24 +65,31 @@ func HandleProofOfAccess(req Request, ws *websocket.Conn) {
 	// Create the proof hash
 	var validationHash string
 	fmt.Println("Request Hash", req.Hash)
-	if req.Hash != "NA" || req.Hash != "" {
+	if req.Hash != "NA" && req.Hash != "" {
 		fmt.Println("Creating proof of access hash")
 		validationHash = validation.CreatProofHash(seed, CID)
 		fmt.Println("Validation Hash", validationHash)
-		// Check if the proof of access is valid
-		if validationHash == req.Hash && elapsed < 25000000*time.Millisecond {
-			fmt.Println("Proof of access is valid")
-			//fmt.Println(req.Seed)
-			localdata.SetStatus(req.Seed, CID, "Valid", req.User)
-		} else {
+		
+		// Check if we could create a validation hash
+		if validationHash == "" {
+			fmt.Println("Could not create validation hash - CID refs not found")
+			localdata.SetStatus(req.Seed, CID, "Invalid", req.User)
+		} else if validationHash != req.Hash {
 			fmt.Println("Request Hash", req.Hash)
 			fmt.Println("Validation Hash", validationHash)
-			fmt.Println("Elapsed time:", elapsed)
-			fmt.Println("Proof of access is invalid took too long")
+			fmt.Println("Hash mismatch - proof is invalid")
 			localdata.SetStatus(req.Seed, CID, "Invalid", req.User)
+		} else if elapsed >= 25000*time.Millisecond {
+			// 25 seconds timeout
+			fmt.Println("Elapsed time:", elapsed)
+			fmt.Println("Proof of access took too long (>25s)")
+			localdata.SetStatus(req.Seed, CID, "Invalid", req.User)
+		} else {
+			fmt.Println("Proof of access is valid")
+			localdata.SetStatus(req.Seed, CID, "Valid", req.User)
 		}
 	} else {
-		fmt.Println("Proof is invalid")
+		fmt.Println("Proof is invalid - no hash provided")
 		localdata.SetStatus(req.Seed, CID, "Invalid", req.User)
 	}
 	localdata.Lock.Lock()
