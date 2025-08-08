@@ -1,6 +1,7 @@
 package api
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net"
@@ -9,6 +10,7 @@ import (
 	"proofofaccess/database"
 	"proofofaccess/localdata"
 	"proofofaccess/messaging"
+	"proofofaccess/pubsub"
 	"sort"
 	"time"
 
@@ -220,22 +222,20 @@ func processSingleValidation(msg *message, conn *websocket.Conn) {
 func handleBatchValidation(batchReq BatchRequest, conn *websocket.Conn) {
 	results := make([]ExampleResponse, 0, len(batchReq.Validations))
 	
+	// Process each validation and send individual responses with context
 	for _, msg := range batchReq.Validations {
 		// Normalize the message to handle both uppercase and lowercase field names
 		msg.Normalize()
+		
+		// Send RequestingProof with context
+		sendWsResponseWithContext(wsRequestingProof, "RequestingProof", "0", msg.Name, msg.CID, msg.Bn, conn)
+		
 		salt := msg.SALT
 		var err error
 		if salt == "" {
 			salt, err = createRandomHash(conn)
 			if err != nil {
-				results = append(results, ExampleResponse{
-					Status:  wsError,
-					Message: "Failed to create hash",
-					Elapsed: "0",
-					Name:    msg.Name,
-					CID:     msg.CID,
-					Bn:      msg.Bn,
-				})
+				sendWsResponseWithContext(wsError, "Failed to create hash", "0", msg.Name, msg.CID, msg.Bn, conn)
 				continue
 			}
 		} else {
@@ -244,54 +244,65 @@ func handleBatchValidation(batchReq BatchRequest, conn *websocket.Conn) {
 
 		proofJson, err := createProofRequest(salt, msg.CID, conn, msg.Name)
 		if err != nil {
-			results = append(results, ExampleResponse{
-				Status:  wsError,
-				Message: "Failed to create proof request",
-				Elapsed: "0",
-				Name:    msg.Name,
-				CID:     msg.CID,
-				Bn:      msg.Bn,
-			})
+			sendWsResponseWithContext(wsError, "Failed to create proof request", "0", msg.Name, msg.CID, msg.Bn, conn)
 			continue
 		}
 
-		err = sendProofRequest(salt, proofJson, msg.Name, conn)
-		if err != nil {
-			results = append(results, ExampleResponse{
-				Status:  wsError,
-				Message: "Failed to send proof request",
-				Elapsed: "0",
-				Name:    msg.Name,
-				CID:     msg.CID,
-				Bn:      msg.Bn,
-			})
-			continue
+		// Send the proof request to the storage node
+		if localdata.WsPeers[msg.Name] == msg.Name && localdata.NodeType == 1 {
+			ws := localdata.WsClients[msg.Name]
+			ws.WriteMessage(websocket.TextMessage, proofJson)
+		} else if localdata.UseWS == true && localdata.NodeType == 2 {
+			localdata.Lock.Lock()
+			validatorWs := localdata.WsValidators[msg.Name]
+			validatorWs.WriteMessage(websocket.TextMessage, proofJson)
+			localdata.Lock.Unlock()
+		} else {
+			err = pubsub.Publish(string(proofJson), msg.Name)
+			if err != nil {
+				sendWsResponseWithContext(wsError, "Failed to send proof request", "0", msg.Name, msg.CID, msg.Bn, conn)
+				continue
+			}
 		}
-
-		status, elapsed, err := waitForProofStatus(salt, msg.CID, conn)
-		if err != nil {
-			results = append(results, ExampleResponse{
-				Status:  wsError,
-				Message: "Validation timeout",
-				Elapsed: "0",
-				Name:    msg.Name,
-				CID:     msg.CID,
-				Bn:      msg.Bn,
-			})
-			continue
+		localdata.SaveTime(salt)
+		
+		// Send intermediate status updates with context
+		sendWsResponseWithContext("Waiting Proof", "Waiting for Proof", "0", msg.Name, msg.CID, msg.Bn, conn)
+		
+		// Wait for proof validation to complete (simplified version without channel issues)
+		ctx, cancel := context.WithTimeout(context.Background(), validationTimeout)
+		defer cancel()
+		
+		// Poll for status completion
+		for {
+			select {
+			case <-ctx.Done():
+				sendWsResponseWithContext(wsError, "Validation timeout", "0", msg.Name, msg.CID, msg.Bn, conn)
+				break
+			default:
+				status := localdata.GetStatus(salt).Status
+				if status != "Pending" {
+					elapsed := localdata.GetElapsed(salt)
+					// Send the final status with context
+					sendWsResponseWithContext(status, status, formatElapsed(elapsed), msg.Name, msg.CID, msg.Bn, conn)
+					
+					results = append(results, ExampleResponse{
+						Status:  status,
+						Message: status,
+						Elapsed: formatElapsed(elapsed),
+						Name:    msg.Name,
+						CID:     msg.CID,
+						Bn:      msg.Bn,
+					})
+					goto nextValidation
+				}
+				time.Sleep(100 * time.Millisecond)
+			}
 		}
-
-		results = append(results, ExampleResponse{
-			Status:  status,
-			Message: status,
-			Elapsed: formatElapsed(elapsed),
-			Name:    msg.Name,
-			CID:     msg.CID,
-			Bn:      msg.Bn,
-		})
+		nextValidation:
 	}
 
-	// Send batch response
+	// Send final batch response with all results
 	localdata.Lock.Lock()
 	err := conn.WriteJSON(BatchResponse{
 		Type:    "batch",
