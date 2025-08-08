@@ -222,20 +222,18 @@ func processSingleValidation(msg *message, conn *websocket.Conn) {
 func handleBatchValidation(batchReq BatchRequest, conn *websocket.Conn) {
 	results := make([]ExampleResponse, 0, len(batchReq.Validations))
 	
-	// Process each validation and send individual responses with context
+	// Process each validation silently and only send final results
 	for _, msg := range batchReq.Validations {
 		// Normalize the message to handle both uppercase and lowercase field names
 		msg.Normalize()
-		
-		// Send RequestingProof with context
-		sendWsResponseWithContext(wsRequestingProof, "RequestingProof", "0", msg.Name, msg.CID, msg.Bn, conn)
 		
 		salt := msg.SALT
 		var err error
 		if salt == "" {
 			salt, err = createRandomHash(conn)
 			if err != nil {
-				sendWsResponseWithContext(wsError, "Failed to create hash", "0", msg.Name, msg.CID, msg.Bn, conn)
+				// On error, report as Invalid with 0 elapsed time
+				sendWsResponseWithContext("Invalid", "Invalid", "0", msg.Name, msg.CID, msg.Bn, conn)
 				continue
 			}
 		} else {
@@ -244,47 +242,62 @@ func handleBatchValidation(batchReq BatchRequest, conn *websocket.Conn) {
 
 		proofJson, err := createProofRequest(salt, msg.CID, conn, msg.Name)
 		if err != nil {
-			sendWsResponseWithContext(wsError, "Failed to create proof request", "0", msg.Name, msg.CID, msg.Bn, conn)
+			// On error, report as Invalid with 0 elapsed time
+			sendWsResponseWithContext("Invalid", "Invalid", "0", msg.Name, msg.CID, msg.Bn, conn)
 			continue
 		}
 
-		// Send the proof request to the storage node
+		// Send the proof request to the storage node (silently)
+		var requestSent = false
 		if localdata.WsPeers[msg.Name] == msg.Name && localdata.NodeType == 1 {
 			ws := localdata.WsClients[msg.Name]
-			ws.WriteMessage(websocket.TextMessage, proofJson)
+			if ws != nil {
+				ws.WriteMessage(websocket.TextMessage, proofJson)
+				requestSent = true
+			}
 		} else if localdata.UseWS == true && localdata.NodeType == 2 {
 			localdata.Lock.Lock()
 			validatorWs := localdata.WsValidators[msg.Name]
-			validatorWs.WriteMessage(websocket.TextMessage, proofJson)
 			localdata.Lock.Unlock()
+			if validatorWs != nil {
+				validatorWs.WriteMessage(websocket.TextMessage, proofJson)
+				requestSent = true
+			}
 		} else {
 			err = pubsub.Publish(string(proofJson), msg.Name)
-			if err != nil {
-				sendWsResponseWithContext(wsError, "Failed to send proof request", "0", msg.Name, msg.CID, msg.Bn, conn)
-				continue
-			}
+			requestSent = (err == nil)
 		}
+		
+		if !requestSent {
+			// If we couldn't send the request, report as Invalid
+			sendWsResponseWithContext("Invalid", "Invalid", "0", msg.Name, msg.CID, msg.Bn, conn)
+			continue
+		}
+		
 		localdata.SaveTime(salt)
 		
-		// Send intermediate status updates with context
-		sendWsResponseWithContext("Waiting Proof", "Waiting for Proof", "0", msg.Name, msg.CID, msg.Bn, conn)
-		
-		// Wait for proof validation to complete (simplified version without channel issues)
+		// Wait for proof validation to complete silently
 		ctx, cancel := context.WithTimeout(context.Background(), validationTimeout)
-		defer cancel()
 		
 		// Poll for status completion
-		for {
+		validationComplete := false
+		for !validationComplete {
 			select {
 			case <-ctx.Done():
-				sendWsResponseWithContext(wsError, "Validation timeout", "0", msg.Name, msg.CID, msg.Bn, conn)
-				break
+				// Timeout - report as Invalid
+				sendWsResponseWithContext("Invalid", "Invalid", "0", msg.Name, msg.CID, msg.Bn, conn)
+				validationComplete = true
 			default:
 				status := localdata.GetStatus(salt).Status
 				if status != "Pending" {
 					elapsed := localdata.GetElapsed(salt)
-					// Send the final status with context
-					sendWsResponseWithContext(status, status, formatElapsed(elapsed), msg.Name, msg.CID, msg.Bn, conn)
+					// Only send the final Valid or Invalid status
+					if status == "Valid" || status == "Invalid" {
+						sendWsResponseWithContext(status, status, formatElapsed(elapsed), msg.Name, msg.CID, msg.Bn, conn)
+					} else {
+						// Any other status is treated as Invalid for honeycomb
+						sendWsResponseWithContext("Invalid", "Invalid", formatElapsed(elapsed), msg.Name, msg.CID, msg.Bn, conn)
+					}
 					
 					results = append(results, ExampleResponse{
 						Status:  status,
@@ -294,12 +307,14 @@ func handleBatchValidation(batchReq BatchRequest, conn *websocket.Conn) {
 						CID:     msg.CID,
 						Bn:      msg.Bn,
 					})
-					goto nextValidation
+					validationComplete = true
 				}
-				time.Sleep(100 * time.Millisecond)
+				if !validationComplete {
+					time.Sleep(100 * time.Millisecond)
+				}
 			}
 		}
-		nextValidation:
+		cancel()
 	}
 
 	// Send final batch response with all results
