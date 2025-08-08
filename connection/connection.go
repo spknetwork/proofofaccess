@@ -36,10 +36,9 @@ func CheckSynced(ctx context.Context) {
 			return
 		default:
 			for _, peerName := range localdata.WsPeers {
-				fmt.Println("Checking if synced with", peerName)
+				// Check if synced with peer (removed verbose logging)
 				if localdata.WsPeers[peerName] == peerName {
 					peerWs := localdata.WsClients[peerName]
-					fmt.Println("Checking if synced with2", peerName)
 					if IsConnectionOpen(peerWs) == false {
 						fmt.Println("Connection to validator", peerName, "lost")
 						localdata.Lock.Lock()
@@ -87,26 +86,26 @@ func CheckSynced(ctx context.Context) {
 }
 
 func IsConnectionOpen(conn *websocket.Conn) bool {
-	fmt.Println("Checking if connection is open")
+	// Check if connection is open (removed verbose logging)
 	var writeWait = 1 * time.Second
 
 	if err := conn.SetWriteDeadline(time.Now().Add(writeWait)); err != nil {
-		log.Println("SetWriteDeadline failed:", err)
+		// Connection is likely closed
 		return false
 	}
 
 	// Write the ping message to the connection
 	if err := conn.WriteMessage(websocket.PingMessage, nil); err != nil {
-		log.Println("WriteMessage failed:", err)
+		// Connection is closed
 		return false
 	}
 
 	// Reset the write deadline
 	if err := conn.SetWriteDeadline(time.Time{}); err != nil {
-		log.Println("Resetting WriteDeadline failed:", err)
+		// Error resetting deadline
 		return false
 	}
-	fmt.Println("Connection is open")
+	// Connection is open
 	return true
 }
 
@@ -191,7 +190,7 @@ func connectAndListen(name string, interrupt <-chan os.Signal) error {
 }
 
 func wsPing(hash string, name string, c *websocket.Conn) {
-	fmt.Println("Sending Ping")
+	// Send ping to keep connection alive
 	data := map[string]string{
 		"type": "PingPongPing",
 		"hash": hash,
