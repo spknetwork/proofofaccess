@@ -24,21 +24,23 @@ var AllPins = map[string]ipfs.PinInfo{}
 const BufferSize = 1024
 
 var isIPFSDown bool
-var lastIPFSErrorTime time.Time
+var lastIPFSCheckTime time.Time
 
-const ipfsErrorCooldown = 5 * time.Minute
+const ipfsReconnectDelay = 3 * time.Second
 
 func checkIPFSConnection() bool {
-	if time.Since(lastIPFSErrorTime) < ipfsErrorCooldown {
-		return false
+	// Only check every 3 seconds to prevent flooding
+	if time.Since(lastIPFSCheckTime) < ipfsReconnectDelay {
+		return !isIPFSDown
 	}
+	
+	lastIPFSCheckTime = time.Now()
 
 	_, err := Shell.ID()
 	if err != nil {
 		if !isIPFSDown {
 			log.Println("IPFS node is down:", err)
 			isIPFSDown = true
-			lastIPFSErrorTime = time.Now()
 		}
 		return false
 	}
