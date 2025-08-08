@@ -38,8 +38,17 @@ func HandleProofOfAccess(req Request, ws *websocket.Conn) {
 	// Get the current time
 	elapsed := time.Since(start)
 	// fmt.Println("Elapsed time:", elapsed)
-	// Set the elapsed time
-	localdata.SetElapsed(req.Seed, elapsed)
+	
+	// Check if this node has already responded and keep the fastest time
+	nodeKey := req.Seed + ":" + req.User
+	existingElapsed := localdata.GetElapsed(nodeKey)
+	if existingElapsed == 0 || elapsed < existingElapsed {
+		// First response or faster response from this node
+		localdata.SetElapsed(nodeKey, elapsed)
+	} else {
+		// Use the existing faster time
+		elapsed = existingElapsed
+	}
 
 	// Get the CID and Seed
 	data := database.Read([]byte("Stats" + req.Seed))

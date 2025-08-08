@@ -98,15 +98,64 @@ func GetElapsed(hash string) time.Duration {
 }
 
 // GetStatus
-// Gets the status from the database
+// Gets the aggregated status from all nodes that have responded
 func GetStatus(seed string) Message {
+	// First try to get the base seed status (for backwards compatibility)
 	data := database.Read([]byte("Stats" + seed))
+	if len(data) > 0 {
+		var message Message
+		err := json.Unmarshal([]byte(string(data)), &message)
+		if err == nil {
+			return message
+		}
+	}
+	
+	// If no base status, aggregate from all node-specific statuses
+	// This will return the first valid response found
+	for _, nodeName := range PeerNames {
+		nodeData := database.Read([]byte("Stats" + seed + ":" + nodeName))
+		if len(nodeData) > 0 {
+			var message Message
+			err := json.Unmarshal([]byte(string(nodeData)), &message)
+			if err == nil && message.Status != "Pending" {
+				return message
+			}
+		}
+	}
+	
+	// Return empty message if nothing found
+	return Message{Status: "Pending"}
+}
+
+// GetNodeStatus
+// Gets the status for a specific node
+func GetNodeStatus(seed string, nodeName string) Message {
+	data := database.Read([]byte("Stats" + seed + ":" + nodeName))
 	var message Message
-	err := json.Unmarshal([]byte(string(data)), &message)
-	if err != nil {
-		fmt.Println("Error decoding JSON:", err)
+	if len(data) > 0 {
+		err := json.Unmarshal([]byte(string(data)), &message)
+		if err != nil {
+			fmt.Println("Error decoding JSON:", err)
+		}
 	}
 	return message
+}
+
+// GetAllNodeStatuses
+// Gets all node statuses for a given seed, useful for reporting to honeycomb
+func GetAllNodeStatuses(seed string) []Message {
+	var statuses []Message
+	for _, nodeName := range PeerNames {
+		nodeData := database.Read([]byte("Stats" + seed + ":" + nodeName))
+		if len(nodeData) > 0 {
+			var message Message
+			err := json.Unmarshal([]byte(string(nodeData)), &message)
+			if err == nil && message.Status != "" {
+				statuses = append(statuses, message)
+			}
+		}
+	}
+	return statuses
 }
 
 // SetStatus
@@ -114,12 +163,26 @@ func GetStatus(seed string) Message {
 func SetStatus(seed string, cid string, status string, name string) {
 	// fmt.Println("SetStatus", seed, cid, status)
 	time1 := GetTime(seed)
-	elapsed := GetElapsed(seed)
-	timeString := time1.Format(time.RFC3339)
-	elapsedString := elapsed.String()
-	jsonString := `{"type": "ProofOfAccess", "CID":"` + cid + `", "seed":"` + seed + `", "status":"` + status + `", "name":"` + name + `", "time":"` + timeString + `", "elapsed":"` + elapsedString + `"}`
-	jsonString = strings.TrimSpace(jsonString)
-	database.Update([]byte("Stats"+seed), []byte(jsonString))
+	
+	// For initial "Pending" status, store in base location for backward compatibility
+	if status == "Pending" {
+		elapsed := GetElapsed(seed)
+		timeString := time1.Format(time.RFC3339)
+		elapsedString := elapsed.String()
+		jsonString := `{"type": "ProofOfAccess", "CID":"` + cid + `", "seed":"` + seed + `", "status":"` + status + `", "name":"` + name + `", "time":"` + timeString + `", "elapsed":"` + elapsedString + `"}`
+		jsonString = strings.TrimSpace(jsonString)
+		database.Update([]byte("Stats"+seed), []byte(jsonString))
+	} else {
+		// For actual proof responses, use node-specific elapsed time to avoid conflicts
+		nodeKey := seed + ":" + name
+		elapsed := GetElapsed(nodeKey)
+		timeString := time1.Format(time.RFC3339)
+		elapsedString := elapsed.String()
+		// Store with node-specific key to track each validator's response separately
+		jsonString := `{"type": "ProofOfAccess", "CID":"` + cid + `", "seed":"` + seed + `", "status":"` + status + `", "name":"` + name + `", "time":"` + timeString + `", "elapsed":"` + elapsedString + `"}`
+		jsonString = strings.TrimSpace(jsonString)
+		database.Update([]byte("Stats"+seed+":"+name), []byte(jsonString))
+	}
 }
 
 // SetNodeName
