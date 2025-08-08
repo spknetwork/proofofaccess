@@ -291,6 +291,8 @@ func handleBatchValidation(batchReq BatchRequest, conn *websocket.Conn) {
 		}
 		
 		localdata.SaveTime(salt)
+		// Track the start time for elapsed calculation
+		startTime := time.Now()
 		
 		// Wait for proof validation to complete silently
 		ctx, cancel := context.WithTimeout(context.Background(), validationTimeout)
@@ -301,7 +303,8 @@ func handleBatchValidation(batchReq BatchRequest, conn *websocket.Conn) {
 			select {
 			case <-ctx.Done():
 				// Timeout - report as Invalid
-				if sendErr := sendWsResponseWithContext("Invalid", "Invalid", "0", msg.Name, msg.CID, msg.Bn, conn); sendErr != nil {
+				elapsed := time.Since(startTime)
+				if sendErr := sendWsResponseWithContext("Invalid", "Invalid", formatElapsed(elapsed), msg.Name, msg.CID, msg.Bn, conn); sendErr != nil {
 					// Connection lost, stop processing batch
 					cancel()
 					return
@@ -310,7 +313,17 @@ func handleBatchValidation(batchReq BatchRequest, conn *websocket.Conn) {
 			default:
 				status := localdata.GetStatus(salt).Status
 				if status != "Pending" {
-					elapsed := localdata.GetElapsed(salt)
+					// Try to get elapsed time from the node-specific key first
+					nodeKey := salt + ":" + msg.Name
+					elapsed := localdata.GetElapsed(nodeKey)
+					if elapsed == 0 {
+						// Fall back to just salt key
+						elapsed = localdata.GetElapsed(salt)
+					}
+					if elapsed == 0 {
+						// If still no elapsed time, calculate from start
+						elapsed = time.Since(startTime)
+					}
 					// Only send the final Valid or Invalid status
 					var finalStatus string
 					if status == "Valid" || status == "Invalid" {
