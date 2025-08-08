@@ -220,6 +220,13 @@ func processSingleValidation(msg *message, conn *websocket.Conn) {
 
 // handleBatchValidation processes multiple validation requests
 func handleBatchValidation(batchReq BatchRequest, conn *websocket.Conn) {
+	// Clean up connection tracking when done
+	defer func() {
+		closedConnMutex.Lock()
+		delete(closedConnections, conn)
+		closedConnMutex.Unlock()
+	}()
+	
 	results := make([]ExampleResponse, 0, len(batchReq.Validations))
 	
 	// Process each validation silently and only send final results
@@ -233,7 +240,10 @@ func handleBatchValidation(batchReq BatchRequest, conn *websocket.Conn) {
 			salt, err = createRandomHash(conn)
 			if err != nil {
 				// On error, report as Invalid with 0 elapsed time
-				sendWsResponseWithContext("Invalid", "Invalid", "0", msg.Name, msg.CID, msg.Bn, conn)
+				if sendErr := sendWsResponseWithContext("Invalid", "Invalid", "0", msg.Name, msg.CID, msg.Bn, conn); sendErr != nil {
+					// Connection lost, stop processing batch
+					return
+				}
 				continue
 			}
 		} else {
@@ -243,7 +253,10 @@ func handleBatchValidation(batchReq BatchRequest, conn *websocket.Conn) {
 		proofJson, err := createProofRequest(salt, msg.CID, conn, msg.Name)
 		if err != nil {
 			// On error, report as Invalid with 0 elapsed time
-			sendWsResponseWithContext("Invalid", "Invalid", "0", msg.Name, msg.CID, msg.Bn, conn)
+			if sendErr := sendWsResponseWithContext("Invalid", "Invalid", "0", msg.Name, msg.CID, msg.Bn, conn); sendErr != nil {
+				// Connection lost, stop processing batch
+				return
+			}
 			continue
 		}
 
@@ -270,7 +283,10 @@ func handleBatchValidation(batchReq BatchRequest, conn *websocket.Conn) {
 		
 		if !requestSent {
 			// If we couldn't send the request, report as Invalid
-			sendWsResponseWithContext("Invalid", "Invalid", "0", msg.Name, msg.CID, msg.Bn, conn)
+			if sendErr := sendWsResponseWithContext("Invalid", "Invalid", "0", msg.Name, msg.CID, msg.Bn, conn); sendErr != nil {
+				// Connection lost, stop processing batch
+				return
+			}
 			continue
 		}
 		
@@ -285,18 +301,29 @@ func handleBatchValidation(batchReq BatchRequest, conn *websocket.Conn) {
 			select {
 			case <-ctx.Done():
 				// Timeout - report as Invalid
-				sendWsResponseWithContext("Invalid", "Invalid", "0", msg.Name, msg.CID, msg.Bn, conn)
+				if sendErr := sendWsResponseWithContext("Invalid", "Invalid", "0", msg.Name, msg.CID, msg.Bn, conn); sendErr != nil {
+					// Connection lost, stop processing batch
+					cancel()
+					return
+				}
 				validationComplete = true
 			default:
 				status := localdata.GetStatus(salt).Status
 				if status != "Pending" {
 					elapsed := localdata.GetElapsed(salt)
 					// Only send the final Valid or Invalid status
+					var finalStatus string
 					if status == "Valid" || status == "Invalid" {
-						sendWsResponseWithContext(status, status, formatElapsed(elapsed), msg.Name, msg.CID, msg.Bn, conn)
+						finalStatus = status
 					} else {
 						// Any other status is treated as Invalid for honeycomb
-						sendWsResponseWithContext("Invalid", "Invalid", formatElapsed(elapsed), msg.Name, msg.CID, msg.Bn, conn)
+						finalStatus = "Invalid"
+					}
+					
+					if sendErr := sendWsResponseWithContext(finalStatus, finalStatus, formatElapsed(elapsed), msg.Name, msg.CID, msg.Bn, conn); sendErr != nil {
+						// Connection lost, stop processing batch
+						cancel()
+						return
 					}
 					
 					results = append(results, ExampleResponse{

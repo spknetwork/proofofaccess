@@ -104,22 +104,49 @@ func readWebSocketMessage(conn *websocket.Conn) (*message, error) {
 	return &msg, nil
 }
 
+// Track closed connections to avoid repeated write attempts
+var closedConnections = make(map[*websocket.Conn]bool)
+var closedConnMutex sync.Mutex
+
 func sendWsResponse(status string, message string, elapsed string, conn *websocket.Conn) {
+	// Check if connection is already known to be closed
+	closedConnMutex.Lock()
+	if closedConnections[conn] {
+		closedConnMutex.Unlock()
+		return
+	}
+	closedConnMutex.Unlock()
+	
 	localdata.Lock.Lock()
-	//fmt.Println("sendWsResponse", status, message, elapsed)
 	err := conn.WriteJSON(ExampleResponse{
 		Status:  status,
 		Message: message,
 		Elapsed: elapsed,
 	})
 	localdata.Lock.Unlock()
+	
 	if err != nil {
-		log.Println("Error writing JSON to websocket:", err)
+		// Mark connection as closed and log only once
+		closedConnMutex.Lock()
+		if !closedConnections[conn] {
+			closedConnections[conn] = true
+			// Only log the first error for this connection
+			log.Println("WebSocket connection closed:", err)
+		}
+		closedConnMutex.Unlock()
 	}
 }
 
 // sendWsResponseWithContext sends a response with additional context for honeycomb-spkcc
-func sendWsResponseWithContext(status string, message string, elapsed string, name string, cid string, bn int, conn *websocket.Conn) {
+func sendWsResponseWithContext(status string, message string, elapsed string, name string, cid string, bn int, conn *websocket.Conn) error {
+	// Check if connection is already known to be closed
+	closedConnMutex.Lock()
+	if closedConnections[conn] {
+		closedConnMutex.Unlock()
+		return websocket.ErrCloseSent
+	}
+	closedConnMutex.Unlock()
+	
 	localdata.Lock.Lock()
 	err := conn.WriteJSON(ExampleResponse{
 		Status:  status,
@@ -130,9 +157,19 @@ func sendWsResponseWithContext(status string, message string, elapsed string, na
 		Bn:      bn,
 	})
 	localdata.Lock.Unlock()
+	
 	if err != nil {
-		log.Println("Error writing JSON to websocket:", err)
+		// Mark connection as closed and log only once
+		closedConnMutex.Lock()
+		if !closedConnections[conn] {
+			closedConnections[conn] = true
+			// Only log the first error for this connection
+			log.Println("WebSocket connection closed:", err)
+		}
+		closedConnMutex.Unlock()
+		return err
 	}
+	return nil
 }
 
 func sendJsonWS(conn *websocket.Conn, json gin.H) {
