@@ -98,33 +98,19 @@ func GetElapsed(hash string) time.Duration {
 }
 
 // GetStatus
-// Gets the aggregated status from all nodes that have responded
+// Gets the status from the database
 func GetStatus(seed string) Message {
-	// First try to get the base seed status (for backwards compatibility)
+	// Simply get the base seed status - no loops or aggregation
 	data := database.Read([]byte("Stats" + seed))
+	var message Message
 	if len(data) > 0 {
-		var message Message
 		err := json.Unmarshal([]byte(string(data)), &message)
-		if err == nil {
-			return message
+		if err != nil {
+			fmt.Println("Error decoding JSON:", err)
+			return Message{Status: "Pending"}
 		}
 	}
-	
-	// If no base status, aggregate from all node-specific statuses
-	// This will return the first valid response found
-	for _, nodeName := range PeerNames {
-		nodeData := database.Read([]byte("Stats" + seed + ":" + nodeName))
-		if len(nodeData) > 0 {
-			var message Message
-			err := json.Unmarshal([]byte(string(nodeData)), &message)
-			if err == nil && message.Status != "Pending" {
-				return message
-			}
-		}
-	}
-	
-	// Return empty message if nothing found
-	return Message{Status: "Pending"}
+	return message
 }
 
 // GetNodeStatus
@@ -145,15 +131,22 @@ func GetNodeStatus(seed string, nodeName string) Message {
 // Gets all node statuses for a given seed, useful for reporting to honeycomb
 func GetAllNodeStatuses(seed string) []Message {
 	var statuses []Message
+	// Limit iteration to prevent blocking
+	maxNodes := 20
+	count := 0
 	for _, nodeName := range PeerNames {
+		if count >= maxNodes {
+			break
+		}
 		nodeData := database.Read([]byte("Stats" + seed + ":" + nodeName))
 		if len(nodeData) > 0 {
 			var message Message
 			err := json.Unmarshal([]byte(string(nodeData)), &message)
-			if err == nil && message.Status != "" {
+			if err == nil && message.Status != "" && message.Status != "Pending" {
 				statuses = append(statuses, message)
 			}
 		}
+		count++
 	}
 	return statuses
 }
@@ -164,23 +157,27 @@ func SetStatus(seed string, cid string, status string, name string) {
 	// fmt.Println("SetStatus", seed, cid, status)
 	time1 := GetTime(seed)
 	
-	// For initial "Pending" status, store in base location for backward compatibility
+	// Get the appropriate elapsed time
+	var elapsed time.Duration
 	if status == "Pending" {
-		elapsed := GetElapsed(seed)
-		timeString := time1.Format(time.RFC3339)
-		elapsedString := elapsed.String()
-		jsonString := `{"type": "ProofOfAccess", "CID":"` + cid + `", "seed":"` + seed + `", "status":"` + status + `", "name":"` + name + `", "time":"` + timeString + `", "elapsed":"` + elapsedString + `"}`
-		jsonString = strings.TrimSpace(jsonString)
-		database.Update([]byte("Stats"+seed), []byte(jsonString))
+		// For initial status, use base seed
+		elapsed = GetElapsed(seed)
 	} else {
-		// For actual proof responses, use node-specific elapsed time to avoid conflicts
+		// For proof responses, use node-specific key to avoid conflicts
 		nodeKey := seed + ":" + name
-		elapsed := GetElapsed(nodeKey)
-		timeString := time1.Format(time.RFC3339)
-		elapsedString := elapsed.String()
-		// Store with node-specific key to track each validator's response separately
-		jsonString := `{"type": "ProofOfAccess", "CID":"` + cid + `", "seed":"` + seed + `", "status":"` + status + `", "name":"` + name + `", "time":"` + timeString + `", "elapsed":"` + elapsedString + `"}`
-		jsonString = strings.TrimSpace(jsonString)
+		elapsed = GetElapsed(nodeKey)
+	}
+	
+	timeString := time1.Format(time.RFC3339)
+	elapsedString := elapsed.String()
+	jsonString := `{"type": "ProofOfAccess", "CID":"` + cid + `", "seed":"` + seed + `", "status":"` + status + `", "name":"` + name + `", "time":"` + timeString + `", "elapsed":"` + elapsedString + `"}`
+	jsonString = strings.TrimSpace(jsonString)
+	
+	// Always store in base location for backward compatibility
+	database.Update([]byte("Stats"+seed), []byte(jsonString))
+	
+	// Additionally store node-specific for tracking individual responses
+	if status != "Pending" {
 		database.Update([]byte("Stats"+seed+":"+name), []byte(jsonString))
 	}
 }
