@@ -169,38 +169,62 @@ jobs:
           const path = require('path');
           const { getBinaryPath } = require('./index');
           
-          if (require.main === module) {
-            const { spawn } = require('child_process');
-            try {
-              const binaryPath = getBinaryPath();
-              
-              // CRITICAL FIX: Make binary executable BEFORE trying to spawn it
+          // Check if we're running as part of npm postinstall
+          const isPostInstall = process.env.npm_lifecycle_event === 'postinstall';
+          
+          try {
+            const binaryPath = getBinaryPath();
+            
+            // During postinstall, just set permissions and exit
+            if (isPostInstall) {
               if (process.platform !== 'win32') {
                 try {
                   fs.chmodSync(binaryPath, 0o755);
-                } catch (chmodError) {
-                  console.error(`Warning: Could not set execute permissions: ${chmodError.message}`);
+                } catch (e) {
+                  // Permission setting failed, but don't fail the install
+                  console.error('Warning: Could not set executable permissions:', e.message);
                 }
               }
+              console.log(`ProofOfAccess binary installed: ${binaryPath}`);
+              process.exit(0);
+            }
+            
+            // When called as CLI tool, execute the binary
+            if (require.main === module) {
+              const { spawn } = require('child_process');
               
+              // Show usage if no arguments provided
+              if (process.argv.length === 2) {
+                console.log('ProofOfAccess CLI');
+                console.log('Usage: proofofaccess [options]');
+                console.log('Run with --help for more information');
+                process.exit(0);
+              }
+              
+              // Execute binary with provided arguments
               const proc = spawn(binaryPath, process.argv.slice(2), {
                 stdio: 'inherit'
-              });
-              
-              proc.on('error', (error) => {
-                if (error.code === 'EACCES') {
-                  console.error(`Error: Binary at ${binaryPath} is not executable.`);
-                  console.error('Try running: chmod +x ' + binaryPath);
-                } else {
-                  console.error('Error spawning process:', error.message);
-                }
-                process.exit(1);
               });
               
               proc.on('exit', (code) => {
                 process.exit(code || 0);
               });
-            } catch (error) {
+              
+              proc.on('error', (error) => {
+                console.error('Error executing binary:', error.message);
+                if (error.code === 'EACCES') {
+                  console.error('Permission denied. Try running: chmod +x', binaryPath);
+                }
+                process.exit(1);
+              });
+            }
+          } catch (error) {
+            // During install, don't fail; during CLI usage, report error
+            if (isPostInstall) {
+              console.error('Warning: Could not set up binary for your platform');
+              console.error(error.message);
+              process.exit(0);
+            } else {
               console.error('Error:', error.message);
               process.exit(1);
             }
